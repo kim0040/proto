@@ -261,6 +261,14 @@ public class ScheduleController {
         dispatch(l -> l.storageFailed(message));
     }
 
+    /**
+     * 저장 뒤에 새로 생긴 저장소 경고(서버에 올리지 못함 등)를 storageFailed로 한 번씩 알린다.
+     * 저장 전에도 있던 경고는 이미 알렸거나 알릴 것이므로 다시 알리지 않는다. 로컬 저장 성공은 되돌리지 않는다.
+     */
+    void reportNewWarnings(List<String> before, List<String> after) {
+        after.stream().distinct().filter(w -> !before.contains(w)).forEach(this::notifyStorageFailed);
+    }
+
     static String saveFailedMessage(IOException e) {
         return "저장하지 못했어요: " + (e.getMessage() == null ? e.toString() : e.getMessage());
     }
@@ -271,8 +279,10 @@ public class ScheduleController {
 
     /** 저장(F11)하고 화면에 알린다. 저장 실패는 알리되 메모리 변경은 그대로 둔다 */
     private void commit() {
+        List<String> before = List.copyOf(schedules.getWarnings());
         try {
             schedules.save();
+            reportNewWarnings(before, schedules.getWarnings());
         } catch (IOException e) {
             notifyStorageFailed(saveFailedMessage(e));
         }
