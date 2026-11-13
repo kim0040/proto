@@ -10,6 +10,7 @@ import proto.entity.RepeatRule;
 import proto.ui.UiContext;
 import proto.ui.component.Buttons;
 import proto.ui.component.DatePickerField;
+import proto.ui.component.Ime;
 import proto.ui.component.Segmented;
 import proto.ui.component.TimeCombo;
 import proto.ui.component.TokenLabel;
@@ -61,6 +62,8 @@ public class ScheduleDialog extends BaseDialog {
     private final JTextArea memo = new JTextArea(3, 20);
     private final TokenLabel counter = new TokenLabel("0/" + MEMO_MAX, Fonts.regular(Fonts.CAPTION), Tokens.MUTED);
     private boolean saved;
+    private boolean busy;
+    private JButton deleteButton;
 
     /** editing이 null이면 새 일정, 아니면 그 일정을 수정한다. draft는 처음 채울 값 */
     public ScheduleDialog(UiContext ctx, Occurrence editing, ScheduleDraft draft) {
@@ -69,13 +72,18 @@ public class ScheduleDialog extends BaseDialog {
         this.editing = editing;
         LocalDate today = ctx.schedules().today();
         date = new DatePickerField(draft.date(), today);
-        start = new TimeCombo(draft.startTime() == null ? LocalTime.of(9, 0) : draft.startTime());
-        end = new TimeCombo(draft.endTime() == null ? LocalTime.of(10, 0) : draft.endTime());
+        start = new TimeCombo(draft.startTime() == null ? LocalTime.of(9, 0) : draft.startTime()).named("시작 시간");
+        end = new TimeCombo(draft.endTime() == null ? LocalTime.of(10, 0) : draft.endTime()).named("끝 시간");
         category = FormKit.categoryCombo(ctx.categories().getCategories());
         repeatEnd = new DatePickerField(draft.repeatEndDate() == null ? draft.date().plusMonths(1) : draft.repeatEndDate(), today);
         fill(draft);
-        setBody(buildBody(), 28);
+        JPanel footer = buttons();
+        setBody(buildBody(), footer, 28);
         getRootPane().setDefaultButton(saveButton);
+        Ime.track(title);
+        Ime.track(memo);
+        start.onBlur(this::checkTimes);
+        end.onBlur(this::checkTimes);
         title.requestFocusInWindow();
     }
 
@@ -124,9 +132,8 @@ public class ScheduleDialog extends BaseDialog {
         form.add(row(FormKit.block("알림", reminder, new TokenLabel("", Fonts.regular(Fonts.SMALL), Tokens.DANGER))));
         form.add(row(memoBlock()));
         form.add(errors.label(Field.GENERAL));
-        JPanel root = new proto.ui.component.WidthPanel(new BorderLayout(0, Ui.px(16)), 520);
+        JPanel root = new proto.ui.component.WidthPanel(new BorderLayout(), 520);
         root.add(form, BorderLayout.CENTER);
-        root.add(buttons(), BorderLayout.SOUTH);
         return root;
     }
 
@@ -217,43 +224,72 @@ public class ScheduleDialog extends BaseDialog {
         JButton cancel = Buttons.secondary("취소");
         cancel.addActionListener(e -> onCancel());
         saveButton = Buttons.primary("저장");
-        saveButton.addActionListener(e -> onSave());
+        saveButton.addActionListener(e -> onSave(e.getModifiers() == 0));
         right.add(cancel);
         right.add(saveButton);
         p.add(right, BorderLayout.EAST);
         if (editing != null) {
-            JButton delete = Buttons.danger("삭제");
-            delete.addActionListener(e -> onDelete());
+            deleteButton = Buttons.danger("삭제");
+            deleteButton.addActionListener(e -> onDelete());
             JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
             left.setOpaque(false);
-            left.add(delete);
+            left.add(deleteButton);
             p.add(left, BorderLayout.WEST);
         }
         return p;
     }
 
     private void relayout() {
-        if (isDisplayable()) {
-            Dimension before = getSize();
-            pack();
-            if (!before.equals(getSize()) && isShowing()) {
-                repaint();
-            }
+        refit();
+    }
+
+    /** 저장·삭제가 진행되는 동안 버튼을 잠근다 (Enter를 연타해도 두 번 저장되지 않게) */
+    private void setBusy(boolean value) {
+        busy = value;
+        saveButton.setEnabled(!value);
+        if (deleteButton != null) {
+            deleteButton.setEnabled(!value);
         }
     }
 
     private void onDelete() {
-        if (ctx.actions().delete(editing)) {
-            close(false);
+        if (busy) {
+            return;
         }
+        Ime.commitFocused();
+        setBusy(true);
+        try {
+            if (ctx.actions().delete(editing)) {
+                close(false);
+            }
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    /** 시간 입력칸 둘을 검사해 읽을 수 없는 칸을 표시하고 안내 문장을 돌려준다 (문제 없으면 null) */
+    private String timeProblem(LocalTime s, LocalTime e) {
+        start.markInvalid(s == null);
+        end.markInvalid(e == null);
+        if (s != null && e != null) {
+            return null;
+        }
+        String which = s == null && e == null ? "시작과 끝 시간을" : s == null ? "시작 시간을" : "끝 시간을";
+        return which + " 14:00처럼 입력해 주세요";
+    }
+
+    /** 시간 칸에서 포커스가 빠질 때: 읽을 수 없으면 칸 아래에 바로 안내하고, 읽을 수 있으면 안내를 지운다 */
+    private void checkTimes() {
+        errors.put(Field.TIME, timeProblem(start.time(), end.time()));
     }
 
     /** 입력값을 읽는다. 시간을 읽을 수 없으면 오류를 보여 주고 null */
     private ScheduleDraft readDraft() {
         LocalTime s = start.time();
         LocalTime e = end.time();
-        if (s == null || e == null) {
-            errors.show(Field.TIME, "시간을 14:00처럼 입력해 주세요");
+        String problem = timeProblem(s, e);
+        if (problem != null) {
+            errors.show(Field.TIME, problem);
             return null;
         }
         Category c = (Category) category.getSelectedItem();
@@ -262,27 +298,54 @@ public class ScheduleDialog extends BaseDialog {
                 repeat.value(), until, (ReminderOption) reminder.getSelectedItem());
     }
 
-    private void onSave() {
+    /** 저장. 이미 진행 중이거나, 키보드(Enter)로 눌렀는데 한글 조합 중이면(그 Enter는 글자 확정용) 무시한다 */
+    private void onSave(boolean fromKeyboard) {
+        if (busy || (fromKeyboard && Ime.swallowIfComposing())) {
+            return;
+        }
+        Ime.commitFocused();
+        setBusy(true);
+        try {
+            save();
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    private void save() {
         errors.clear();
         ScheduleDraft draft = readDraft();
         if (draft == null) {
             return;
         }
+        Occurrence target = editing;
+        if (editing != null) {
+            Optional<Occurrence> latest = ctx.actions().fresh(editing);
+            if (latest.isEmpty()) {
+                close(false);
+                return;
+            }
+            target = latest.get();
+        }
         // 반복 일정이면 범위를 먼저 고른다. "이 일정만"은 반복이 떨어져 나가므로 그 규칙으로 검사해야 한다
-        Optional<EditScope> scope = chooseScope();
+        Optional<EditScope> scope = chooseScope(target);
         if (scope.isEmpty()) {
             return;
         }
-        List<String> problems = ctx.schedules().validate(draft, editing, scope.get());
+        List<String> problems = ctx.schedules().validate(draft, target, scope.get());
         if (!problems.isEmpty()) {
             errors.show(problems);
             return;
         }
-        if (!confirmConflicts(draft, scope.get())) {
+        if (!confirmConflicts(draft, target, scope.get())) {
             return;
         }
+        persist(draft, target, scope.get());
+    }
+
+    private void persist(ScheduleDraft draft, Occurrence target, EditScope scope) {
         OperationResult r = editing == null ? ctx.schedules().create(draft)
-                : ctx.schedules().update(editing, draft, scope.get());
+                : ctx.schedules().update(target, draft, scope);
         if (r.success()) {
             saved = true;
             ctx.actions().toast(editing == null ? "일정을 추가했어요" : "일정을 저장했어요");
@@ -293,15 +356,15 @@ public class ScheduleDialog extends BaseDialog {
     }
 
     /** 반복 일정 수정이면 범위를 묻고, 아니면 기본값을 돌려준다 */
-    private Optional<EditScope> chooseScope() {
-        if (editing != null && editing.isRepeating()) {
+    private Optional<EditScope> chooseScope(Occurrence target) {
+        if (target != null && target.isRepeating()) {
             return Dialogs.chooseScope(this, "반복 일정 수정", "수정", false);
         }
         return Optional.of(EditScope.THIS_AND_FOLLOWING);
     }
 
-    private boolean confirmConflicts(ScheduleDraft draft, EditScope scope) {
-        List<Occurrence> conflicts = ctx.schedules().findConflicts(draft, editing, scope);
+    private boolean confirmConflicts(ScheduleDraft draft, Occurrence target, EditScope scope) {
+        List<Occurrence> conflicts = ctx.schedules().findConflicts(draft, target, scope);
         return conflicts.isEmpty() || Dialogs.confirmConflicts(this, conflicts, ctx.categories()::nameOf);
     }
 }

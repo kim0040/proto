@@ -4,6 +4,7 @@ import proto.control.EditScope;
 import proto.entity.Occurrence;
 import proto.ui.Fmt;
 import proto.ui.component.CategoryDot;
+import proto.ui.component.TextUtil;
 import proto.ui.component.TokenLabel;
 import proto.ui.dialog.ConfirmDialog.Choice;
 import proto.ui.dialog.ConfirmDialog.Kind;
@@ -75,7 +76,7 @@ public final class Dialogs {
         row.setAlignmentX(0f);
         row.add(new CategoryDot(o.categoryId(), 8));
         row.add(new TokenLabel(Fmt.dateShort(o.date()) + "  " + Fmt.range(o), Fonts.medium(Fonts.SMALL), Tokens.MUTED));
-        row.add(new TokenLabel(shorten(o.title()), Fonts.medium(Fonts.BODY), Tokens.TEXT));
+        row.add(new TokenLabel(TextUtil.plain(shorten(o.title())), Fonts.medium(Fonts.BODY), Tokens.TEXT));
         return row;
     }
 
@@ -93,7 +94,12 @@ public final class Dialogs {
         return d.ask() == 1;
     }
 
-    private static String shorten(String s) {
-        return s.length() > 24 ? s.substring(0, 23) + "…" : s;
+    /** 긴 이름을 24글자(이모지는 한 글자로 셈)까지만 보여 준다 */
+    private static String shorten(String raw) {
+        String s = TextUtil.clean(raw);
+        if (s.codePointCount(0, s.length()) <= 24) {
+            return s;
+        }
+        return s.substring(0, s.offsetByCodePoints(0, 23)) + "…";
     }
 }

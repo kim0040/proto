@@ -53,8 +53,8 @@ public class FreeSlotDialog extends BaseDialog {
     private final Segmented<Length> length = new Segmented<>(List.of(Length.values()), l -> l.label);
     private final JSpinner custom = new JSpinner(new SpinnerNumberModel(45, 15, 480, 15));
     private final JPanel customRow = new JPanel(new FlowLayout(FlowLayout.LEFT, Ui.px(8), 0));
-    private final TimeCombo from = new TimeCombo(proto.ui.UiSettings.freeFrom());
-    private final TimeCombo to = new TimeCombo(proto.ui.UiSettings.freeTo());
+    private final TimeCombo from = new TimeCombo(proto.ui.UiSettings.freeFrom()).named("찾을 시간대 시작");
+    private final TimeCombo to = new TimeCombo(proto.ui.UiSettings.freeTo()).named("찾을 시간대 끝");
     private final ScrollPanel results = new ScrollPanel(null);
     private TimeSlot chosen;
 
@@ -64,7 +64,12 @@ public class FreeSlotDialog extends BaseDialog {
         date = new DatePickerField(ctx.schedules().today(), ctx.schedules().today());
         results.setLayout(new BoxLayout(results, BoxLayout.Y_AXIS));
         length.setValue(Length.H1, false);
-        setBody(buildBody(), 28);
+        JButton close = Buttons.secondary("닫기");
+        close.addActionListener(e -> onCancel());
+        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        south.setOpaque(false);
+        south.add(close);
+        setBody(buildBody(), south, 28);
         search();
     }
 
@@ -77,12 +82,6 @@ public class FreeSlotDialog extends BaseDialog {
         JPanel root = new proto.ui.component.WidthPanel(new BorderLayout(0, Ui.px(16)), 520);
         root.add(new TokenLabel("빈 시간 찾기", Fonts.semibold(Fonts.TITLE), Tokens.TEXT), BorderLayout.NORTH);
         root.add(content(), BorderLayout.CENTER);
-        JButton close = Buttons.secondary("닫기");
-        close.addActionListener(e -> onCancel());
-        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        south.setOpaque(false);
-        south.add(close);
-        root.add(south, BorderLayout.SOUTH);
         return root;
     }
 

@@ -6,7 +6,9 @@ import proto.entity.Category;
 import proto.ui.UiContext;
 import proto.ui.component.Buttons;
 import proto.ui.component.CategoryDot;
+import proto.ui.component.Ime;
 import proto.ui.component.ScrollPanel;
+import proto.ui.component.TextUtil;
 import proto.ui.component.TokenLabel;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
@@ -83,6 +85,7 @@ public class CategoryDialog extends BaseDialog implements CategoryListener {
         JButton add = Buttons.secondary("추가");
         add.addActionListener(e -> onAdd());
         addField.addActionListener(e -> onAdd());
+        Ime.track(addField);
         JPanel p = new JPanel(new BorderLayout(Ui.px(8), 0));
         p.setOpaque(false);
         p.add(addField, BorderLayout.CENTER);
@@ -102,6 +105,7 @@ public class CategoryDialog extends BaseDialog implements CategoryListener {
     }
 
     private void onAdd() {
+        Ime.commit(addField);
         String name = addField.getText();
         if (name.isBlank()) {
             return;
@@ -117,9 +121,9 @@ public class CategoryDialog extends BaseDialog implements CategoryListener {
     }
 
     private void showError(String message) {
-        error.setText(message == null ? "" : message);
+        error.setText(message == null ? "" : TextUtil.plain(message));
         error.setVisible(message != null);
-        revalidate();
+        refit();
     }
 
     @Override
@@ -136,9 +140,7 @@ public class CategoryDialog extends BaseDialog implements CategoryListener {
         scroll.setPreferredSize(new Dimension(Ui.px(420), height));
         rows.revalidate();
         rows.repaint();
-        if (isDisplayable()) {
-            pack();
-        }
+        refit();
     }
 
     private JPanel row(Category c) {
@@ -161,6 +163,8 @@ public class CategoryDialog extends BaseDialog implements CategoryListener {
         f.setFont(Fonts.regular(Fonts.BODY));
         f.putClientProperty(FlatClientProperties.STYLE, "arc:8; margin:6,8,6,8; borderColor:$proto.surface;"
                 + " background:$proto.surface; focusedBorderColor:$proto.accent");
+        Ime.track(f);
+        f.getAccessibleContext().setAccessibleName(c.getName() + " 이름");
         f.addActionListener(e -> commitRename(c, f));
         f.addFocusListener(new FocusAdapter() {
             @Override
@@ -172,6 +176,7 @@ public class CategoryDialog extends BaseDialog implements CategoryListener {
     }
 
     private void commitRename(Category c, JTextField field) {
+        Ime.commit(field);
         String text = field.getText().strip();
         if (text.equals(c.getName())) {
             return;

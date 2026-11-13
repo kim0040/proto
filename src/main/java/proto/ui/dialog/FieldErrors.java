@@ -59,6 +59,14 @@ final class FieldErrors {
         relayout.run();
     }
 
+    /** 다른 칸의 오류는 그대로 두고 이 칸의 오류만 바꾼다 */
+    void put(Field f, String message) {
+        TokenLabel l = labels.get(f);
+        l.setText(message == null ? "" : message);
+        l.setVisible(message != null);
+        relayout.run();
+    }
+
     /** 오류 하나를 해당 칸에 바로 보여 준다 */
     void show(Field f, String message) {
         clear();

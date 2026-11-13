@@ -33,10 +33,9 @@ public class ConfirmDialog extends BaseDialog {
     public ConfirmDialog(Window owner, String title, String message, String detail, JComponent extra,
                          List<Choice> choices) {
         super(owner, title);
-        JPanel body = new proto.ui.component.WidthPanel(new BorderLayout(0, Ui.px(16)), 400);
+        JPanel body = new proto.ui.component.WidthPanel(new BorderLayout(), 400);
         body.add(texts(message, detail, extra), BorderLayout.CENTER);
-        body.add(buttons(choices), BorderLayout.SOUTH);
-        setBody(body, 24);
+        setBody(body, buttons(choices), 24);
     }
 
     /** 대화상자를 열고 누른 버튼의 번호를 돌려준다. Esc나 닫기는 -1 */
