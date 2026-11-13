@@ -1,0 +1,70 @@
+package proto.logic;
+
+import proto.entity.RepeatRule;
+import proto.entity.Schedule;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * [논리 application logic] 일정 입력값이 F1 규칙을 지키는지 검사하고,
+ * 어긴 이유를 한국어 문장 목록으로 돌려준다. 화면·저장소 없이 단독으로 쓸 수 있다.
+ */
+public final class ScheduleValidator {
+
+    public static final int MAX_TITLE_LENGTH = 50;
+    public static final int MAX_MEMO_LENGTH = 200;
+
+    private ScheduleValidator() {
+    }
+
+    /** 문제가 없으면 빈 목록, 있으면 사용자에게 보여 줄 이유들 */
+    public static List<String> validate(Schedule s) {
+        List<String> errors = new ArrayList<>();
+        checkTitle(s, errors);
+        checkDateAndTimes(s, errors);
+        if (s.getCategoryId() == null || s.getCategoryId().isBlank()) {
+            errors.add("카테고리를 선택해 주세요");
+        }
+        if (s.getMemo().length() > MAX_MEMO_LENGTH) {
+            errors.add("메모는 " + MAX_MEMO_LENGTH + "자까지 쓸 수 있어요");
+        }
+        checkRepeatEnd(s, errors);
+        return errors;
+    }
+
+    private static void checkTitle(Schedule s, List<String> errors) {
+        String title = s.getTitle() == null ? "" : s.getTitle().trim();
+        if (title.isEmpty()) {
+            errors.add("제목을 입력해 주세요");
+        } else if (title.length() > MAX_TITLE_LENGTH) {
+            errors.add("제목은 " + MAX_TITLE_LENGTH + "자까지 쓸 수 있어요");
+        }
+    }
+
+    private static void checkDateAndTimes(Schedule s, List<String> errors) {
+        if (s.getDate() == null) {
+            errors.add("날짜를 입력해 주세요");
+        }
+        if (s.getStartTime() == null) {
+            errors.add("시작 시간을 입력해 주세요");
+        }
+        if (s.getEndTime() == null) {
+            errors.add("끝 시간을 입력해 주세요");
+        }
+        if (s.getStartTime() != null && s.getEndTime() != null
+                && !s.getEndTime().isAfter(s.getStartTime())) {
+            errors.add("끝 시간은 시작 시간보다 늦어야 해요");
+        }
+    }
+
+    /** 반복 종료일은 반복이 있을 때만 의미가 있다 */
+    private static void checkRepeatEnd(Schedule s, List<String> errors) {
+        if (s.getRepeatRule() == RepeatRule.NONE || s.getRepeatEndDate() == null || s.getDate() == null) {
+            return;
+        }
+        if (s.getRepeatEndDate().isBefore(s.getDate())) {
+            errors.add("반복 종료일은 시작 날짜보다 빠를 수 없어요");
+        }
+    }
+}
