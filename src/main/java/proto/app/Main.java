@@ -11,7 +11,7 @@ import proto.ui.UiLauncher;
 import javax.swing.SwingUtilities;
 import java.nio.file.Path;
 import java.time.Clock;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * [애플리케이션 시작점] 저장소·controller·타이머를 만들어 연결하고 화면(UiLauncher)을 띄운다.
@@ -29,7 +29,7 @@ public final class Main {
         ScheduleRepository scheduleRepository = new ScheduleRepository(DATA_DIR.resolve("schedules.csv"));
         CategoryRepository categoryRepository = new CategoryRepository(DATA_DIR.resolve("categories.csv"));
         categoryRepository.loadOrSeed();
-        scheduleRepository.loadOrSeed(LocalDate.now(clock));
+        scheduleRepository.loadOrSeed(LocalDateTime.now(clock));
 
         ScheduleController schedules = new ScheduleController(scheduleRepository, categoryRepository, clock);
         CategoryController categories = new CategoryController(categoryRepository, scheduleRepository, schedules);
