@@ -268,13 +268,17 @@ public class ScheduleDialog extends BaseDialog {
         if (draft == null) {
             return;
         }
-        List<String> problems = ctx.schedules().validate(draft);
+        // 반복 일정이면 범위를 먼저 고른다. "이 일정만"은 반복이 떨어져 나가므로 그 규칙으로 검사해야 한다
+        Optional<EditScope> scope = chooseScope();
+        if (scope.isEmpty()) {
+            return;
+        }
+        List<String> problems = ctx.schedules().validate(draft, editing, scope.get());
         if (!problems.isEmpty()) {
             errors.show(problems);
             return;
         }
-        Optional<EditScope> scope = chooseScope();
-        if (scope.isEmpty() || !confirmConflicts(draft, scope.get())) {
+        if (!confirmConflicts(draft, scope.get())) {
             return;
         }
         OperationResult r = editing == null ? ctx.schedules().create(draft)

@@ -28,7 +28,7 @@ tasks.withType(JavaCompile).configureEach {
 
 application {
     mainClass = 'proto.app.Main'
-    applicationDefaultJvmArgs = ['-Dfile.encoding=UTF-8', '-Dsun.java2d.uiScale.enabled=true']
+    applicationDefaultJvmArgs = ['-Dfile.encoding=UTF-8', '-Dsun.java2d.uiScale.enabled=true', '--enable-native-access=ALL-UNNAMED']
 }
 
 // data/ 폴더가 프로젝트 루트에 생기도록 실행 위치 고정
@@ -53,5 +53,5 @@ tasks.register('screenshots', JavaExec) {
     mainClass = 'proto.ui.dev.ScreenshotMain'
     workingDir = rootProject.projectDir
     args = [layout.projectDirectory.dir('screenshots').asFile.path]
-    jvmArgs '-Dfile.encoding=UTF-8', '-Dapple.awt.application.appearance=system'
+    jvmArgs '-Dfile.encoding=UTF-8', '-Dapple.awt.application.appearance=system', '--enable-native-access=ALL-UNNAMED'
 }
