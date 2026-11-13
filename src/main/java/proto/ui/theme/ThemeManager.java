@@ -20,6 +20,9 @@ public final class ThemeManager {
     private static final String PREF_KEY = "theme";
     private static final Preferences PREFS = Preferences.userNodeForPackage(ThemeManager.class);
 
+    /** 사용자가 고르는 테마 방식. 시스템이면 OS 설정을 따른다 */
+    public enum Choice { SYSTEM, LIGHT, DARK }
+
     private static boolean dark;
 
     private ThemeManager() {
@@ -62,6 +65,22 @@ public final class ThemeManager {
         if (persist) {
             PREFS.put(PREF_KEY, toDark ? "dark" : "light");
         }
+    }
+
+    /** 저장된 테마 방식 (처음에는 시스템) */
+    public static Choice choice() {
+        try {
+            return Choice.valueOf(PREFS.get(PREF_KEY, "system").toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return Choice.SYSTEM;
+        }
+    }
+
+    /** 테마 방식을 저장하고 바로 적용한다 (시스템이면 지금 OS 설정을 따른다) */
+    public static void setChoice(Choice choice) {
+        PREFS.put(PREF_KEY, choice.name().toLowerCase());
+        boolean wantDark = choice == Choice.SYSTEM ? systemPrefersDark() : choice == Choice.DARK;
+        apply(wantDark, true, false);
     }
 
     public static void toggle() {

@@ -12,10 +12,12 @@ import proto.ui.component.ReminderCard;
 import proto.ui.component.TokenPanel;
 import proto.ui.component.TransitionHost;
 import proto.ui.component.TransitionHost.Dir;
+import proto.ui.theme.AppIcon;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 import proto.ui.view.ContentView;
 import proto.ui.view.MonthView;
+import proto.ui.view.SettingsView;
 import proto.ui.view.StatsView;
 import proto.ui.view.TodayView;
 import proto.ui.view.WeekView;
@@ -61,12 +63,13 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         views.put(Mode.WEEK, new WeekView(ctx));
         views.put(Mode.MONTH, new MonthView(ctx));
         views.put(Mode.STATS, new StatsView(ctx));
+        views.put(Mode.SETTINGS, new SettingsView(ctx));
         sidebar = new Sidebar(ctx, this::navigate, this::selectCategory);
         header = new HeaderBar(() -> shift(-1), this::goToday, () -> shift(1), this::search);
         configureWindow();
         buildLayout();
         installShortcuts();
-        switchTo(Mode.TODAY, false);
+        switchTo(UiSettings.startMode(), false);
         javax.swing.UIManager.addPropertyChangeListener(e -> {
             if ("lookAndFeel".equals(e.getPropertyName())) {
                 refreshHiddenViews();
@@ -85,6 +88,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         setMinimumSize(new Dimension(Ui.px(960), Ui.px(640)));
         setSize(new Dimension(Ui.px(1200), Ui.px(780)));
         setLocationRelativeTo(null);
+        AppIcon.apply(this);
         if (Ui.isMac()) {
             getRootPane().putClientProperty("apple.awt.fullWindowContent", true);
             getRootPane().putClientProperty("apple.awt.transparentTitleBar", true);
@@ -142,6 +146,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
     private void updateHeader() {
         header.setTitles(current.title(), current.subtitle());
         header.setNavigatorVisible(current.hasNavigator());
+        header.setSearchVisible(current.hasSearch());
         header.setSearchEnabled(current.usesFilters());
     }
 
@@ -198,6 +203,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         bind(KeyEvent.VK_2, mask, () -> navigate(Mode.WEEK));
         bind(KeyEvent.VK_3, mask, () -> navigate(Mode.MONTH));
         bind(KeyEvent.VK_4, mask, () -> navigate(Mode.STATS));
+        bind(KeyEvent.VK_COMMA, mask, () -> navigate(Mode.SETTINGS));
     }
 
     private void bind(int key, int modifiers, Runnable action) {
@@ -270,7 +276,9 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
     /** 창이 가려져 있어도 알림을 알아보도록 독 아이콘/작업 표시줄에 주의를 끌고 창을 앞으로 가져온다 */
     private void drawAttention() {
         try {
-            Toolkit.getDefaultToolkit().beep();
+            if (UiSettings.reminderSound()) {
+                Toolkit.getDefaultToolkit().beep();
+            }
             if (Taskbar.isTaskbarSupported() && Taskbar.getTaskbar().isSupported(Taskbar.Feature.USER_ATTENTION)) {
                 Taskbar.getTaskbar().requestUserAttention(true, false);
             }

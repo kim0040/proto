@@ -22,6 +22,11 @@ public interface ContentView {
     /** 검색·카테고리 필터가 적용되는 보기인지 */
     boolean usesFilters();
 
+    /** 위쪽 줄에 검색창을 보여 줄지 (설정 보기는 숨긴다) */
+    default boolean hasSearch() {
+        return true;
+    }
+
     /** controller에서 다시 읽어 화면을 맞춘다. animate가 true면 바뀐 부분만 부드럽게 바뀐다 */
     void refresh(boolean animate);
 

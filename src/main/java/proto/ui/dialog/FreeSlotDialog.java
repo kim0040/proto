@@ -53,8 +53,8 @@ public class FreeSlotDialog extends BaseDialog {
     private final Segmented<Length> length = new Segmented<>(List.of(Length.values()), l -> l.label);
     private final JSpinner custom = new JSpinner(new SpinnerNumberModel(45, 15, 480, 15));
     private final JPanel customRow = new JPanel(new FlowLayout(FlowLayout.LEFT, Ui.px(8), 0));
-    private final TimeCombo from = new TimeCombo(LocalTime.of(9, 0));
-    private final TimeCombo to = new TimeCombo(LocalTime.of(22, 0));
+    private final TimeCombo from = new TimeCombo(proto.ui.UiSettings.freeFrom());
+    private final TimeCombo to = new TimeCombo(proto.ui.UiSettings.freeTo());
     private final ScrollPanel results = new ScrollPanel(null);
     private TimeSlot chosen;
 

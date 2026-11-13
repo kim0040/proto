@@ -62,6 +62,7 @@ public final class ScreenshotTool {
             run(() -> ThemeManager.apply(dark, false, false));
             captureMain(frame, outDir, theme, 1200, 780, "");
             captureMain(frame, outDir, theme, 960, 640, "-960");
+            captureSettingsBottom(frame, outDir, theme);
             captureDialogs(frame, outDir, theme);
             captureOverlays(frame, outDir, theme);
         }
@@ -76,6 +77,21 @@ public final class ScreenshotTool {
             run(() -> { });
             save(frame.getRootPane(), out.resolve(theme + "-" + mode.name().toLowerCase() + suffix + ".png"));
         }
+        run(() -> frame.showMode(Mode.TODAY));
+    }
+
+    /** 설정 보기는 길어서 맨 아래(데이터·정보)로 스크롤한 장면을 한 장 더 찍는다 */
+    private static void captureSettingsBottom(MainFrame frame, Path out, String theme)
+            throws InterruptedException, InvocationTargetException, IOException {
+        run(() -> frame.setSize(1200, 780));
+        run(() -> frame.showMode(Mode.SETTINGS));
+        run(() -> {
+            javax.swing.JScrollBar bar = ((javax.swing.JScrollPane) frame.currentView().component())
+                    .getVerticalScrollBar();
+            bar.setValue(bar.getMaximum());
+        });
+        run(() -> { });
+        save(frame.getRootPane(), out.resolve(theme + "-settings-bottom.png"));
         run(() -> frame.showMode(Mode.TODAY));
     }
 

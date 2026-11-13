@@ -7,10 +7,9 @@ import proto.ui.component.PillList;
 import proto.ui.component.ScrollPanel;
 import proto.ui.component.TokenLabel;
 import proto.ui.component.TokenPanel;
-import proto.ui.motion.Motion;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.Icons;
-import proto.ui.theme.ThemeManager;
+import proto.ui.theme.AppIcon;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
@@ -25,7 +24,7 @@ import java.awt.Dimension;
 import java.util.function.Consumer;
 
 /**
- * [경계 boundary] 왼쪽 사이드바: 앱 이름, 새 일정, 보기 이동, 빈 시간 찾기, 카테고리 필터, 테마·애니메이션 설정.
+ * [경계 boundary] 왼쪽 사이드바: 앱 이름, 새 일정, 보기 이동, 빈 시간 찾기, 카테고리 필터, 설정 이동.
  * 선택된 항목은 옆 막대 대신 둥근 알약이 미끄러지며 표시한다.
  */
 public final class Sidebar extends TokenPanel {
@@ -38,6 +37,7 @@ public final class Sidebar extends TokenPanel {
     private final PillList nav = new PillList();
     private final PillList categories = new PillList();
     private final PillList settings = new PillList();
+    private static final String NONE = "";
 
     public Sidebar(UiContext ctx, Consumer<Mode> onNav, Consumer<String> onCategory) {
         super(new BorderLayout(), Tokens.SIDEBAR);
@@ -51,8 +51,7 @@ public final class Sidebar extends TokenPanel {
         add(bottom(), BorderLayout.SOUTH);
         buildNav();
         refreshCategories();
-        rebuildSettings();
-        Motion.onToggle(this::rebuildSettings);
+        buildSettings();
     }
 
     private JPanel top() {
@@ -61,6 +60,8 @@ public final class Sidebar extends TokenPanel {
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
         TokenLabel brand = new TokenLabel("일정 관리", Fonts.bold(Fonts.TITLE), Tokens.TEXT);
         brand.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(8), Ui.px(18), 0));
+        brand.setIcon(AppIcon.icon(26));
+        brand.setIconTextGap(Ui.px(10));
         brand.setAlignmentX(0f);
         JButton add = Buttons.primary("새 일정");
         add.setIcon(Icons.of("plus", 16, Tokens.ON_ACCENT));
@@ -135,22 +136,16 @@ public final class Sidebar extends TokenPanel {
         categories.repaint();
     }
 
-    private void rebuildSettings() {
-        settings.clear();
-        boolean dark = ThemeManager.isDark();
-        settings.addItem("theme", dark ? "sun" : "moon", null, dark ? "밝은 테마" : "어두운 테마", () -> {
-            ThemeManager.toggle();
-            rebuildSettings();
-        });
-        settings.addItem("anim", "zap", null, Motion.enabled() ? "애니메이션 켜짐" : "애니메이션 꺼짐",
-                () -> Motion.setEnabled(!Motion.enabled()));
-        settings.revalidate();
-        settings.repaint();
+    private void buildSettings() {
+        settings.addItem(Mode.SETTINGS.name(), "settings", null, "설정", () -> onNav.accept(Mode.SETTINGS));
+        settings.setSelected(NONE, false);
     }
 
     /** 보기 선택 표시를 맞춘다 */
     public void setMode(Mode mode, boolean animate) {
-        nav.setSelected(mode.name(), animate);
+        boolean inSettings = mode == Mode.SETTINGS;
+        nav.setSelected(inSettings ? NONE : mode.name(), animate);
+        settings.setSelected(inSettings ? mode.name() : NONE, animate);
     }
 
     /** 카테고리 선택 표시를 맞춘다 */

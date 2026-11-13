@@ -101,6 +101,11 @@ public final class HeaderBar extends JPanel {
         search.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, enabled ? "제목이나 메모 검색" : "통계에는 검색이 적용되지 않아요");
     }
 
+    /** 검색창 자체를 보이거나 숨긴다 */
+    public void setSearchVisible(boolean visible) {
+        search.setVisible(visible);
+    }
+
     public void focusSearch() {
         search.requestFocusInWindow();
         search.selectAll();

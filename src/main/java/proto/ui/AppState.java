@@ -7,8 +7,8 @@ import java.time.LocalDate;
  */
 public final class AppState {
 
-    /** 메인 보기 4가지 */
-    public enum Mode { TODAY, WEEK, MONTH, STATS }
+    /** 메인 보기 (설정 포함 5가지) */
+    public enum Mode { TODAY, WEEK, MONTH, STATS, SETTINGS }
 
     private Mode mode = Mode.TODAY;
     private LocalDate anchor;
