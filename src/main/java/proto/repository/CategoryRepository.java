@@ -21,9 +21,6 @@ import java.util.Optional;
  */
 public class CategoryRepository implements CategoryStore {
 
-    /** 카테고리 이름 최대 글자 수 (앞뒤 공백 제외) */
-    public static final int MAX_NAME_LENGTH = 20;
-
     /** 파일에 "개인" 행이 없을 때 덧붙이는 이름. 이 이름과 같은 다른 행은 건너뛴다 */
     private static final String DEFAULT_PERSONAL_NAME = "개인";
 
@@ -150,7 +147,7 @@ public class CategoryRepository implements CategoryStore {
         if (row.size() != 2 || !Category.PERSONAL_ID.equals(row.get(0)) || row.get(1).isBlank()) {
             return false;
         }
-        return row.get(1).trim().length() <= MAX_NAME_LENGTH;
+        return row.get(1).trim().length() <= Category.MAX_NAME_LENGTH;
     }
 
     private static void loadRow(List<String> row, int lineNo, List<Category> loaded, LoadProblems problems,
@@ -175,8 +172,8 @@ public class CategoryRepository implements CategoryStore {
             return "id와 이름 두 칸이 필요해요";
         }
         String name = row.get(1).trim().toLowerCase(Locale.ROOT);
-        if (name.length() > MAX_NAME_LENGTH) {
-            return "이름이 " + MAX_NAME_LENGTH + "자를 넘어요";
+        if (name.length() > Category.MAX_NAME_LENGTH) {
+            return "이름이 " + Category.MAX_NAME_LENGTH + "자를 넘어요";
         }
         if (loaded.stream().anyMatch(c -> c.getId().equals(row.get(0)))) {
             return "id가 겹쳐요";

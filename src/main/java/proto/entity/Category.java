@@ -11,6 +11,9 @@ public class Category {
     /** 삭제할 수 없는 기본 카테고리 "개인"의 고정 id */
     public static final String PERSONAL_ID = "personal";
 
+    /** 카테고리 이름의 최대 길이 (앞뒤 공백 제외) */
+    public static final int MAX_NAME_LENGTH = 20;
+
     private final String id;
     private String name;
 

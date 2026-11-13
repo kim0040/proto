@@ -1,7 +1,6 @@
 package proto.server;
 
 import proto.entity.Category;
-import proto.repository.CategoryRepository;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -62,8 +61,8 @@ public final class CategoryJsonMapper {
         if (id.isBlank()) {
             throw new IllegalArgumentException("id 값이 비어 있어요");
         }
-        if (name.isEmpty() || name.length() > CategoryRepository.MAX_NAME_LENGTH) {
-            throw new IllegalArgumentException("이름은 1~" + CategoryRepository.MAX_NAME_LENGTH + "자여야 해요");
+        if (name.isEmpty() || name.length() > Category.MAX_NAME_LENGTH) {
+            throw new IllegalArgumentException("이름은 1~" + Category.MAX_NAME_LENGTH + "자여야 해요");
         }
         return new Category(id, name);
     }

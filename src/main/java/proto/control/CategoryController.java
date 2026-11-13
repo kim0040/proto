@@ -2,7 +2,6 @@ package proto.control;
 
 import proto.entity.Category;
 import proto.entity.Schedule;
-import proto.repository.CategoryRepository;
 import proto.repository.CategoryStore;
 import proto.repository.ScheduleStore;
 
@@ -13,6 +12,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 
 /**
  * [제어 control] 카테고리 추가·이름 변경·삭제를 처리한다 (F7).
@@ -22,7 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class CategoryController {
 
-    private static final int MAX_NAME_LENGTH = CategoryRepository.MAX_NAME_LENGTH;
+    private static final int MAX_NAME_LENGTH = Category.MAX_NAME_LENGTH;
     private static final String PERSONAL_NAME = "개인";
 
     private final CategoryStore categories;
@@ -110,12 +110,12 @@ public class CategoryController {
             return OperationResult.fail("없는 카테고리예요");
         }
         List<Schedule> moved = moveSchedules(categoryId, Category.PERSONAL_ID);
-        if (!trySave(schedules::save)) {
+        if (!trySave(schedules::save, schedules::getWarnings)) {
             moved.forEach(s -> s.setCategoryId(categoryId));
             return OperationResult.fail("저장하지 못해서 카테고리를 지우지 않았어요");
         }
         categories.remove(category.get());
-        trySave(categories::save);
+        trySave(categories::save, categories::getWarnings);
         scheduleController.notifySchedulesChanged();
         notifyCategoriesChanged();
         return OperationResult.ok();
@@ -137,7 +137,7 @@ public class CategoryController {
     }
 
     private void saveCategoriesAndNotify() {
-        trySave(categories::save);
+        trySave(categories::save, categories::getWarnings);
         notifyCategoriesChanged();
     }
 
@@ -153,15 +153,20 @@ public class CategoryController {
         return moved;
     }
 
-    /** 파일 저장. 실패하면 storageFailed로 알리고 false */
-    private boolean trySave(FileSave save) {
+    /**
+     * 파일 저장. 실패하면 storageFailed로 알리고 false.
+     * 저장이 끝난 뒤 저장소에 새로 생긴 경고(서버에 올리지 못함 등)도 한 번씩 알린다.
+     */
+    private boolean trySave(FileSave save, Supplier<List<String>> warnings) {
+        List<String> before = List.copyOf(warnings.get());
         try {
             save.run();
-            return true;
         } catch (IOException e) {
             scheduleController.notifyStorageFailed(ScheduleController.saveFailedMessage(e));
             return false;
         }
+        scheduleController.reportNewWarnings(before, warnings.get());
+        return true;
     }
 
     /** IOException을 던질 수 있는 저장 동작 */

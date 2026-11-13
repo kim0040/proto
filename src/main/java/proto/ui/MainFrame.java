@@ -179,6 +179,11 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
 
     /** 창 위치·크기 저장, 닫기, 다시 앞으로 왔을 때 날짜 확인 */
     private void installWindowListeners() {
+        installBoundsListener();
+        installFocusAndCloseListener();
+    }
+
+    private void installBoundsListener() {
         addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
@@ -190,6 +195,9 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
                 boundsChanged();
             }
         });
+    }
+
+    private void installFocusAndCloseListener() {
         WindowAdapter listener = new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
