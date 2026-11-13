@@ -1,14 +1,17 @@
 package proto.ui.component;
 
 import proto.ui.motion.Tween;
+import proto.ui.theme.Glyphs;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
 import javax.swing.JComponent;
+import javax.swing.ToolTipManager;
 import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.event.MouseEvent;
 
 /**
  * [경계 boundary] 한 줄 제목 라벨. 완료되면 글자색이 흐려지며 취소선이 그어진다 (애니메이션 포함).
@@ -22,9 +25,11 @@ public class StrikeLabel extends JComponent {
     public StrikeLabel(java.awt.Font font) {
         setFont(font);
         setOpaque(false);
+        ToolTipManager.sharedInstance().registerComponent(this);
     }
 
-    public void setText(String value) {
+    public void setText(String rawValue) {
+        String value = TextUtil.clean(rawValue);
         if (!value.equals(text)) {
             text = value;
             revalidate();
@@ -54,7 +59,14 @@ public class StrikeLabel extends JComponent {
     @Override
     public Dimension getPreferredSize() {
         FontMetrics fm = getFontMetrics(getFont());
-        return new Dimension(fm.stringWidth(text), fm.getHeight());
+        return new Dimension(Glyphs.width(fm, text), fm.getHeight());
+    }
+
+    /** 잘려서 "…"로 보일 때만 전체 글을 툴팁으로 보여 준다 */
+    @Override
+    public String getToolTipText(MouseEvent e) {
+        boolean clipped = getWidth() > 0 && Glyphs.width(getFontMetrics(getFont()), text) > getWidth();
+        return clipped ? TextUtil.tip(text) : null;
     }
 
     @Override
@@ -71,9 +83,9 @@ public class StrikeLabel extends JComponent {
         String shown = TextUtil.ellipsize(text, fm, getWidth());
         g2.setColor(Tokens.blend(Tokens.get(colorToken), Tokens.get(Tokens.MUTED), done.value()));
         int baseline = (getHeight() - fm.getHeight()) / 2 + fm.getAscent();
-        g2.drawString(shown, 0, baseline);
+        Glyphs.draw(g2, shown, 0, baseline);
         if (done.value() > 0.01f) {
-            int w = Math.round(fm.stringWidth(shown) * done.value());
+            int w = Math.round(Glyphs.width(fm, shown) * done.value());
             int y = baseline - fm.getAscent() / 3;
             g2.fillRect(0, y, w, Math.max(1, Ui.px(1)));
         }

@@ -16,6 +16,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import java.awt.BasicStroke;
+import java.awt.BorderLayout;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -49,6 +50,8 @@ public class OccurrenceRow extends JPanel {
     private final JLabel repeatIcon = new JLabel(Icons.of("repeat", 14, Tokens.FAINT));
     private final JLabel bellIcon = new JLabel(Icons.of("bell", 14, Tokens.FAINT));
     private final Tween hover = new Tween(0f, this::repaint);
+    private final JPanel chip = new Chip();
+    private boolean hideCategory;
 
     public OccurrenceRow(RowHandler handler, boolean compact) {
         super(new GridBagLayout());
@@ -80,7 +83,7 @@ public class OccurrenceRow extends JPanel {
         check.setChecked(o.completed(), animate);
         pill.setState(state, animate);
         dot.setCategoryId(o.categoryId());
-        category.setText(handler.categoryName(o.categoryId()));
+        category.setText(TextUtil.plain(handler.categoryName(o.categoryId())));
         repeatIcon.setVisible(o.isRepeating());
         bellIcon.setVisible(o.reminder() != ReminderOption.NONE);
         time.setColorToken(o.completed() ? Tokens.FAINT : Tokens.MUTED);
@@ -96,41 +99,68 @@ public class OccurrenceRow extends JPanel {
         }
     }
 
+    /** 오늘 목록의 넓은 줄: 시간·체크·제목(+메모)·카테고리·상태·아이콘. 줄어들 때는 제목 칸만 줄고 나머지는 크기를 지킨다 */
     private void buildWide() {
         time.setPreferredSize(new Dimension(Ui.px(116), Ui.px(20)));
+        time.setMinimumSize(time.getPreferredSize());
         JPanel texts = textColumn(title, memo);
         add(time, cell(0, 0, 0, new Insets(0, 4, 0, 4)));
         add(check, cell(1, 0, 0, new Insets(0, 4, 0, 12)));
         add(texts, cell(2, 1, 1, new Insets(0, 0, 0, 12)));
-        JPanel cat = categoryChip();
-        cat.setPreferredSize(new Dimension(Ui.px(112), Ui.px(20)));
-        add(cat, cell(3, 0, 0, new Insets(0, 0, 0, 12)));
+        add(chip, cell(3, 0, 0, new Insets(0, 0, 0, 12)));
         add(pill, cell(4, 0, 0, new Insets(0, 0, 0, 12)));
         JPanel icons = new JPanel(new FlowLayout(FlowLayout.RIGHT, Ui.px(4), 0));
         icons.setOpaque(false);
         icons.add(repeatIcon);
         icons.add(bellIcon);
         icons.setPreferredSize(new Dimension(Ui.px(40), Ui.px(20)));
+        icons.setMinimumSize(icons.getPreferredSize());
         add(icons, cell(5, 0, 0, new Insets(0, 0, 0, 8)));
     }
 
+    /** 달력 옆 목록의 두 줄 모양: 체크 + (제목 / 시간·카테고리) + 상태 */
     private void buildCompact() {
-        JPanel meta = new JPanel(new FlowLayout(FlowLayout.LEFT, Ui.px(6), 0));
+        JPanel meta = new JPanel(new BorderLayout(Ui.px(8), 0));
         meta.setOpaque(false);
-        meta.add(metaTime);
-        meta.add(categoryChip());
+        meta.add(metaTime, BorderLayout.WEST);
+        meta.add(chip, BorderLayout.CENTER);
         JPanel texts = textColumn(title, meta);
         add(check, cell(0, 0, 0, new Insets(0, 8, 0, 12)));
         add(texts, cell(1, 1, 1, new Insets(0, 0, 0, 8)));
         add(pill, cell(2, 0, 0, new Insets(0, 0, 0, 8)));
     }
 
-    private JPanel categoryChip() {
-        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, Ui.px(6), 0));
-        p.setOpaque(false);
-        p.add(dot);
-        p.add(category);
-        return p;
+    /** 좁은 화면에서는 카테고리 이름을 감추고 색 점만 남긴다 (점은 그대로, 이름은 한 줄 말줄임) */
+    public void setHideCategoryName(boolean hide) {
+        if (hide != hideCategory) {
+            hideCategory = hide;
+            category.setVisible(!hide);
+            chip.revalidate();
+            revalidate();
+        }
+    }
+
+    /** 카테고리 점 + 이름 묶음. 넓이가 모자라면 이름이 먼저 "…"로 줄고 점은 남는다 */
+    private final class Chip extends JPanel {
+        Chip() {
+            super(new BorderLayout(Ui.px(6), 0));
+            setOpaque(false);
+            add(dot, BorderLayout.WEST);
+            add(category, BorderLayout.CENTER);
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            Dimension d = super.getPreferredSize();
+            int w = hideCategory ? dot.getPreferredSize().width : compact ? d.width : Ui.px(112);
+            return new Dimension(w, Math.max(d.height, Ui.px(20)));
+        }
+
+        @Override
+        public Dimension getMinimumSize() {
+            int w = dot.getPreferredSize().width + (hideCategory ? 0 : Ui.px(48));
+            return new Dimension(w, getPreferredSize().height);
+        }
     }
 
     private static JPanel textColumn(JComponent first, JComponent second) {

@@ -6,6 +6,7 @@ import proto.ui.Fmt;
 import proto.ui.motion.Tween;
 import proto.ui.theme.CategoryColors;
 import proto.ui.theme.Fonts;
+import proto.ui.theme.Glyphs;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
@@ -37,8 +38,8 @@ public class WeekChip extends JComponent {
         this.occurrence = occurrence;
         this.state = handler.stateOf(occurrence);
         setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        setToolTipText(occurrence.title() + " · " + Fmt.range(occurrence) + " · "
-                + handler.categoryName(occurrence.categoryId()));
+        setToolTipText(TextUtil.tip(occurrence.title(), Fmt.range(occurrence) + " · "
+                + handler.categoryName(occurrence.categoryId()) + " · " + state.label()));
         setFocusable(true);
         Listeners.onKey(this, code -> {
             if (code == KeyEvent.VK_ENTER) {
@@ -47,7 +48,7 @@ public class WeekChip extends JComponent {
                 handler.delete(occurrence);
             }
         });
-        getAccessibleContext().setAccessibleName(occurrence.title() + ", " + Fmt.range(occurrence) + ", " + state.label());
+        getAccessibleContext().setAccessibleName(TextUtil.clean(occurrence.title()) + ", " + Fmt.range(occurrence) + ", " + state.label());
         addMouseListener(new ChipMouse());
     }
 
@@ -157,9 +158,9 @@ public class WeekChip extends JComponent {
         g2.setColor(Tokens.get(done ? Tokens.MUTED : Tokens.TEXT));
         for (String line : titleLines()) {
             int base = y + fm.getAscent();
-            g2.drawString(line, x, base);
+            Glyphs.draw(g2, line, x, base);
             if (done) {
-                g2.fillRect(x, base - fm.getAscent() / 3, fm.stringWidth(line), Math.max(1, Ui.px(1)));
+                g2.fillRect(x, base - fm.getAscent() / 3, Glyphs.width(fm, line), Math.max(1, Ui.px(1)));
             }
             y += fm.getHeight();
         }

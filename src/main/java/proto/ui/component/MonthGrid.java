@@ -4,14 +4,19 @@ import proto.entity.Occurrence;
 import proto.ui.Fmt;
 import proto.ui.theme.CategoryColors;
 import proto.ui.theme.Fonts;
+import proto.ui.theme.Glyphs;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
+import javax.swing.AbstractAction;
 import javax.swing.JComponent;
+import javax.swing.KeyStroke;
 import java.awt.Cursor;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.time.DayOfWeek;
@@ -22,7 +27,8 @@ import java.util.function.Consumer;
 
 /**
  * [경계 boundary] 월간 달력 칸 (6주 × 7일, 월요일 시작). 날짜 숫자, 일정 이름 또는 점(칸이 좁을 때), "+N"을 그린다.
- * 오늘은 강조 동그라미, 고른 날은 옅은 채움.
+ * 오늘은 강조 동그라미, 고른 날은 옅은 채움. 세로로 길거나 낮은 화면에서는 이름 대신 점과 개수만 보여 준다.
+ * 키보드: 화살표(±1일, ±7일), PageUp/PageDown(±1달), Home(오늘), Space(고르기), Enter(그 날에 새 일정).
  */
 public class MonthGrid extends JComponent {
 
@@ -34,6 +40,7 @@ public class MonthGrid extends JComponent {
     private LocalDate selected = LocalDate.now();
     private Map<LocalDate, List<Occurrence>> items = Map.of();
     private int hoverIndex = -1;
+    private boolean dotMode;
     private final Consumer<LocalDate> onSelect;
     private final Consumer<LocalDate> onCreate;
 
@@ -62,6 +69,62 @@ public class MonthGrid extends JComponent {
         };
         addMouseListener(mouse);
         addMouseMotionListener(mouse);
+        setFocusable(true);
+        Listeners.repaintOnFocus(this);
+        bindKeys();
+    }
+
+    /** 글자 대신 점과 개수만 보여 줄지 (세로로 길거나 낮은 화면) */
+    public void setDotMode(boolean on) {
+        if (on != dotMode) {
+            dotMode = on;
+            repaint();
+        }
+    }
+
+    private void bindKeys() {
+        bind("left", KeyEvent.VK_LEFT, () -> step(selected.minusDays(1)));
+        bind("right", KeyEvent.VK_RIGHT, () -> step(selected.plusDays(1)));
+        bind("up", KeyEvent.VK_UP, () -> step(selected.minusDays(7)));
+        bind("down", KeyEvent.VK_DOWN, () -> step(selected.plusDays(7)));
+        bind("pgup", KeyEvent.VK_PAGE_UP, () -> step(selected.minusMonths(1)));
+        bind("pgdn", KeyEvent.VK_PAGE_DOWN, () -> step(selected.plusMonths(1)));
+        bind("home", KeyEvent.VK_HOME, () -> step(today));
+        bind("create", KeyEvent.VK_ENTER, () -> onCreate.accept(selected));
+        bind("pick", KeyEvent.VK_SPACE, () -> onSelect.accept(selected));
+    }
+
+    private void bind(String name, int key, Runnable action) {
+        getInputMap(WHEN_FOCUSED).put(KeyStroke.getKeyStroke(key, 0), "proto-" + name);
+        getActionMap().put("proto-" + name, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                action.run();
+            }
+        });
+    }
+
+    private void step(LocalDate next) {
+        onSelect.accept(next);
+    }
+
+    @Override
+    public javax.accessibility.AccessibleContext getAccessibleContext() {
+        if (accessibleContext == null) {
+            accessibleContext = new AccessibleJComponent() {
+                @Override
+                public String getAccessibleName() {
+                    int n = items.getOrDefault(selected, List.of()).size();
+                    return Fmt.dateLong(selected) + ", " + (n == 0 ? "일정 없음" : "일정 " + n + "개");
+                }
+
+                @Override
+                public javax.accessibility.AccessibleRole getAccessibleRole() {
+                    return javax.accessibility.AccessibleRole.TABLE;
+                }
+            };
+        }
+        return accessibleContext;
     }
 
     /** 보여 줄 달·오늘·고른 날·날짜별 일정을 정한다 */
@@ -140,6 +203,11 @@ public class MonthGrid extends JComponent {
         if (d.equals(selected)) {
             g2.setColor(Tokens.get(Tokens.HOVER));
             g2.fillRoundRect(x + inset, y + inset, w - inset * 2, h - inset * 2, arc, arc);
+            if (isFocusOwner()) {
+                g2.setColor(Tokens.alpha(Tokens.get(Tokens.ACCENT), 0.7f));
+                g2.setStroke(new java.awt.BasicStroke(Ui.px(1.5f)));
+                g2.drawRoundRect(x + inset, y + inset, w - inset * 2 - 1, h - inset * 2 - 1, arc, arc);
+            }
         } else if (index == hoverIndex) {
             g2.setColor(Tokens.get(Tokens.SUBTLE));
             g2.fillRoundRect(x + inset, y + inset, w - inset * 2, h - inset * 2, arc, arc);
@@ -147,7 +215,12 @@ public class MonthGrid extends JComponent {
         boolean inMonth = d.getMonth() == month.getMonth();
         paintNumber(g2, d, x + Ui.px(8), y + Ui.px(6), inMonth);
         List<Occurrence> list = items.getOrDefault(d, List.of());
-        if (!list.isEmpty() && inMonth) {
+        if (list.isEmpty() || !inMonth) {
+            return;
+        }
+        if (dotMode || h < Ui.px(64)) {
+            paintSummary(g2, list, x, y, w, h);
+        } else {
             paintItems(g2, list, x + Ui.px(8), y + Ui.px(34), w - Ui.px(14), h - Ui.px(36));
         }
     }
@@ -184,6 +257,31 @@ public class MonthGrid extends JComponent {
         }
     }
 
+    /** 점(최대 3개)과 전체 개수. 칸이 낮으면 숫자 줄 오른쪽에, 넉넉하면 숫자 아래에 놓는다 */
+    private void paintSummary(Graphics2D g2, List<Occurrence> list, int x, int y, int w, int h) {
+        int d = Ui.px(7);
+        int gap = Ui.px(3);
+        int dots = Math.min(3, list.size());
+        g2.setFont(Fonts.medium(Fonts.CAPTION));
+        FontMetrics fm = g2.getFontMetrics();
+        String count = String.valueOf(list.size());
+        int total = dots * d + (dots - 1) * gap + Ui.px(5) + fm.stringWidth(count);
+        boolean inline = h < Ui.px(52);
+        // 낮은 칸: 날짜 숫자 바로 오른쪽에 붙여 다음 칸 숫자와 헷갈리지 않게 한다. 자리가 모자라면 점을 하나로 줄인다
+        int cx = inline ? x + Ui.px(36) : x + Ui.px(8);
+        if (inline && cx + total > x + w - Ui.px(2)) {
+            dots = 1;
+        }
+        int cy = inline ? y + Ui.px(6) + Ui.px(10) : y + Ui.px(34) + Ui.px(8);
+        for (int i = 0; i < dots; i++) {
+            g2.setColor(CategoryColors.of(list.get(i).categoryId()));
+            g2.fillOval(cx, cy - d / 2, d, d);
+            cx += d + gap;
+        }
+        g2.setColor(Tokens.get(Tokens.MUTED));
+        g2.drawString(count, cx + Ui.px(2), cy - fm.getHeight() / 2 + fm.getAscent());
+    }
+
     private void paintLabel(Graphics2D g2, Occurrence o, int x, int y, int w, int rowH) {
         int d = Ui.px(6);
         g2.setColor(CategoryColors.of(o.categoryId()));
@@ -194,9 +292,9 @@ public class MonthGrid extends JComponent {
         int tx = x + d + Ui.px(5);
         String text = TextUtil.ellipsize(o.title(), fm, w - d - Ui.px(5));
         int base = y + (rowH - fm.getHeight()) / 2 + fm.getAscent();
-        g2.drawString(text, tx, base);
+        Glyphs.draw(g2, text, tx, base);
         if (o.completed()) {
-            g2.fillRect(tx, base - fm.getAscent() / 3, fm.stringWidth(text), Math.max(1, Ui.px(1)));
+            g2.fillRect(tx, base - fm.getAscent() / 3, Glyphs.width(fm, text), Math.max(1, Ui.px(1)));
         }
     }
 

@@ -70,6 +70,12 @@ public class StatePill extends JComponent {
         return Tokens.get("proto.state." + name + "." + part);
     }
 
+    /** 좁은 줄에서도 알약이 0×0으로 사라지지 않게 최소 크기를 원래 크기로 둔다 */
+    @Override
+    public Dimension getMinimumSize() {
+        return getPreferredSize();
+    }
+
     @Override
     public Dimension getPreferredSize() {
         FontMetrics fm = getFontMetrics(getFont());

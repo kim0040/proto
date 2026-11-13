@@ -104,6 +104,12 @@ public class CompletionCheck extends JComponent {
         return new Dimension(Ui.px(SIZE), Ui.px(SIZE));
     }
 
+    /** 좁은 줄에서도 체크가 0×0으로 사라지지 않게 최소 크기를 원래 크기로 둔다 */
+    @Override
+    public Dimension getMinimumSize() {
+        return getPreferredSize();
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         Graphics2D g2 = (Graphics2D) g.create();

@@ -17,6 +17,7 @@ public class OccurrenceList extends ScrollPanel {
     private final RowHandler handler;
     private final boolean compact;
     private final Map<String, OccurrenceRow> rows = new HashMap<>();
+    private boolean hideCategory;
 
     public OccurrenceList(RowHandler handler, boolean compact) {
         super(null);
@@ -35,6 +36,7 @@ public class OccurrenceList extends ScrollPanel {
             if (!reused) {
                 row = new OccurrenceRow(handler, compact);
             }
+            row.setHideCategoryName(hideCategory);
             row.update(o, handler.stateOf(o), animate && reused);
             next.put(o.key(), row);
             add(row);
@@ -43,6 +45,12 @@ public class OccurrenceList extends ScrollPanel {
         rows.putAll(next);
         revalidate();
         repaint();
+    }
+
+    /** 좁은 화면에서 카테고리 이름을 감추고 점만 보여 줄지 (모든 줄에 적용) */
+    public void setHideCategoryName(boolean hide) {
+        hideCategory = hide;
+        rows.values().forEach(r -> r.setHideCategoryName(hide));
     }
 
     public int count() {

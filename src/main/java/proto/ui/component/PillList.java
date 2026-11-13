@@ -2,6 +2,7 @@ package proto.ui.component;
 
 import proto.ui.motion.Tween;
 import proto.ui.theme.Fonts;
+import proto.ui.theme.Glyphs;
 import proto.ui.theme.Icons;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
@@ -36,6 +37,7 @@ public class PillList extends JPanel {
     private String selectedKey;
     private boolean pillPlaced;
     private boolean glide;
+    private boolean iconOnly;
 
     public PillList() {
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
@@ -48,6 +50,13 @@ public class PillList extends JPanel {
         items.add(item);
         add(item);
         add(javax.swing.Box.createVerticalStrut(Ui.px(GAP)));
+    }
+
+    /** true면 글자 없이 아이콘(또는 점)만 가운데에 보여 준다 (좁은 사이드바 띠). 이름은 툴팁과 접근성 이름으로 남는다 */
+    public void setIconOnly(boolean value) {
+        iconOnly = value;
+        revalidate();
+        repaint();
     }
 
     /** 모든 항목을 지운다 (카테고리 목록을 다시 만들 때) */
@@ -131,6 +140,7 @@ public class PillList extends JPanel {
             this.dotCategory = dotCategory;
             this.text = text;
             setFont(Fonts.medium(Fonts.BODY));
+            javax.swing.ToolTipManager.sharedInstance().registerComponent(this);
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             setFocusable(true);
             setRequestFocusEnabled(false);
@@ -185,14 +195,22 @@ public class PillList extends JPanel {
             }
         }
 
+        /** 아이콘 띠에서는 항상, 목록에서는 이름이 잘렸을 때 이름을 툴팁으로 보여 준다 */
+        @Override
+        public String getToolTipText(MouseEvent e) {
+            FontMetrics fm = getFontMetrics(getFont());
+            boolean clipped = Glyphs.width(fm, text) > getWidth() - Ui.px(12) - Ui.px(36);
+            return iconOnly || clipped ? TextUtil.tip(text) : null;
+        }
+
         @Override
         public Dimension getPreferredSize() {
-            return new Dimension(Ui.px(100), Ui.px(ITEM_HEIGHT));
+            return new Dimension(Ui.px(iconOnly ? 44 : 100), Ui.px(iconOnly ? 40 : ITEM_HEIGHT));
         }
 
         @Override
         public Dimension getMaximumSize() {
-            return new Dimension(Integer.MAX_VALUE, Ui.px(ITEM_HEIGHT));
+            return new Dimension(Integer.MAX_VALUE, Ui.px(iconOnly ? 40 : ITEM_HEIGHT));
         }
 
         @Override
@@ -205,19 +223,40 @@ public class PillList extends JPanel {
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
             }
             java.awt.Color fg = Tokens.blend(Tokens.get(Tokens.TEXT), Tokens.get(Tokens.ACCENT), sel.value());
+            if (iconOnly) {
+                paintCentered(g2);
+                paintFocus(g2, arc);
+                g2.dispose();
+                return;
+            }
             int x = Ui.px(12);
             x = paintLead(g2, x, fg);
             g2.setFont(getFont());
             g2.setColor(fg);
             FontMetrics fm = g2.getFontMetrics();
             String shown = TextUtil.ellipsize(text, fm, getWidth() - x - Ui.px(10));
-            g2.drawString(shown, x, (getHeight() - fm.getHeight()) / 2 + fm.getAscent());
+            Glyphs.draw(g2, shown, x, (getHeight() - fm.getHeight()) / 2 + fm.getAscent());
+            paintFocus(g2, arc);
+            g2.dispose();
+        }
+
+        private void paintFocus(Graphics2D g2, int arc) {
             if (isFocusOwner()) {
                 g2.setColor(Tokens.alpha(Tokens.get(Tokens.ACCENT), 0.6f));
                 g2.setStroke(new java.awt.BasicStroke(Ui.px(1.5f)));
                 g2.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, arc, arc);
             }
-            g2.dispose();
+        }
+
+        private void paintCentered(Graphics2D g2) {
+            if (icon != null) {
+                icon.paintIcon(this, g2, (getWidth() - icon.getIconWidth()) / 2,
+                        (getHeight() - icon.getIconHeight()) / 2);
+            } else if (dotCategory != null) {
+                int d = Ui.px(10);
+                g2.setColor(proto.ui.theme.CategoryColors.of(dotCategory));
+                g2.fillOval((getWidth() - d) / 2, (getHeight() - d) / 2, d, d);
+            }
         }
 
         private int paintLead(Graphics2D g2, int x, java.awt.Color fg) {

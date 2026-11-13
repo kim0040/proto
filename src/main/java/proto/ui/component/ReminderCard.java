@@ -24,16 +24,26 @@ public class ReminderCard extends FloatingCard {
 
     /** 카드 버튼이 부르는 동작 */
     public interface Actions {
-        void snooze(Occurrence occurrence);
+        /** [5분 뒤 다시]. 카드를 닫아도 되면 true */
+        boolean snooze(Occurrence occurrence);
 
-        void complete(Occurrence occurrence);
+        /** [완료 처리]. 카드를 닫아도 되면 true */
+        boolean complete(Occurrence occurrence);
     }
+
+    private final Occurrence occurrence;
 
     public ReminderCard(Occurrence o, boolean snoozed, String categoryName, Actions actions, Runnable close) {
         super(new BorderLayout(0, Ui.px(10)));
+        this.occurrence = o;
         add(header(snoozed), BorderLayout.NORTH);
         add(body(o, categoryName), BorderLayout.CENTER);
         add(buttons(o, actions, close), BorderLayout.SOUTH);
+    }
+
+    /** 이 카드가 알리는 하루치 일정 */
+    public Occurrence occurrence() {
+        return occurrence;
     }
 
     @Override
@@ -54,15 +64,19 @@ public class ReminderCard extends FloatingCard {
         JPanel p = new JPanel();
         p.setOpaque(false);
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        TokenLabel title = new TokenLabel(o.title(), Fonts.semibold(Fonts.LEAD), Tokens.TEXT);
+        TokenLabel title = new TokenLabel(TextUtil.plain(o.title()), Fonts.semibold(Fonts.LEAD), Tokens.TEXT);
         title.setAlignmentX(LEFT_ALIGNMENT);
-        JPanel meta = new JPanel(new FlowLayout(FlowLayout.LEFT, Ui.px(6), 0));
+        JPanel category = new JPanel(new BorderLayout(Ui.px(6), 0));
+        category.setOpaque(false);
+        category.add(new CategoryDot(o.categoryId(), 8), BorderLayout.WEST);
+        category.add(new TokenLabel(TextUtil.plain(categoryName), Fonts.regular(Fonts.SMALL), Tokens.MUTED),
+                BorderLayout.CENTER);
+        JPanel meta = new JPanel(new BorderLayout(Ui.px(8), 0));
         meta.setOpaque(false);
         meta.setAlignmentX(LEFT_ALIGNMENT);
         meta.setBorder(BorderFactory.createEmptyBorder(Ui.px(2), 0, 0, 0));
-        meta.add(new TokenLabel(Fmt.range(o), Fonts.regular(Fonts.SMALL), Tokens.MUTED));
-        meta.add(new CategoryDot(o.categoryId(), 8));
-        meta.add(new TokenLabel(categoryName, Fonts.regular(Fonts.SMALL), Tokens.MUTED));
+        meta.add(new TokenLabel(Fmt.range(o), Fonts.regular(Fonts.SMALL), Tokens.MUTED), BorderLayout.WEST);
+        meta.add(category, BorderLayout.CENTER);
         p.add(title);
         p.add(meta);
         return p;
@@ -73,12 +87,14 @@ public class ReminderCard extends FloatingCard {
         JButton done = Buttons.compact(Buttons.primary("완료 처리"));
         JButton dismiss = Buttons.compact(Buttons.ghost("닫기"));
         snooze.addActionListener(e -> {
-            actions.snooze(o);
-            close.run();
+            if (actions.snooze(o)) {
+                close.run();
+            }
         });
         done.addActionListener(e -> {
-            actions.complete(o);
-            close.run();
+            if (actions.complete(o)) {
+                close.run();
+            }
         });
         dismiss.addActionListener(e -> close.run());
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, Ui.px(8), 0));
