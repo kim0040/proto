@@ -2,7 +2,10 @@ package proto.ui;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import proto.ui.component.Buttons;
+import proto.ui.component.Ime;
 import proto.ui.component.Listeners;
+import proto.ui.layout.SizeClass;
+import proto.ui.motion.Motion;
 import proto.ui.component.TokenLabel;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.Icons;
@@ -17,7 +20,14 @@ import javax.swing.Timer;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.event.KeyEvent;
 import java.util.function.Consumer;
+
+import javax.swing.AbstractAction;
+import javax.swing.JComponent;
+import javax.swing.KeyStroke;
 
 /**
  * [경계 boundary] 본문 위쪽 줄: 보기 제목과 날짜, 이전/오늘/다음 버튼, 검색창(입력 후 150ms 뒤 적용).
@@ -30,7 +40,13 @@ public final class HeaderBar extends JPanel {
     private final TokenLabel subtitle = new TokenLabel("", Fonts.regular(Fonts.SMALL), Tokens.MUTED);
     private final JPanel navigator = new JPanel(new FlowLayout(FlowLayout.RIGHT, Ui.px(4), 0));
     private final JTextField search = new JTextField();
+    private final JButton searchIcon = Buttons.icon("search", "검색 (" + Ui.shortcut("F") + ")", Tokens.TEXT);
     private final Timer debounce;
+    private final Consumer<String> onSearch;
+    private boolean compact;
+    private boolean searchAllowed = true;
+    private boolean expanded;
+    private Motion.Handle expandMotion;
 
     public HeaderBar(Runnable onPrev, Runnable onToday, Runnable onNext, Consumer<String> onSearch) {
         super(new BorderLayout(Ui.px(16), 0));
@@ -38,6 +54,7 @@ public final class HeaderBar extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(Ui.px(Ui.isMac() ? 34 : 22), Ui.px(32), Ui.px(16), Ui.px(32)));
         debounce = new Timer(DEBOUNCE_MS, e -> onSearch.accept(search.getText()));
         debounce.setRepeats(false);
+        this.onSearch = onSearch;
         add(titles(), BorderLayout.CENTER);
         add(right(onPrev, onToday, onNext), BorderLayout.EAST);
     }
@@ -56,7 +73,10 @@ public final class HeaderBar extends JPanel {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.RIGHT, Ui.px(12), 0));
         p.setOpaque(false);
         p.add(navigator);
+        p.add(searchIcon);
         p.add(search);
+        searchIcon.setVisible(false);
+        searchIcon.addActionListener(e -> expandSearch());
         return p;
     }
 
@@ -81,7 +101,90 @@ public final class HeaderBar extends JPanel {
         search.putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON, Icons.of("search", 16, Tokens.MUTED));
         search.putClientProperty(FlatClientProperties.STYLE, "arc:10; margin:4,8,4,8; background:$proto.surface;"
                 + " borderColor:$proto.borderStrong");
+        search.getAccessibleContext().setAccessibleName("일정 검색");
+        Ime.track(search);
         Listeners.onTextChange(search, debounce::restart);
+        search.addActionListener(e -> {
+            Ime.commit(search);
+            debounce.stop();
+            onSearch.accept(search.getText());
+        });
+        bindSearchEscape();
+        search.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (compact && search.getText().isEmpty() && !e.isTemporary()) {
+                    collapseSearch(false);
+                }
+            }
+        });
+    }
+
+    private void bindSearchEscape() {
+        search.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "proto-esc");
+        search.getActionMap().put("proto-esc", new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                escapeSearch();
+            }
+        });
+    }
+
+    /** Esc: 글이 있으면 먼저 지우고, 비어 있으면 (좁은 화면에서) 검색창을 접는다 */
+    private void escapeSearch() {
+        if (!search.getText().isEmpty()) {
+            search.setText("");
+        } else if (compact) {
+            collapseSearch(true);
+        }
+    }
+
+    /** 화면 크기 등급에 맞춰 여백과 검색창 모양(좁으면 아이콘 버튼)을 바꾼다 */
+    public void apply(SizeClass sc) {
+        compact = sc.compact();
+        int trim = Ui.px(sc.verticalTrim());
+        setBorder(BorderFactory.createEmptyBorder(Ui.px(Ui.isMac() ? 34 : 22) - trim, Ui.px(sc.gutter()),
+                Ui.px(16) - trim, Ui.px(sc.gutter())));
+        title.setFont(Fonts.semibold(sc.dense() ? Fonts.TITLE + 2 : Fonts.DISPLAY));
+        search.setPreferredSize(new Dimension(Ui.px(compact ? 200 : 260), Ui.px(36)));
+        expanded = !compact || !search.getText().isEmpty();
+        updateSearchMode();
+        revalidate();
+    }
+
+    private void updateSearchMode() {
+        search.setVisible(searchAllowed && (!compact || expanded));
+        searchIcon.setVisible(searchAllowed && compact && !expanded);
+    }
+
+    private void expandSearch() {
+        if (expanded) {
+            return;
+        }
+        expanded = true;
+        updateSearchMode();
+        int full = Ui.px(200);
+        if (expandMotion != null) {
+            expandMotion.cancel();
+        }
+        expandMotion = Motion.run(160, f -> {
+            search.setPreferredSize(new Dimension(Math.max(Ui.px(40), Math.round(full * f)), Ui.px(36)));
+            search.getParent().revalidate();
+        }, () -> search.setPreferredSize(new Dimension(full, Ui.px(36))));
+        search.requestFocusInWindow();
+    }
+
+    private void collapseSearch(boolean restoreFocus) {
+        if (!expanded || !compact) {
+            return;
+        }
+        expanded = false;
+        updateSearchMode();
+        revalidate();
+        repaint();
+        if (restoreFocus && searchIcon.isShowing()) {
+            searchIcon.requestFocusInWindow();
+        }
     }
 
     /** 제목과 작은 글씨를 바꾼다 */
@@ -97,18 +200,34 @@ public final class HeaderBar extends JPanel {
 
     /** 검색창을 켜거나 끈다 (통계 보기는 검색을 쓰지 않는다) */
     public void setSearchEnabled(boolean enabled) {
+        search.getAccessibleContext().setAccessibleDescription(enabled ? "" : "통계에는 적용되지 않아요");
+        searchIcon.setEnabled(enabled);
         search.setEnabled(enabled);
         search.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, enabled ? "제목이나 메모 검색" : "통계에는 검색이 적용되지 않아요");
     }
 
     /** 검색창 자체를 보이거나 숨긴다 */
     public void setSearchVisible(boolean visible) {
-        search.setVisible(visible);
+        searchAllowed = visible;
+        updateSearchMode();
     }
 
+    /** 검색창에 포커스를 준다. 접혀 있으면 먼저 펼친다 */
     public void focusSearch() {
+        if (!searchAllowed || !search.isEnabled()) {
+            return;
+        }
+        expandSearch();
         search.requestFocusInWindow();
         search.selectAll();
+    }
+
+    /** 창을 닫을 때 남은 타이머를 멈춘다 */
+    public void dispose() {
+        debounce.stop();
+        if (expandMotion != null) {
+            expandMotion.cancel();
+        }
     }
 
     /** 검색어를 지운다 */

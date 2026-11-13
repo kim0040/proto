@@ -4,6 +4,8 @@ import proto.control.CategoryController;
 import proto.control.ReminderTimer;
 import proto.control.ScheduleController;
 import proto.ui.component.Overlay;
+import proto.ui.layout.Breakpoints;
+import proto.ui.layout.SizeClass;
 
 import java.awt.Window;
 import java.util.function.Supplier;
@@ -19,6 +21,8 @@ public final class UiContext {
     private final AppState state;
     private Overlay overlay = new Overlay();
     private Supplier<Window> window = () -> null;
+    private final Breakpoints breakpoints = new Breakpoints();
+    private Runnable refresher = () -> { };
     private UiActions actions;
 
     public UiContext(ScheduleController schedules, CategoryController categories, ReminderTimer reminders) {
@@ -47,6 +51,25 @@ public final class UiContext {
 
     public UiActions actions() {
         return actions;
+    }
+
+    /** 화면 크기 등급 계산기. 보기들은 여기서 지금 등급을 읽고 바뀔 때 알림을 받는다 */
+    public Breakpoints breakpoints() {
+        return breakpoints;
+    }
+
+    /** 지금의 크기 등급 */
+    public SizeClass size() {
+        return breakpoints.current();
+    }
+
+    /** 다른 곳에서 일정이 바뀌었을 수 있을 때 현재 보기를 다시 그리게 한다 */
+    public void refreshViews() {
+        refresher.run();
+    }
+
+    public void setRefresher(Runnable refresher) {
+        this.refresher = refresher;
     }
 
     public Overlay overlay() {

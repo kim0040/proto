@@ -26,7 +26,11 @@ import java.util.Optional;
  */
 public final class UiActions implements RowHandler {
 
+    private static final String GONE = "이미 지워진 일정이에요";
+    private static final String GONE_OR_DONE = "이미 지워졌거나 완료한 일정이에요";
+
     private final UiContext ctx;
+    private boolean busy;
 
     UiActions(UiContext ctx) {
         this.ctx = ctx;
@@ -42,6 +46,60 @@ public final class UiActions implements RowHandler {
         ctx.overlay().showToast(message, true);
     }
 
+    /** 저장소 오류: 닫을 때까지 남는 알림에 "자세히" 버튼으로 전체 문장을 보여 준다 */
+    public void storageError(String message) {
+        String detail = message == null || message.isBlank() ? "알 수 없는 오류예요" : message;
+        ctx.overlay().showDetailToast("저장하는 중 문제가 생겼어요", "자세히",
+                () -> Dialogs.inform(ctx.window(), "저장 오류", detail));
+    }
+
+    /**
+     * 일정을 다루기 전에 최신 상태를 다시 읽는다. 다른 곳(알림 카드, 다른 보기)에서 이미 지워졌으면
+     * 안내 토스트를 띄우고 화면을 새로 고친 뒤 빈 값을 돌려준다.
+     */
+    public Optional<Occurrence> fresh(Occurrence o) {
+        Optional<Occurrence> latest = ctx.schedules().findOccurrence(o.scheduleId(), o.date());
+        if (latest.isEmpty()) {
+            toast(GONE);
+            ctx.refreshViews();
+        }
+        return latest;
+    }
+
+    /** 알림 카드의 [5분 뒤 다시]. 카드를 닫아도 되면 true (지워졌거나 완료된 일정이면 안내 후 true) */
+    public boolean snoozeReminder(Occurrence o, int minutes) {
+        Optional<Occurrence> latest = ctx.schedules().findOccurrence(o.scheduleId(), o.date());
+        if (latest.isEmpty() || latest.get().completed()) {
+            toast(GONE_OR_DONE);
+            ctx.refreshViews();
+            return true;
+        }
+        OperationResult r = ctx.reminders().snooze(latest.get(), minutes);
+        if (r.success()) {
+            toast(minutes + "분 뒤에 다시 알려 드려요");
+        } else {
+            error(r.message());
+        }
+        return r.success();
+    }
+
+    /** 알림 카드의 [완료 처리]. 카드를 닫아도 되면 true */
+    public boolean completeReminder(Occurrence o) {
+        Optional<Occurrence> latest = ctx.schedules().findOccurrence(o.scheduleId(), o.date());
+        if (latest.isEmpty() || latest.get().completed()) {
+            toast(GONE_OR_DONE);
+            ctx.refreshViews();
+            return true;
+        }
+        OperationResult r = ctx.schedules().setCompleted(latest.get(), true);
+        if (r.success()) {
+            toast("일정을 완료했어요");
+        } else {
+            error(r.message());
+        }
+        return r.success();
+    }
+
     /** 새 일정 창 (날짜를 미리 채움) */
     public void newSchedule(LocalDate date) {
         openNew(ctx.schedules().newDraft(date));
@@ -54,23 +112,41 @@ public final class UiActions implements RowHandler {
 
     @Override
     public void open(Occurrence o) {
-        new ScheduleDialog(ctx, o, ctx.schedules().draftOf(o)).showDialog();
+        Optional<Occurrence> latest = fresh(o);
+        latest.ifPresent(f -> new ScheduleDialog(ctx, f, ctx.schedules().draftOf(f)).showDialog());
     }
 
     /** 삭제 확인 → (반복이면 범위 선택) → 삭제. 실제로 지웠으면 true */
     @Override
     public boolean delete(Occurrence o) {
+        if (busy) {
+            return false;
+        }
+        busy = true;
+        try {
+            return deleteFresh(o);
+        } finally {
+            busy = false;
+        }
+    }
+
+    private boolean deleteFresh(Occurrence o) {
+        Optional<Occurrence> latest = fresh(o);
+        if (latest.isEmpty()) {
+            return true;
+        }
+        Occurrence target = latest.get();
         EditScope scope = EditScope.THIS_AND_FOLLOWING;
-        if (o.isRepeating()) {
+        if (target.isRepeating()) {
             Optional<EditScope> chosen = Dialogs.chooseScope(ctx.window(), "반복 일정 삭제", "삭제", true);
             if (chosen.isEmpty()) {
                 return false;
             }
             scope = chosen.get();
-        } else if (!Dialogs.confirmDelete(ctx.window(), o.title())) {
+        } else if (!Dialogs.confirmDelete(ctx.window(), target.title())) {
             return false;
         }
-        OperationResult r = ctx.schedules().delete(o, scope);
+        OperationResult r = ctx.schedules().delete(target, scope);
         if (r.success()) {
             toast("일정을 삭제했어요");
         } else {
@@ -81,8 +157,12 @@ public final class UiActions implements RowHandler {
 
     @Override
     public void toggleDone(Occurrence o) {
-        boolean next = !o.completed();
-        OperationResult r = ctx.schedules().setCompleted(o, next);
+        Optional<Occurrence> latest = fresh(o);
+        if (latest.isEmpty()) {
+            return;
+        }
+        boolean next = !latest.get().completed();
+        OperationResult r = ctx.schedules().setCompleted(latest.get(), next);
         if (r.success()) {
             toast(next ? "일정을 완료했어요" : "완료를 취소했어요");
         } else {

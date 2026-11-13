@@ -5,6 +5,7 @@ import proto.ui.AppState.Mode;
 import proto.ui.component.Buttons;
 import proto.ui.component.PillList;
 import proto.ui.component.ScrollPanel;
+import proto.ui.component.TextUtil;
 import proto.ui.component.TokenLabel;
 import proto.ui.component.TokenPanel;
 import proto.ui.theme.Fonts;
@@ -34,17 +35,20 @@ public final class Sidebar extends TokenPanel {
     private final UiContext ctx;
     private final Consumer<Mode> onNav;
     private final Consumer<String> onCategory;
+    private final Runnable beforeAction;
     private final PillList nav = new PillList();
     private final PillList categories = new PillList();
     private final PillList settings = new PillList();
     private static final String NONE = "";
 
-    public Sidebar(UiContext ctx, Consumer<Mode> onNav, Consumer<String> onCategory) {
+    /** beforeAction은 새 일정·빈 시간·카테고리 편집 같은 동작 직전에 불린다 (서랍으로 열려 있으면 닫으려고) */
+    public Sidebar(UiContext ctx, Consumer<Mode> onNav, Consumer<String> onCategory, Runnable beforeAction) {
         super(new BorderLayout(), Tokens.SIDEBAR);
         this.ctx = ctx;
         this.onNav = onNav;
         this.onCategory = onCategory;
-        setPreferredSize(new Dimension(Ui.px(232), 10));
+        this.beforeAction = beforeAction;
+        setLogicalWidth(232);
         setBorder(BorderFactory.createEmptyBorder(Ui.px(Ui.isMac() ? 44 : 22), Ui.px(14), Ui.px(14), Ui.px(14)));
         add(top(), BorderLayout.NORTH);
         add(categorySection(), BorderLayout.CENTER);
@@ -52,6 +56,26 @@ public final class Sidebar extends TokenPanel {
         buildNav();
         refreshCategories();
         buildSettings();
+    }
+
+    /** 사이드바 너비를 논리 px로 정한다 */
+    public void setLogicalWidth(int logicalPx) {
+        setPreferredSize(new Dimension(Ui.px(logicalPx), 10));
+    }
+
+    private JButton newButton() {
+        JButton add = Buttons.primary("새 일정");
+        add.setIcon(Icons.of("plus", 16, Tokens.ON_ACCENT));
+        add.setIconTextGap(8);
+        add.setAlignmentX(0f);
+        add.setMaximumSize(new Dimension(Integer.MAX_VALUE, Ui.px(38)));
+        add.getAccessibleContext().setAccessibleName("새 일정");
+        add.addActionListener(e -> {
+            beforeAction.run();
+            ctx.actions().newSchedule(ctx.state().mode() == Mode.MONTH
+                    ? ctx.state().selectedDay() : ctx.schedules().today());
+        });
+        return add;
     }
 
     private JPanel top() {
@@ -63,16 +87,13 @@ public final class Sidebar extends TokenPanel {
         brand.setIcon(AppIcon.icon(26));
         brand.setIconTextGap(Ui.px(10));
         brand.setAlignmentX(0f);
-        JButton add = Buttons.primary("새 일정");
-        add.setIcon(Icons.of("plus", 16, Tokens.ON_ACCENT));
-        add.setIconTextGap(8);
-        add.setAlignmentX(0f);
-        add.setMaximumSize(new Dimension(Integer.MAX_VALUE, Ui.px(38)));
-        add.addActionListener(e -> ctx.actions().newSchedule(ctx.state().mode() == Mode.MONTH
-                ? ctx.state().selectedDay() : ctx.schedules().today()));
+        JButton add = newButton();
         nav.setAlignmentX(0f);
         PillList tools = new PillList();
-        tools.addItem("free", "hourglass", null, "빈 시간 찾기", () -> ctx.actions().openFreeSlots());
+        tools.addItem("free", "hourglass", null, "빈 시간 찾기", () -> {
+            beforeAction.run();
+            ctx.actions().openFreeSlots();
+        });
         tools.setAlignmentX(0f);
         p.add(brand);
         p.add(add);
@@ -101,7 +122,11 @@ public final class Sidebar extends TokenPanel {
         head.add(new TokenLabel("카테고리", Fonts.semibold(Fonts.CAPTION), Tokens.MUTED), BorderLayout.WEST);
         JButton edit = Buttons.ghost("편집");
         edit.setFont(Fonts.medium(Fonts.CAPTION));
-        edit.addActionListener(e -> ctx.actions().openCategories());
+        edit.getAccessibleContext().setAccessibleName("카테고리 편집");
+        edit.addActionListener(e -> {
+            beforeAction.run();
+            ctx.actions().openCategories();
+        });
         head.add(edit, BorderLayout.EAST);
         ScrollPanel holder = new ScrollPanel(new BorderLayout());
         holder.add(categories, BorderLayout.NORTH);
@@ -129,7 +154,7 @@ public final class Sidebar extends TokenPanel {
         categories.addItem(ALL, "tag", null, "전체", () -> onCategory.accept(null));
         for (Category c : ctx.categories().getCategories()) {
             String id = c.getId();
-            categories.addItem(id, null, id, c.getName(), () -> onCategory.accept(id));
+            categories.addItem(id, null, id, TextUtil.clean(c.getName()), () -> onCategory.accept(id));
         }
         categories.setSelected(selected == null ? ALL : selected, false);
         categories.revalidate();
