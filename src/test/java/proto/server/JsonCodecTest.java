@@ -68,4 +68,28 @@ class JsonCodecTest {
         assertThrows(JsonSyntaxException.class, () -> JsonCodec.parse("\"" + "\\" + "u12\""));
         assertThrows(JsonSyntaxException.class, () -> JsonCodec.parse("\"" + "\\" + "q\""));
     }
+
+    @Test
+    void rejectsNestingDeeperThanLimitInsteadOfOverflowingTheStack() {
+        String deepArray = "[".repeat(20_000) + "]".repeat(20_000);
+        assertThrows(JsonSyntaxException.class, () -> JsonCodec.parse(deepArray));
+        String deepIgnored = "{\"schedules\":[],\"ignored\":" + deepArray + "}";
+        assertThrows(JsonSyntaxException.class, () -> JsonCodec.parse(deepIgnored));
+    }
+
+    @Test
+    void acceptsNestingUpToTheLimitOnly() {
+        int limit = JsonCodec.MAX_DEPTH;
+        JsonCodec.parse("[".repeat(limit) + "]".repeat(limit));
+        assertThrows(JsonSyntaxException.class,
+                () -> JsonCodec.parse("[".repeat(limit + 1) + "]".repeat(limit + 1)));
+    }
+
+    @Test
+    void unicodeEscapeAcceptsOnlyAsciiHexDigits() {
+        // 전각 숫자 １２３４는 Character.digit이 받아 주던 값이다. 자바 소스가 먼저 해석하지 않게 이어 붙인다.
+        assertThrows(JsonSyntaxException.class, () -> JsonCodec.parse("\"" + "\\" + "u\uFF11\uFF12\uFF13\uFF14\""));
+        assertThrows(JsonSyntaxException.class, () -> JsonCodec.parse("\"" + "\\" + "u00g0\""));
+        assertEquals("\u00e9\u00E9", JsonCodec.parse("\"" + "\\" + "u00e9" + "\\" + "u00E9\""));
+    }
 }

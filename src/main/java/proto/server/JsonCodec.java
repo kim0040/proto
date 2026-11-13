@@ -12,6 +12,9 @@ import java.util.Map;
  */
 public final class JsonCodec {
 
+    /** 객체·배열이 이 깊이보다 더 겹치면 거절한다 (끝없는 중첩으로 스택이 넘치는 것을 막는다) */
+    static final int MAX_DEPTH = 64;
+
     private JsonCodec() {
     }
 
@@ -122,6 +125,7 @@ public final class JsonCodec {
     private static final class Parser {
         private final String text;
         private int index;
+        private int depth;
 
         private Parser(String text) {
             this.text = text;
@@ -145,11 +149,8 @@ public final class JsonCodec {
         }
 
         private Object readToken(char c) {
-            if (c == '{') {
-                return readObject();
-            }
-            if (c == '[') {
-                return readArray();
+            if (c == '{' || c == '[') {
+                return readContainer(c);
             }
             if (c == '"') {
                 return readString();
@@ -164,6 +165,16 @@ public final class JsonCodec {
                 return readNumber();
             }
             throw error("알 수 없는 값이에요");
+        }
+
+        /** 객체나 배열. 겹친 깊이를 세어 MAX_DEPTH를 넘으면 거절한다 (예외가 나면 파싱 전체가 끝난다) */
+        private Object readContainer(char open) {
+            if (++depth > MAX_DEPTH) {
+                throw error("객체와 배열이 " + MAX_DEPTH + "겹보다 깊어요");
+            }
+            Object value = open == '{' ? readObject() : readArray();
+            depth--;
+            return value;
         }
 
         private Map<String, Object> readObject() {
@@ -257,7 +268,10 @@ public final class JsonCodec {
         }
 
         private int hexDigit() {
-            int digit = Character.digit(text.charAt(index++), 16);
+            char c = text.charAt(index++);
+            int digit = c >= '0' && c <= '9' ? c - '0'
+                    : c >= 'a' && c <= 'f' ? c - 'a' + 10
+                    : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
             if (digit < 0) {
                 throw error("유니코드 이스케이프는 16진수 4자리가 필요해요");
             }
