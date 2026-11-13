@@ -13,7 +13,6 @@ import java.awt.Graphics2D;
 import java.awt.Cursor;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -38,45 +37,35 @@ public class CompletionCheck extends JComponent {
         setOpaque(false);
         setFocusable(true);
         setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                hover = true;
-                repaint();
-            }
-
-            @Override
-            public void mouseExited(MouseEvent e) {
-                hover = false;
-                repaint();
-            }
-
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getButton() == MouseEvent.BUTTON1) {
-                    fire();
-                }
+        addMouseListener(new CheckMouse());
+        Listeners.onKey(this, code -> {
+            if (code == KeyEvent.VK_SPACE || code == KeyEvent.VK_ENTER) {
+                fire();
             }
         });
-        addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_SPACE || e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    fire();
-                }
-            }
-        });
-        addFocusListener(new java.awt.event.FocusAdapter() {
-            @Override
-            public void focusGained(java.awt.event.FocusEvent e) {
-                repaint();
-            }
+        Listeners.repaintOnFocus(this);
+    }
 
-            @Override
-            public void focusLost(java.awt.event.FocusEvent e) {
-                repaint();
+    /** 체크 동그라미 위의 마우스 동작 */
+    private final class CheckMouse extends MouseAdapter {
+        @Override
+        public void mouseEntered(MouseEvent e) {
+            hover = true;
+            repaint();
+        }
+
+        @Override
+        public void mouseExited(MouseEvent e) {
+            hover = false;
+            repaint();
+        }
+
+        @Override
+        public void mouseClicked(MouseEvent e) {
+            if (e.getButton() == MouseEvent.BUTTON1) {
+                fire();
             }
-        });
+        }
     }
 
     public void addActionListener(ActionListener l) {

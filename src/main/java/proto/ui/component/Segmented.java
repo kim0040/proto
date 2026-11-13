@@ -11,7 +11,6 @@ import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -47,27 +46,27 @@ public class Segmented<T> extends JComponent {
                 select(indexAt(e.getX()), true);
             }
         });
-        addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_LEFT) {
-                    select(Math.max(0, selected - 1), true);
-                } else if (e.getKeyCode() == KeyEvent.VK_RIGHT) {
-                    select(Math.min(values.size() - 1, selected + 1), true);
-                }
+        Listeners.onKey(this, code -> {
+            if (code == KeyEvent.VK_LEFT) {
+                select(Math.max(0, selected - 1), true);
+            } else if (code == KeyEvent.VK_RIGHT) {
+                select(Math.min(values.size() - 1, selected + 1), true);
             }
         });
-        addFocusListener(new java.awt.event.FocusAdapter() {
-            @Override
-            public void focusGained(java.awt.event.FocusEvent e) {
-                repaint();
-            }
+        Listeners.repaintOnFocus(this);
+    }
 
-            @Override
-            public void focusLost(java.awt.event.FocusEvent e) {
-                repaint();
-            }
-        });
+    @Override
+    public javax.accessibility.AccessibleContext getAccessibleContext() {
+        if (accessibleContext == null) {
+            accessibleContext = new AccessibleJComponent() {
+                @Override
+                public javax.accessibility.AccessibleRole getAccessibleRole() {
+                    return javax.accessibility.AccessibleRole.PUSH_BUTTON;
+                }
+            };
+        }
+        return accessibleContext;
     }
 
     public void addChangeListener(Consumer<T> l) {

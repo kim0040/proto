@@ -15,7 +15,6 @@ import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -27,7 +26,7 @@ import java.util.List;
  */
 public class PillList extends JPanel {
 
-    private static final int ITEM_HEIGHT = 36;
+    private static final int ITEM_HEIGHT = 34;
     private static final int GAP = 2;
 
     private final List<Item> items = new ArrayList<>();
@@ -136,6 +135,10 @@ public class PillList extends JPanel {
             setFocusable(true);
             setRequestFocusEnabled(false);
             getAccessibleContext().setAccessibleName(text);
+            installInput(onClick);
+        }
+
+        private void installInput(Runnable onClick) {
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseEntered(MouseEvent e) {
@@ -152,25 +155,25 @@ public class PillList extends JPanel {
                     onClick.run();
                 }
             });
-            addKeyListener(new KeyAdapter() {
-                @Override
-                public void keyPressed(KeyEvent e) {
-                    if (e.getKeyCode() == KeyEvent.VK_SPACE || e.getKeyCode() == KeyEvent.VK_ENTER) {
-                        onClick.run();
-                    }
+            Listeners.onKey(this, code -> {
+                if (code == KeyEvent.VK_SPACE || code == KeyEvent.VK_ENTER) {
+                    onClick.run();
                 }
             });
-            addFocusListener(new java.awt.event.FocusAdapter() {
-                @Override
-                public void focusGained(java.awt.event.FocusEvent e) {
-                    repaint();
-                }
+            Listeners.repaintOnFocus(this);
+        }
 
-                @Override
-                public void focusLost(java.awt.event.FocusEvent e) {
-                    repaint();
-                }
-            });
+        @Override
+        public javax.accessibility.AccessibleContext getAccessibleContext() {
+            if (accessibleContext == null) {
+                accessibleContext = new AccessibleJComponent() {
+                    @Override
+                    public javax.accessibility.AccessibleRole getAccessibleRole() {
+                        return javax.accessibility.AccessibleRole.PUSH_BUTTON;
+                    }
+                };
+            }
+            return accessibleContext;
         }
 
         void setSelectedState(boolean value, boolean animate) {

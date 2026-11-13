@@ -40,6 +40,11 @@ public final class ThemeManager {
 
     /** 테마를 지정한다. animated가 true이고 애니메이션이 켜져 있으면 크로스페이드로 바꾼다 */
     public static void apply(boolean toDark, boolean animated) {
+        apply(toDark, animated, true);
+    }
+
+    /** 저장 여부를 고를 수 있는 테마 변경 (스크린샷 도구는 저장하지 않는다) */
+    public static void apply(boolean toDark, boolean animated, boolean persist) {
         if (toDark == dark) {
             return;
         }
@@ -54,7 +59,9 @@ public final class ThemeManager {
         if (fade) {
             FlatAnimatedLafChange.hideSnapshotWithAnimation();
         }
-        PREFS.put(PREF_KEY, toDark ? "dark" : "light");
+        if (persist) {
+            PREFS.put(PREF_KEY, toDark ? "dark" : "light");
+        }
     }
 
     public static void toggle() {

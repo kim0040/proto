@@ -87,6 +87,14 @@ public class Overlay extends JComponent {
         });
     }
 
+    /** 떠 있는 토스트와 알림 카드를 모두 바로 치운다 */
+    public void clearAll() {
+        toasts.clear();
+        reminders.clear();
+        removeAll();
+        repaint();
+    }
+
     /** 지금 떠 있는 알림 카드 수 */
     public int reminderCount() {
         return reminders.size();
@@ -96,29 +104,32 @@ public class Overlay extends JComponent {
     public void doLayout() {
         int m = Ui.px(FloatingCard.MARGIN);
         int y = getHeight() - Ui.px(EDGE) + m;
-        Rectangle reminderArea = null;
+        List<Rectangle> taken = new ArrayList<>();
         for (ReminderCard c : reminders) {
             Dimension d = c.getPreferredSize();
             y -= d.height;
             c.setBounds(getWidth() - d.width - Ui.px(EDGE) + m, y, d.width, d.height);
+            taken.add(inner(c.getBounds(), m));
             y -= Ui.px(GAP);
-            reminderArea = reminderArea == null ? c.getBounds() : reminderArea.union(c.getBounds());
         }
-        layoutToasts(reminderArea);
+        layoutToasts(taken, m);
     }
 
-    private void layoutToasts(Rectangle avoid) {
-        int m = Ui.px(FloatingCard.MARGIN);
+    private static Rectangle inner(Rectangle r, int m) {
+        return new Rectangle(r.x + m, r.y + m, r.width - m * 2, r.height - m * 2);
+    }
+
+    private void layoutToasts(List<Rectangle> taken, int m) {
         int y = getHeight() - Ui.px(EDGE + 8) + m;
         for (ToastCard t : toasts) {
             Dimension d = t.getPreferredSize();
             int w = Math.min(d.width, Math.max(Ui.px(240), getWidth() - Ui.px(EDGE) * 2));
-            int x = (getWidth() - w) / 2;
             y -= d.height;
-            Rectangle r = new Rectangle(x, y, w, d.height);
-            if (avoid != null && r.intersects(avoid)) {
-                y = avoid.y - d.height;
-                r.y = y;
+            Rectangle r = new Rectangle((getWidth() - w) / 2, y, w, d.height);
+            for (Rectangle other : taken) {
+                if (inner(r, m).intersects(other)) {
+                    r.x = other.x - m - r.width + m * 2 - Ui.px(8);
+                }
             }
             t.setBounds(r);
             y -= Ui.px(GAP);

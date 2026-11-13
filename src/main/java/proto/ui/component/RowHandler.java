@@ -14,6 +14,9 @@ public interface RowHandler {
     /** 일정을 눌러 수정 창을 연다 */
     void open(Occurrence occurrence);
 
+    /** 삭제 키를 눌렀다 (확인 후 삭제). 실제로 지웠으면 true */
+    boolean delete(Occurrence occurrence);
+
     /** 완료 체크를 눌렀다 (F5) */
     void toggleDone(Occurrence occurrence);
 

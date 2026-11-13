@@ -24,7 +24,6 @@ import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -156,58 +155,49 @@ public class OccurrenceRow extends JPanel {
     }
 
     private void installMouse() {
-        MouseAdapter adapter = new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                hover.to(1f, 140);
-            }
-
-            @Override
-            public void mouseExited(MouseEvent e) {
-                java.awt.Point p = SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), OccurrenceRow.this);
-                if (!contains(p)) {
-                    hover.to(0f, 180);
-                }
-            }
-
-            @Override
-            public void mousePressed(MouseEvent e) {
-                maybeMenu(e);
-            }
-
-            @Override
-            public void mouseReleased(MouseEvent e) {
-                maybeMenu(e);
-            }
-
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (SwingUtilities.isLeftMouseButton(e) && !e.isPopupTrigger()) {
-                    handler.open(occurrence);
-                }
-            }
-        };
-        addMouseListener(adapter);
+        addMouseListener(new RowMouse());
         check.addActionListener(e -> handler.toggleDone(occurrence));
-        addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    handler.open(occurrence);
-                }
+        Listeners.onKey(this, code -> {
+            if (code == KeyEvent.VK_ENTER) {
+                handler.open(occurrence);
+            } else if (code == KeyEvent.VK_DELETE || code == KeyEvent.VK_BACK_SPACE) {
+                handler.delete(occurrence);
             }
         });
-        addFocusListener(new java.awt.event.FocusAdapter() {
-            @Override
-            public void focusGained(java.awt.event.FocusEvent e) {
-                repaint();
-            }
+        Listeners.repaintOnFocus(this);
+    }
 
-            @Override
-            public void focusLost(java.awt.event.FocusEvent e) {
-                repaint();
+    /** 행 위의 마우스 동작: hover 배경, 열기, 오른쪽 클릭 메뉴 */
+    private final class RowMouse extends MouseAdapter {
+        @Override
+        public void mouseEntered(MouseEvent e) {
+            hover.to(1f, 140);
+        }
+
+        @Override
+        public void mouseExited(MouseEvent e) {
+            java.awt.Point p = SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), OccurrenceRow.this);
+            if (!contains(p)) {
+                hover.to(0f, 180);
             }
-        });
+        }
+
+        @Override
+        public void mousePressed(MouseEvent e) {
+            maybeMenu(e);
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent e) {
+            maybeMenu(e);
+        }
+
+        @Override
+        public void mouseClicked(MouseEvent e) {
+            if (SwingUtilities.isLeftMouseButton(e) && !e.isPopupTrigger()) {
+                handler.open(occurrence);
+            }
+        }
     }
 
     private void maybeMenu(MouseEvent e) {

@@ -41,6 +41,12 @@ public class WeekdayColumns extends JComponent {
         repaint();
     }
 
+    /** 막대를 0에서 다시 자라게 한다 */
+    public void replay() {
+        grow.set(0f);
+        grow.to(1f, 420);
+    }
+
     @Override
     public Dimension getPreferredSize() {
         return new Dimension(Ui.px(400), Ui.px(168));

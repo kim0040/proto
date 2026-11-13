@@ -46,6 +46,11 @@ public class TransitionHost extends JPanel {
 
     /** change로 내용을 바꾸면서 dir 방향의 전환 효과를 보여 준다 */
     public void transition(Dir direction, Runnable change) {
+        transition(direction, change, () -> { });
+    }
+
+    /** 전환이 끝난 뒤(애니메이션이 없으면 바로) onDone을 한 번 부른다 */
+    public void transition(Dir direction, Runnable change, Runnable onDone) {
         if (running && handle != null) {
             handle.finish();
         }
@@ -54,6 +59,7 @@ public class TransitionHost extends JPanel {
             change.run();
             revalidate();
             repaint();
+            onDone.run();
             return;
         }
         before = snapshot();
@@ -66,7 +72,10 @@ public class TransitionHost extends JPanel {
         handle = Motion.run(DURATION_MS, f -> {
             progress = f;
             repaint();
-        }, this::finishTransition);
+        }, () -> {
+            finishTransition();
+            onDone.run();
+        });
     }
 
     private void finishTransition() {

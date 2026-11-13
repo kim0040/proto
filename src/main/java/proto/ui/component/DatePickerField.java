@@ -46,7 +46,7 @@ public class DatePickerField extends JButton {
         refreshText();
     }
 
-    public void addChangeListener(Consumer<LocalDate> l) {
+    public void onPick(Consumer<LocalDate> l) {
         listeners.add(l);
     }
 
