@@ -382,6 +382,16 @@ class ScheduleControllerTest {
         assertEquals(4, f.recorder.changed);
     }
 
+    @Test
+    void removedListenerIsNotNotified() {
+        ControllerFixture.Recorder extra = new ControllerFixture.Recorder();
+        c.addListener(extra);
+        c.removeListener(extra);
+        c.create(draft("a", "2026-11-10", "09:00", "10:00"));
+        assertEquals(0, extra.changed);
+        assertEquals(1, f.recorder.changed);
+    }
+
     // ---- 겹침 ----
 
     @Test
@@ -418,10 +428,23 @@ class ScheduleControllerTest {
 
         assertEquals(List.of(b), c.findConflicts(weekly("x", "2026-11-16", "15:30", "16:30"), edited,
                 EditScope.THIS_AND_FOLLOWING));
-        // 11-09 회의는 수정 범위 밖이라 그 날짜와 겹치면 충돌로 보인다
-        Occurrence first = meetingOn("2026-11-09");
-        assertEquals(List.of(first), c.findConflicts(draft("x", "2026-11-09", "15:30", "16:30"), edited,
-                EditScope.THIS_AND_FOLLOWING));
+        // 고른 날보다 앞선 11-09로 옮기면 자르는 날이 11-09라, 그 회의도 바뀌는 쪽에 들어간다
+        assertTrue(c.findConflicts(draft("x", "2026-11-09", "15:30", "16:30"), edited,
+                EditScope.THIS_AND_FOLLOWING).isEmpty());
+    }
+
+    @Test
+    void movingFollowingEarlierDoesNotConflictWithDaysTheSaveWillReplace() {
+        ScheduleDraft daily = new ScheduleDraft("매일", d("2026-11-01"), t("15:00"), t("16:00"), "class", "",
+                RepeatRule.DAILY, d("2026-11-30"), ReminderOption.NONE);
+        assertTrue(c.create(daily).success());
+        assertTrue(c.create(draft("다른", "2026-11-05", "15:30", "16:30")).success());
+        Occurrence edited = f.occurrenceOn("매일", "2026-11-10");
+        ScheduleDraft earlier = new ScheduleDraft("새 매일", d("2026-11-05"), t("15:00"), t("16:00"), "class", "",
+                RepeatRule.DAILY, d("2026-11-30"), ReminderOption.NONE);
+
+        assertEquals(List.of(f.occurrenceOn("다른", "2026-11-05")),
+                c.findConflicts(earlier, edited, EditScope.THIS_AND_FOLLOWING));
     }
 
     // ---- 빈 시간 / 통계 ----

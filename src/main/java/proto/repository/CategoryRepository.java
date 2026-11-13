@@ -17,11 +17,15 @@ import java.util.Optional;
  * [저장소 repository] 카테고리 목록을 메모리에 들고 있고, CSV 파일(data/categories.csv: id,name)로 저장·불러온다 (F7, F11).
  * 파일이 없으면 기본 4개(수업, 과제, 팀플, 개인)로 시작한다.
  * 불러오면서 문제가 생기면 원본을 같은 폴더에 백업한 뒤에야 덮어쓴다 (백업 실패 시 저장하지 않음).
+ * "개인"(id personal)을 먼저 확보하고, 그 이름과 같은 다른 행은 경고와 함께 건너뛴다.
  */
-public class CategoryRepository {
+public class CategoryRepository implements CategoryStore {
 
     /** 카테고리 이름 최대 글자 수 (앞뒤 공백 제외) */
     public static final int MAX_NAME_LENGTH = 20;
+
+    /** 파일에 "개인" 행이 없을 때 덧붙이는 이름. 이 이름과 같은 다른 행은 건너뛴다 */
+    private static final String DEFAULT_PERSONAL_NAME = "개인";
 
     private final Path file;
     private final Clock clock;
@@ -43,6 +47,7 @@ public class CategoryRepository {
      * 파일이 있으면 읽고, 없으면 기본 카테고리로 시작해 바로 저장한다.
      * 파일 전체를 읽지 못했거나 CSV 구조가 깨졌으면 기본 카테고리로 시작한다. 문제가 있으면 원본을 백업한다.
      */
+    @Override
     public void loadOrSeed() {
         warnings.clear();
         saveBlocked = false;
@@ -64,6 +69,7 @@ public class CategoryRepository {
     }
 
     /** 전체를 파일에 쓴다. 불러올 때 원본을 백업하지 못했으면 덮어쓰지 않고 IOException을 던진다 */
+    @Override
     public void save() throws IOException {
         if (saveBlocked) {
             throw LoadProblems.saveBlocked(file);
@@ -77,38 +83,44 @@ public class CategoryRepository {
     }
 
     /** 불러올 때 생긴 경고들 (한국어 문장). 없으면 빈 목록 */
+    @Override
     public List<String> getWarnings() {
         return List.copyOf(warnings);
     }
 
+    @Override
     public List<Category> getAll() {
         return Collections.unmodifiableList(categories);
     }
 
+    @Override
     public Optional<Category> findById(String id) {
         return categories.stream().filter(c -> c.getId().equals(id)).findFirst();
     }
 
+    @Override
     public void add(Category category) {
         categories.add(category);
     }
 
+    @Override
     public void remove(Category category) {
         categories.remove(category);
     }
 
     private static List<Category> defaults() {
         return List.of(new Category("class", "수업"), new Category("assignment", "과제"),
-                new Category("team", "팀플"), new Category(Category.PERSONAL_ID, "개인"));
+                new Category("team", "팀플"), new Category(Category.PERSONAL_ID, DEFAULT_PERSONAL_NAME));
     }
 
-    /** 파일 전체를 임시 목록으로 읽는다. 읽기 실패·구조 오류면 기본 카테고리. "개인"이 없으면 덧붙인다 */
+    /** 파일 전체를 임시 목록으로 읽는다. 읽기 실패·구조 오류면 기본 카테고리. "개인"을 먼저 확보한다 */
     private List<Category> readFile(LoadProblems problems) {
         List<Category> loaded = new ArrayList<>();
         try {
             List<List<String>> rows = CsvCodec.parse(CsvFileStore.read(file));
+            String personalName = reservedPersonalName(rows);
             for (int i = 0; i < rows.size(); i++) {
-                loadRow(rows.get(i), i + 1, loaded, problems);
+                loadRow(rows.get(i), i + 1, loaded, problems, personalName);
             }
         } catch (CsvSyntaxException e) {
             problems.add("카테고리 파일 " + e.lineNumber() + "번째 줄의 따옴표가 맞지 않아 기본 카테고리로 시작했어요");
@@ -118,16 +130,35 @@ public class CategoryRepository {
             return new ArrayList<>(defaults());
         }
         if (loaded.stream().noneMatch(Category::isPersonal)) {
-            loaded.add(new Category(Category.PERSONAL_ID, "개인"));
+            loaded.add(new Category(Category.PERSONAL_ID, DEFAULT_PERSONAL_NAME));
         }
         return loaded;
     }
 
-    private static void loadRow(List<String> row, int lineNo, List<Category> loaded, LoadProblems problems) {
+    /** 지킬 "개인"의 이름. 올바른 personal 행이 있으면 그 이름이고, 없으면 덧붙일 이름이다 */
+    private static String reservedPersonalName(List<List<String>> rows) {
+        for (List<String> row : rows) {
+            if (isUsablePersonalRow(row)) {
+                return row.get(1).trim();
+            }
+        }
+        return DEFAULT_PERSONAL_NAME;
+    }
+
+    /** id가 personal이고 이름 규칙을 통과하는 행인지 */
+    private static boolean isUsablePersonalRow(List<String> row) {
+        if (row.size() != 2 || !Category.PERSONAL_ID.equals(row.get(0)) || row.get(1).isBlank()) {
+            return false;
+        }
+        return row.get(1).trim().length() <= MAX_NAME_LENGTH;
+    }
+
+    private static void loadRow(List<String> row, int lineNo, List<Category> loaded, LoadProblems problems,
+                                String personalName) {
         if (lineNo == 1 && !row.isEmpty() && row.get(0).equals("id")) {
             return;
         }
-        String reason = rowProblem(row, loaded);
+        String reason = rowProblem(row, loaded, personalName);
         if (reason != null) {
             problems.add("카테고리 파일 " + lineNo + "번째 줄을 읽지 못해 건너뛰었어요 (" + reason + ")");
             return;
@@ -135,8 +166,11 @@ public class CategoryRepository {
         loaded.add(new Category(row.get(0), row.get(1).trim()));
     }
 
-    /** 행이 잘못된 이유. 괜찮으면 null. 이름은 앞뒤 공백 제외 1~20자, 대소문자 무시 중복 금지 */
-    private static String rowProblem(List<String> row, List<Category> loaded) {
+    /**
+     * 행이 잘못된 이유. 괜찮으면 null. 이름은 앞뒤 공백 제외 1~20자, 대소문자 무시 중복 금지.
+     * personal이 아직 목록에 없어도 그 이름과 같은 다른 행은 중복이다.
+     */
+    private static String rowProblem(List<String> row, List<Category> loaded, String personalName) {
         if (row.size() != 2 || row.get(0).isBlank() || row.get(1).isBlank()) {
             return "id와 이름 두 칸이 필요해요";
         }
@@ -147,7 +181,13 @@ public class CategoryRepository {
         if (loaded.stream().anyMatch(c -> c.getId().equals(row.get(0)))) {
             return "id가 겹쳐요";
         }
-        boolean sameName = loaded.stream().anyMatch(c -> c.getName().toLowerCase(Locale.ROOT).equals(name));
-        return sameName ? "이미 있는 이름이에요" : null;
+        boolean reserved = !Category.PERSONAL_ID.equals(row.get(0))
+                && name.equals(personalName.toLowerCase(Locale.ROOT));
+        boolean taken = reserved || loaded.stream().anyMatch(c -> nameMatches(c, name));
+        return taken ? "이미 있는 이름이에요" : null;
+    }
+
+    private static boolean nameMatches(Category category, String lowerName) {
+        return category.getName().toLowerCase(Locale.ROOT).equals(lowerName);
     }
 }

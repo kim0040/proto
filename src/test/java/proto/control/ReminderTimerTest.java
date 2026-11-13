@@ -223,6 +223,76 @@ class ReminderTimerTest {
         assertEquals(List.of("A", "B"), snoozed.stream().sorted().toList());
     }
 
+    @Test
+    void postponedReminderFiresLaterAtTheNewTimeAndIsNotConsumedEarly() {
+        ReminderTimer local = timerFor("A", "B");
+        List<String> fired = new ArrayList<>();
+        local.addListener((o, snoozed) -> {
+            fired.add(o.title() + "@" + o.startTime());
+            if (o.title().equals("A")) {
+                f.schedules.update(f.occurrenceOn("B", "2026-11-09"),
+                        withReminder(draft("B", "2026-11-09", "12:00", "13:00"), ReminderOption.TEN_MINUTES),
+                        EditScope.THIS_ONLY);
+            }
+        });
+
+        f.clock.set("2026-11-09T09:50");
+        local.checkNow();
+        assertEquals(List.of("A@10:00"), fired);
+
+        fired.clear();
+        f.clock.set("2026-11-09T11:49");
+        local.checkNow();
+        assertTrue(fired.isEmpty());
+        f.clock.set("2026-11-09T11:50");
+        local.checkNow();
+        assertEquals(List.of("B@12:00"), fired);
+    }
+
+    @Test
+    void reminderTurnedOffDuringCallbackIsNotFiredOrConsumed() {
+        ReminderTimer local = timerFor("A", "B");
+        List<String> fired = new ArrayList<>();
+        local.addListener((o, snoozed) -> {
+            fired.add(o.title());
+            if (o.title().equals("A")) {
+                f.schedules.update(f.occurrenceOn("B", "2026-11-09"),
+                        draft("B", "2026-11-09", "10:00", "11:00"), EditScope.THIS_ONLY);
+            }
+        });
+
+        f.clock.set("2026-11-09T09:50");
+        local.checkNow();
+        assertEquals(List.of("A"), fired);
+        f.clock.set("2026-11-09T10:30");
+        local.checkNow();
+        assertEquals(List.of("A"), fired);
+    }
+
+    @Test
+    void snoozeFailsWhenTheOccurrenceIsAlreadyGoneOrCompleted() {
+        Occurrence meeting = f.occurrenceOn("회의", "2026-11-09");
+        f.schedules.setCompleted(meeting, true);
+        OperationResult completed = timer.snooze(meeting, 5);
+        assertFalse(completed.success());
+        assertEquals("이미 지워졌거나 완료한 일정이에요", completed.message());
+
+        f.schedules.setCompleted(meeting, false);
+        f.schedules.delete(meeting, EditScope.THIS_ONLY);
+        OperationResult deleted = timer.snooze(meeting, 5);
+        assertFalse(deleted.success());
+        assertEquals("이미 지워졌거나 완료한 일정이에요", deleted.message());
+    }
+
+    @Test
+    void removedListenerIsNotCalled() {
+        ReminderListener listener = (o, snoozed) -> events.add("removed");
+        timer.addListener(listener);
+        timer.removeListener(listener);
+        checkAt("09:50");
+        assertEquals(List.of("회의"), events);
+    }
+
     /** setUp의 "회의"를 지우고 A, B 두 알림 일정만 둔 타이머 */
     private ReminderTimer timerFor(String first, String second) {
         f.schedules.delete(f.occurrenceOn("회의", "2026-11-09"), EditScope.THIS_ONLY);
