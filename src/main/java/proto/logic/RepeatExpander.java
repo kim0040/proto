@@ -39,13 +39,38 @@ public final class RepeatExpander {
         return !ruleDates(s, day, day).isEmpty();
     }
 
-    /** 남은 하루치 일정이 하나라도 있는지. 종료일 없는 반복은 항상 있다 */
+    /** 남은 하루치 일정이 하나라도 있는지. 종료일 없는 반복은 항상 있다. 있으면 그 날짜에서 바로 끝낸다 */
     public static boolean hasOccurrences(Schedule s) {
         if (s.isRepeating() && s.getRepeatEndDate() == null) {
             return true;
         }
         LocalDate last = s.isRepeating() ? s.getRepeatEndDate() : s.getDate();
-        return !expand(s, s.getDate(), last).isEmpty();
+        return hasOpenDate(s, s.getDate(), last);
+    }
+
+    /** 1년씩 끊어서 보고, 제외되지 않은 첫 날짜에서 바로 true */
+    private static boolean hasOpenDate(Schedule s, LocalDate from, LocalDate last) {
+        LocalDate windowStart = from;
+        while (!windowStart.isAfter(last)) {
+            LocalDate windowEnd = windowStart.plusYears(1).minusDays(1);
+            if (windowEnd.isAfter(last)) {
+                windowEnd = last;
+            }
+            if (firstOpen(s, windowStart, windowEnd)) {
+                return true;
+            }
+            windowStart = windowEnd.plusDays(1);
+        }
+        return false;
+    }
+
+    private static boolean firstOpen(Schedule s, LocalDate from, LocalDate to) {
+        for (LocalDate day : ruleDates(s, from, to)) {
+            if (!s.isExcludedOn(day)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 제외 날짜를 무시하고 규칙만으로 정해지는 from~to 사이 날짜들 */

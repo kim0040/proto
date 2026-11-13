@@ -116,4 +116,29 @@ class RepeatExpanderTest {
         ending.excludeDate(d("2026-11-10"));
         assertFalse(RepeatExpander.hasOccurrences(ending));
     }
+
+    @Test
+    void hasOccurrencesFindsADateOnTheNextYearWindow() {
+        Schedule s = repeating("a", "x", "2026-01-01", "09:00", "10:00", RepeatRule.DAILY, "2028-01-01");
+        LocalDate keep = d("2027-01-01");
+        for (LocalDate day = s.getDate(); !day.isAfter(s.getRepeatEndDate()); day = day.plusDays(1)) {
+            if (!day.equals(keep)) {
+                s.excludeDate(day);
+            }
+        }
+        assertTrue(RepeatExpander.hasOccurrences(s));
+        s.excludeDate(keep);
+        assertFalse(RepeatExpander.hasOccurrences(s));
+    }
+
+    @Test
+    void hasOccurrencesReturnsWithoutWalkingAMultiCenturySeries() {
+        Schedule s = repeating("a", "x", "2000-01-01", "09:00", "10:00", RepeatRule.DAILY, "9999-12-31");
+        long start = System.nanoTime();
+        for (int i = 0; i < 4; i++) {
+            assertTrue(RepeatExpander.hasOccurrences(s));
+        }
+        long millis = (System.nanoTime() - start) / 1_000_000;
+        assertTrue(millis < 40, "took " + millis + "ms");
+    }
 }
