@@ -45,12 +45,12 @@ tasks.named('test') {
     }
 }
 
-// 화면 캡처(검증용): 임시 데이터로 모든 화면을 2배 크기 PNG로 screenshots/ 에 저장한다 (git 제외 폴더)
+// 화면 캡처(검증용): 임시 데이터로 여러 창 크기(1440×900 ~ 세로 800×1000)·밝은/어두운 테마의 모든 화면을 2배 크기 PNG로 screenshots/ 에 저장한다 (git 제외 폴더)
 tasks.register('screenshots', JavaExec) {
     group = 'verification'
     description = 'UI 화면을 PNG로 저장한다'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'proto.ui.dev.ScreenshotMain'
+    mainClass = 'proto.app.dev.ScreenshotMain'
     workingDir = rootProject.projectDir
     args = [layout.projectDirectory.dir('screenshots').asFile.path]
     jvmArgs '-Dfile.encoding=UTF-8', '-Dapple.awt.application.appearance=system', '--enable-native-access=ALL-UNNAMED'

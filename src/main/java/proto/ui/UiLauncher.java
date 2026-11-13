@@ -7,6 +7,8 @@ import proto.ui.theme.ThemeManager;
 
 import javax.swing.JDialog;
 import javax.swing.JFrame;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 
 /**
  * [경계 boundary] 화면 시작점. Main이 controller들을 만든 뒤 Swing 이벤트 스레드(EDT)에서 부른다.
@@ -15,6 +17,33 @@ import javax.swing.JFrame;
 public final class UiLauncher {
 
     private UiLauncher() {
+    }
+
+    /**
+     * 화면 시스템(AWT)을 쓰기 전에 가장 먼저 부른다. macOS에서 메뉴 막대·Dock에 보일 앱 이름과 시스템 밝기 연동을 정한다.
+     * AWT가 한 번 시작된 뒤에는 이 속성들이 먹히지 않는다.
+     */
+    public static void prepare() {
+        System.setProperty("apple.awt.application.name", "일정 관리");
+        System.setProperty("apple.awt.application.appearance", "system");
+    }
+
+    /** 이미 다른 창이 실행 중일 때 알리는 안내창 (데이터는 건드리지 않고 프로그램은 곧 끝난다). 어느 스레드에서 불러도 된다 */
+    public static void showAlreadyRunning() {
+        String message = "일정 관리가 이미 실행 중이에요.\n열려 있는 창을 확인해 주세요.";
+        Runnable show = () -> JOptionPane.showMessageDialog(null, message, "일정 관리",
+                JOptionPane.INFORMATION_MESSAGE);
+        try {
+            if (SwingUtilities.isEventDispatchThread()) {
+                show.run();
+            } else {
+                SwingUtilities.invokeAndWait(show);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (java.lang.reflect.InvocationTargetException | RuntimeException e) {
+            System.err.println(message);
+        }
     }
 
     public static void launch(ScheduleController schedules, CategoryController categories,
