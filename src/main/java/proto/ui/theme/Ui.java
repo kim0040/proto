@@ -27,6 +27,11 @@ public final class Ui {
         return SystemInfo.isMacOS;
     }
 
+    /** 단축키를 사람이 읽는 글로 (macOS "⌘N", Windows "Ctrl+N") */
+    public static String shortcut(String key) {
+        return isMac() ? "\u2318" + key : "Ctrl+" + key;
+    }
+
     /** 도형과 글자를 부드럽게 그리도록 힌트를 켠다 */
     public static void smooth(Graphics2D g) {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);

@@ -45,33 +45,67 @@ public final class Fonts {
         if (installed) {
             return;
         }
+        boolean allBundled = true;
         for (Weight w : Weight.values()) {
-            BASE[w.ordinal()] = load(w);
+            Font loaded = load(w);
+            allBundled &= loaded != null;
+            BASE[w.ordinal()] = loaded != null ? loaded : platform(w);
         }
         Font regular = BASE[Weight.REGULAR.ordinal()];
-        FlatLaf.setPreferredFontFamily(regular.getFamily());
-        FlatLaf.setPreferredSemiboldFontFamily(BASE[Weight.SEMIBOLD.ordinal()].getFamily());
+        if (allBundled) {
+            FlatLaf.setPreferredFontFamily(regular.getFamily());
+            FlatLaf.setPreferredSemiboldFontFamily(BASE[Weight.SEMIBOLD.ordinal()].getFamily());
+        } else {
+            FlatLaf.setPreferredFontFamily(platformFamily());
+        }
         UIManager.put("defaultFont", new FontUIResource(regular.deriveFont(BODY)));
         installed = true;
     }
 
+    /** 번들 글꼴을 읽어 등록한다. 어떤 이유로든 실패하면 조용히 null (플랫폼 글꼴로 대신한다) */
     private static Font load(Weight w) {
         String path = "/fonts/Pretendard-" + w.file + ".ttf";
         try (InputStream in = Fonts.class.getResourceAsStream(path)) {
             if (in == null) {
-                return new Font(Font.SANS_SERIF, w == Weight.REGULAR ? Font.PLAIN : Font.BOLD, 14);
+                return null;
             }
             Font font = Font.createFont(Font.TRUETYPE_FONT, in);
             GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(font);
             return font;
-        } catch (IOException | FontFormatException e) {
-            return new Font(Font.SANS_SERIF, Font.PLAIN, 14);
+        } catch (IOException | FontFormatException | RuntimeException e) {
+            return null;
         }
+    }
+
+    /** 번들 글꼴을 못 쓸 때의 대체 글꼴: 굵기는 보통/굵게 두 단계로 단순화한다 */
+    private static Font platform(Weight w) {
+        boolean bold = w == Weight.SEMIBOLD || w == Weight.BOLD;
+        return new Font(platformFamily(), bold ? Font.BOLD : Font.PLAIN, 14);
+    }
+
+    /** 운영체제 기본 한글 UI 글꼴 (Windows: 맑은 고딕, macOS: Apple SD Gothic Neo). 없으면 논리 글꼴 */
+    static String platformFamily() {
+        try {
+            java.util.Set<String> names = new java.util.HashSet<>(java.util.Arrays.asList(
+                    GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()));
+            for (String candidate : new String[] {"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans CJK KR",
+                    "NanumGothic"}) {
+                if (names.contains(candidate)) {
+                    return candidate;
+                }
+            }
+        } catch (RuntimeException e) {
+            // 글꼴 목록을 못 읽으면 논리 글꼴을 쓴다
+        }
+        return Font.SANS_SERIF;
     }
 
     /** 굵기와 크기(논리 px)로 글꼴을 만든다. 화면 배율을 반영한다 */
     public static Font of(float size, Weight weight) {
         Font base = installed ? BASE[weight.ordinal()] : UIManager.getFont("defaultFont");
+        if (base == null) {
+            base = new Font(Font.SANS_SERIF, Font.PLAIN, 14);
+        }
         return base.deriveFont(Ui.px(size));
     }
 
