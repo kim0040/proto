@@ -133,4 +133,101 @@ class ReminderTimerTest {
         night.checkNow();
         assertEquals(1, nightEvents.size());
     }
+
+    @Test
+    void reentrantCheckNowDoesNotFireTheSameReminderTwice() {
+        ReminderTimer local = timerFor("A", "B");
+        List<String> fired = new ArrayList<>();
+        local.addListener((o, snoozed) -> {
+            fired.add(o.title());
+            if (fired.size() == 1) {
+                local.checkNow();
+            }
+        });
+
+        f.clock.set("2026-11-09T09:50");
+        local.checkNow();
+        assertEquals(List.of("A", "B"), fired);
+    }
+
+    @Test
+    void completingTheNextReminderDuringTheCallbackSkipsIt() {
+        ReminderTimer local = timerFor("A", "B");
+        List<String> fired = new ArrayList<>();
+        local.addListener((o, snoozed) -> {
+            fired.add(o.title());
+            if (o.title().equals("A")) {
+                f.schedules.setCompleted(f.occurrenceOn("B", "2026-11-09"), true);
+            }
+        });
+
+        f.clock.set("2026-11-09T09:50");
+        local.checkNow();
+        assertEquals(List.of("A"), fired);
+    }
+
+    @Test
+    void deletingTheNextReminderDuringTheCallbackSkipsIt() {
+        ReminderTimer local = timerFor("A", "B");
+        List<String> fired = new ArrayList<>();
+        local.addListener((o, snoozed) -> {
+            fired.add(o.title());
+            if (o.title().equals("A")) {
+                f.schedules.delete(f.occurrenceOn("B", "2026-11-09"), EditScope.THIS_ONLY);
+            }
+        });
+
+        f.clock.set("2026-11-09T09:50");
+        local.checkNow();
+        assertEquals(List.of("A"), fired);
+    }
+
+    @Test
+    void aReminderFiredAfterAnEditUsesTheFreshOccurrence() {
+        ReminderTimer local = timerFor("A", "B");
+        List<String> fired = new ArrayList<>();
+        local.addListener((o, snoozed) -> {
+            fired.add(o.title());
+            if (o.title().equals("A")) {
+                f.schedules.update(f.occurrenceOn("B", "2026-11-09"),
+                        withReminder(draft("B2", "2026-11-09", "10:00", "11:00"), ReminderOption.TEN_MINUTES),
+                        EditScope.THIS_ONLY);
+            }
+        });
+
+        f.clock.set("2026-11-09T09:50");
+        local.checkNow();
+        assertEquals(List.of("A", "B2"), fired);
+    }
+
+    @Test
+    void reentrantCheckNowDoesNotFireTheSameSnoozeTwice() {
+        ReminderTimer local = timerFor("A", "B");
+        List<String> snoozed = new ArrayList<>();
+        local.addListener((o, again) -> {
+            if (!again) {
+                return;
+            }
+            snoozed.add(o.title());
+            if (snoozed.size() == 1) {
+                local.checkNow();
+            }
+        });
+        f.clock.set("2026-11-09T09:50");
+        local.checkNow();
+        local.snooze(f.occurrenceOn("A", "2026-11-09"), 5);
+        local.snooze(f.occurrenceOn("B", "2026-11-09"), 5);
+
+        f.clock.set("2026-11-09T09:55");
+        local.checkNow();
+        assertEquals(List.of("A", "B"), snoozed.stream().sorted().toList());
+    }
+
+    /** setUp의 "회의"를 지우고 A, B 두 알림 일정만 둔 타이머 */
+    private ReminderTimer timerFor(String first, String second) {
+        f.schedules.delete(f.occurrenceOn("회의", "2026-11-09"), EditScope.THIS_ONLY);
+        f.schedules.create(withReminder(draft(first, "2026-11-09", "10:00", "11:00"), ReminderOption.TEN_MINUTES));
+        f.schedules.create(withReminder(draft(second, "2026-11-09", "10:00", "11:00"), ReminderOption.TEN_MINUTES));
+        return new ReminderTimer(f.schedules, f.clock);
+    }
 }

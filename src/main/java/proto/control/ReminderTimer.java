@@ -12,7 +12,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -20,6 +19,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * [제어 control] 30초마다 알림 시각이 된 일정을 찾아 리스너에 알리는 타이머 액터 역할 (F10, F15).
  * 앱을 켠 시각(생성 시각) 이전에 지난 알림은 보내지 않고, 같은 일정(같은 날짜)은 한 번만 알린다.
  * "다시 알림"(snooze)은 메모리에만 보관한다.
+ *
+ * <p>모든 public 메소드는 Swing 이벤트 스레드(EDT)에서 불러야 한다 (화면이 이미 EDT에서 부른다).</p>
  */
 public class ReminderTimer {
 
@@ -38,6 +39,7 @@ public class ReminderTimer {
     private final Set<String> notifiedKeys = new HashSet<>();
     private final Map<String, Snooze> snoozes = new HashMap<>();
     private final List<ReminderListener> listeners = new CopyOnWriteArrayList<>();
+    private boolean checking;
 
     public ReminderTimer(ScheduleController controller, Clock clock) {
         this.controller = controller;
@@ -58,17 +60,44 @@ public class ReminderTimer {
         timer.stop();
     }
 
-    /** 지금 바로 한 번 확인 (타이머가 부르는 것과 같음. 테스트용으로도 씀) */
+    /**
+     * 지금 바로 한 번 확인 (타이머가 부르는 것과 같음. 테스트용으로도 씀).
+     * 이미 확인 중이면 바로 돌아간다. 리스너가 다시 불러도 같은 알림이 두 번 나가지 않게.
+     */
     public void checkNow() {
-        LocalDateTime now = LocalDateTime.now(clock);
+        if (checking) {
+            return;
+        }
+        checking = true;
+        try {
+            LocalDateTime now = LocalDateTime.now(clock);
+            remindDue(now);
+            fireDueSnoozes(now);
+        } finally {
+            checking = false;
+        }
+    }
+
+    /** 알릴 일정의 키를 모두 찍은 뒤에 리스너를 부른다. 부르기 직전 최신 상태를 다시 읽는다 */
+    private void remindDue(LocalDateTime now) {
         LocalDate today = now.toLocalDate();
         // 내일 일정도 본다: 00:10 일정의 30분 전 알림은 전날 23:40이다
-        List<Occurrence> candidates = controller.getOccurrences(today, today.plusDays(1), null, null);
-        for (Occurrence o : ReminderChecker.findDue(candidates, now, appStartedAt, notifiedKeys)) {
-            notifiedKeys.add(o.key());
-            fire(o, false);
+        List<Occurrence> due = ReminderChecker.findDue(candidates(today), now, appStartedAt, notifiedKeys);
+        due.forEach(o -> notifiedKeys.add(o.key()));
+        for (Occurrence snapshot : due) {
+            fireFresh(snapshot, false);
         }
-        fireDueSnoozes(now);
+    }
+
+    private List<Occurrence> candidates(LocalDate today) {
+        return controller.getOccurrences(today, today.plusDays(1), null, null);
+    }
+
+    /** 없거나 이미 완료한 일정은 알리지 않고, 남아 있으면 최신 객체를 보낸다 */
+    private void fireFresh(Occurrence snapshot, boolean snoozed) {
+        controller.findOccurrence(snapshot.scheduleId(), snapshot.date())
+                .filter(o -> !o.completed())
+                .ifPresent(o -> fire(o, snoozed));
     }
 
     /** F15: minutes분 뒤에 이 일정을 한 번 더 알린다 (메모리에만 보관) */
@@ -82,7 +111,7 @@ public class ReminderTimer {
         return OperationResult.ok();
     }
 
-    /** 시각이 된 다시 알림을 한 번씩 알린다. 그 사이 완료했거나 지운 일정은 조용히 버린다 */
+    /** 시각이 된 다시 알림을 예약에서 모두 뺀 뒤 한 번씩 알린다. 완료·삭제된 일정은 조용히 버린다 */
     private void fireDueSnoozes(LocalDateTime now) {
         List<Snooze> due = new ArrayList<>();
         for (Snooze s : snoozes.values()) {
@@ -90,11 +119,9 @@ public class ReminderTimer {
                 due.add(s);
             }
         }
+        due.forEach(s -> snoozes.remove(s.occurrence().key()));
         for (Snooze s : due) {
-            snoozes.remove(s.occurrence().key());
-            Optional<Occurrence> latest = controller.findOccurrence(s.occurrence().scheduleId(),
-                    s.occurrence().date());
-            latest.filter(o -> !o.completed()).ifPresent(o -> fire(o, true));
+            fireFresh(s.occurrence(), true);
         }
     }
 
