@@ -1,0 +1,19 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Gradle / build
+.gradle/
+build/
+out/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# 실행 중 생기는 사용자 데이터
+data/
+
+# 화면 캡처 (검증용)
+screenshots/
