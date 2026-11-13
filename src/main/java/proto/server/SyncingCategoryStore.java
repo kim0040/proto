@@ -6,18 +6,22 @@ import proto.repository.CategoryStore;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
  * [서버 대비 — 현재 사용 안 함] CSV 카테고리 저장소 앞에 두는 로컬 우선 장식자다.
  * [저장소 repository] 불러올 때는 GET /api/v1/categories 스냅샷을 시도하고, 성공하면 CSV를 그 내용으로 바꾼다.
- * 스냅샷에 "개인"(id personal)이 없으면 이 컴퓨터 목록에만 덧붙인다. 실패하면 CSV를 그대로 두고 경고만 남긴다.
+ * 스냅샷에 "개인"(id personal)이 없으면 이 컴퓨터 목록에만 덧붙이고, 덧붙인 뒤 이름이 겹치면 스냅샷을 받지 않는다.
+ * 실패하면 CSV를 그대로 두고 경고만 남긴다.
  * 저장은 CSV를 먼저 쓰고, PUT이 실패해도 그 파일은 남긴다.
  */
 public final class SyncingCategoryStore implements CategoryStore {
 
     static final String OFFLINE_WARNING = "서버에 연결하지 못해 이 컴퓨터에 저장된 카테고리로 열었어요";
     static final String PUSH_WARNING = "서버에 카테고리를 올리지 못했어요. 이 컴퓨터에는 저장되어 있어요";
+
+    static final String NAME_CONFLICT_WARNING = "서버의 카테고리 이름이 겹쳐서 이 컴퓨터에 저장된 카테고리로 열었어요";
 
     private static final String SAVE_WARNING = "서버에서 받은 카테고리를 이 컴퓨터에 저장하지 못해 원래 카테고리를 유지했어요";
     private static final String PATH = "/api/v1/categories";
@@ -40,7 +44,12 @@ public final class SyncingCategoryStore implements CategoryStore {
 
     private void pull() {
         try {
-            replaceAndSave(withPersonal(CategoryJsonMapper.readSnapshot(client.get(PATH))));
+            List<Category> remote = withPersonal(CategoryJsonMapper.readSnapshot(client.get(PATH)));
+            if (hasDuplicateName(remote)) {
+                warn(NAME_CONFLICT_WARNING);
+                return;
+            }
+            replaceAndSave(remote);
         } catch (RemoteApiException | RuntimeException e) {
             warn(OFFLINE_WARNING);
         }
@@ -54,6 +63,22 @@ public final class SyncingCategoryStore implements CategoryStore {
         List<Category> copy = new ArrayList<>(loaded);
         copy.add(new Category(Category.PERSONAL_ID, "개인"));
         return copy;
+    }
+
+    /**
+     * 덧붙인 "개인"까지 포함해 대소문자를 무시한 이름이 겹치는지 본다.
+     * CSV 저장소(CategoryRepository)처럼 "개인"의 이름을 먼저 지키므로, 같은 이름의 다른 분류가 있으면 겹침이다.
+     */
+    private static boolean hasDuplicateName(List<Category> categories) {
+        List<String> seen = new ArrayList<>();
+        for (Category category : categories) {
+            String lower = category.getName().trim().toLowerCase(Locale.ROOT);
+            if (seen.contains(lower)) {
+                return true;
+            }
+            seen.add(lower);
+        }
+        return false;
     }
 
     private void replaceAndSave(List<Category> remote) {
