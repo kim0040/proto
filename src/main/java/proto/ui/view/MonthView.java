@@ -9,6 +9,7 @@ import proto.ui.component.MonthGrid;
 import proto.ui.component.OccurrenceList;
 import proto.ui.component.TokenLabel;
 import proto.ui.component.TokenPanel;
+import proto.ui.layout.SizeClass;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
@@ -27,45 +28,50 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * [경계 boundary] 달력 보기 (F2): 월간 격자와, 고른 날의 일정 목록이 있는 오른쪽 패널.
+ * [경계 boundary] 달력 보기 (F2): 월간 격자와, 고른 날의 일정 목록 패널.
+ * 넓은 화면에서는 패널이 오른쪽에, 좁거나 세로로 긴 화면에서는 격자 아래에 놓인다.
  */
 public class MonthView implements ContentView {
 
     private final UiContext ctx;
     private final JPanel root = new JPanel(new BorderLayout());
+    private final JPanel gridHolder = new JPanel(new BorderLayout());
     private final MonthGrid grid;
     private final TokenLabel dayTitle = new TokenLabel("", Fonts.semibold(Fonts.TITLE - 2), Tokens.TEXT);
     private final TokenLabel dayCount = new TokenLabel("", Fonts.regular(Fonts.SMALL), Tokens.MUTED);
     private final OccurrenceList list;
     private final JPanel listCards = new JPanel(new CardLayout());
+    private final JPanel side = new TokenPanel(new BorderLayout(0, Ui.px(12)), Tokens.SIDEBAR);
+    private final JPanel head = new JPanel(new BorderLayout(Ui.px(12), 0));
+    private final JButton add = Buttons.secondary("이 날에 일정 추가");
     private Map<LocalDate, List<Occurrence>> byDay = new HashMap<>();
     private int monthCount;
+    private SizeClass size;
 
     public MonthView(UiContext ctx) {
         this.ctx = ctx;
+        this.size = ctx.size();
         this.grid = new MonthGrid(this::select, d -> {
             select(d);
             ctx.actions().newSchedule(d);
         });
         this.list = new OccurrenceList(ctx.actions(), true);
         root.setOpaque(false);
-        JPanel gridHolder = new JPanel(new BorderLayout());
         gridHolder.setOpaque(false);
-        gridHolder.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(24), Ui.px(24), Ui.px(16)));
         gridHolder.add(grid, BorderLayout.CENTER);
+        buildSide();
         root.add(gridHolder, BorderLayout.CENTER);
-        root.add(buildSide(), BorderLayout.EAST);
+        layoutFor(size);
     }
 
-    private JPanel buildSide() {
-        TokenPanel side = new TokenPanel(new BorderLayout(0, Ui.px(12)), Tokens.SIDEBAR);
-        side.setBorder(BorderFactory.createEmptyBorder(Ui.px(20), Ui.px(16), Ui.px(20), Ui.px(16)));
-        side.setPreferredSize(new Dimension(Ui.px(304), 10));
-        JPanel head = new JPanel(new BorderLayout(0, Ui.px(2)));
+    private void buildSide() {
+        JPanel titles = new JPanel(new BorderLayout(0, Ui.px(2)));
+        titles.setOpaque(false);
+        titles.add(dayTitle, BorderLayout.NORTH);
+        titles.add(dayCount, BorderLayout.CENTER);
         head.setOpaque(false);
         head.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(8), 0, 0));
-        head.add(dayTitle, BorderLayout.NORTH);
-        head.add(dayCount, BorderLayout.CENTER);
+        head.add(titles, BorderLayout.CENTER);
         JScrollPane scroll = new JScrollPane(list);
         scroll.setBorder(BorderFactory.createEmptyBorder());
         scroll.setOpaque(false);
@@ -75,16 +81,53 @@ public class MonthView implements ContentView {
         listCards.setOpaque(false);
         listCards.add(scroll, "list");
         listCards.add(none, "empty");
-        JButton add = Buttons.secondary("이 날에 일정 추가");
         add.addActionListener(e -> ctx.actions().newSchedule(ctx.state().selectedDay()));
         side.add(head, BorderLayout.NORTH);
         side.add(listCards, BorderLayout.CENTER);
-        side.add(add, BorderLayout.SOUTH);
-        return side;
     }
 
+    @Override
+    public void applySize(SizeClass sc) {
+        size = sc;
+        layoutFor(sc);
+    }
+
+    /** 패널을 오른쪽(넓은 화면) 또는 아래(좁거나 세로로 긴 화면)에 놓고 여백·점 모드를 맞춘다 */
+    private void layoutFor(SizeClass sc) {
+        boolean below = sc.dayPanelBelow();
+        int g = sc.gutter();
+        int bottom = Ui.px(below ? 12 : 24 - sc.verticalTrim());
+        gridHolder.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(g - 8), bottom, Ui.px(below ? g - 8 : 16)));
+        root.remove(side);
+        side.remove(add);
+        head.remove(add);
+        int pad = Ui.px(below ? 12 : 16);
+        side.setBorder(BorderFactory.createEmptyBorder(Ui.px(below ? 12 : 20), Ui.px(below ? g - 8 : 16), pad,
+                Ui.px(below ? g - 8 : 16)));
+        if (below) {
+            side.setPreferredSize(new Dimension(10, Ui.px(sc.tall() ? 280 : 200)));
+            head.add(add, BorderLayout.EAST);
+            root.add(side, BorderLayout.SOUTH);
+        } else {
+            side.setPreferredSize(new Dimension(Ui.px(sc.dayPanelWidth()), 10));
+            side.add(add, BorderLayout.SOUTH);
+            root.add(side, BorderLayout.EAST);
+        }
+        grid.setDotMode(sc.monthDots());
+        root.revalidate();
+        root.repaint();
+    }
+
+    /** 날짜를 고른다. 키보드로 지금 보이는 6주 밖까지 가면 그 달로 넘어간다 */
     private void select(LocalDate day) {
-        ctx.state().setSelectedDay(day);
+        AppState s = ctx.state();
+        s.setSelectedDay(day);
+        LocalDate first = grid.gridStart();
+        if (day.isBefore(first) || day.isAfter(first.plusDays(41))) {
+            s.setAnchor(day);
+            ctx.refreshViews();
+            return;
+        }
         grid.setSelected(day);
         refreshSide(true);
     }

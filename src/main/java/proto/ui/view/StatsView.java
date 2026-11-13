@@ -7,6 +7,7 @@ import proto.ui.component.HorizontalBars;
 import proto.ui.component.ScrollPanel;
 import proto.ui.component.TokenLabel;
 import proto.ui.component.WeekdayColumns;
+import proto.ui.layout.SizeClass;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
@@ -19,6 +20,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
+import java.awt.Font;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -37,6 +39,9 @@ public class StatsView implements ContentView {
     private final HorizontalBars bars = new HorizontalBars();
     private final WeekdayColumns columns = new WeekdayColumns();
     private final EmptyState empty;
+    private final ScrollPanel body = new ScrollPanel(null);
+    private final List<Box.Filler> gaps = new java.util.ArrayList<>();
+    private final List<Box.Filler> sectionGaps = new java.util.ArrayList<>();
 
     public StatsView(UiContext ctx) {
         this.ctx = ctx;
@@ -52,14 +57,13 @@ public class StatsView implements ContentView {
     }
 
     private JComponent buildContent() {
-        ScrollPanel body = new ScrollPanel(null);
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-        body.setBorder(BorderFactory.createEmptyBorder(Ui.px(8), Ui.px(32), Ui.px(32), Ui.px(32)));
         body.add(numbers());
-        body.add(Box.createVerticalStrut(Ui.px(36)));
+        body.add(sectionGap());
         body.add(section("카테고리별 계획 시간", bars));
-        body.add(Box.createVerticalStrut(Ui.px(32)));
+        body.add(sectionGap());
         body.add(section("요일별 일정 수", columns));
+        applySize(ctx.size());
         JScrollPane scroll = new JScrollPane(body);
         scroll.setBorder(BorderFactory.createEmptyBorder());
         scroll.setOpaque(false);
@@ -73,12 +77,45 @@ public class StatsView implements ContentView {
         p.setLayout(new BoxLayout(p, BoxLayout.X_AXIS));
         p.setAlignmentX(0f);
         p.add(stat(total, "전체 일정"));
-        p.add(Box.createHorizontalStrut(Ui.px(64)));
+        p.add(numberGap());
         p.add(stat(rate, "완료율"));
-        p.add(Box.createHorizontalStrut(Ui.px(64)));
+        p.add(numberGap());
         p.add(stat(delayed, "지연"));
         p.add(Box.createHorizontalGlue());
         return p;
+    }
+
+    private Box.Filler numberGap() {
+        Box.Filler f = (Box.Filler) Box.createHorizontalStrut(Ui.px(64));
+        gaps.add(f);
+        return f;
+    }
+
+    private Box.Filler sectionGap() {
+        Box.Filler f = (Box.Filler) Box.createVerticalStrut(Ui.px(34));
+        sectionGaps.add(f);
+        return f;
+    }
+
+    /** 세로로 길거나 낮은 화면, 좁은 화면에서는 여백과 큰 숫자를 한 단계 줄여 한 화면에 더 담는다. 차트는 세로로 쌓인다 */
+    @Override
+    public void applySize(SizeClass sc) {
+        int g = sc.gutter();
+        int trim = sc.verticalTrim();
+        body.setBorder(BorderFactory.createEmptyBorder(Ui.px(8 - trim / 2), Ui.px(g), Ui.px(32 - trim * 2),
+                Ui.px(g)));
+        gaps.forEach(f -> resize(f, sc.compact() ? 36 : 64, 0));
+        sectionGaps.forEach(f -> resize(f, 0, sc.dense() ? 22 : 34));
+        Font font = Fonts.bold(sc.dense() ? Fonts.DISPLAY : Fonts.DISPLAY + 6);
+        for (TokenLabel l : List.of(total, rate, delayed)) {
+            l.setFont(font);
+        }
+        body.revalidate();
+    }
+
+    private static void resize(Box.Filler f, int w, int h) {
+        java.awt.Dimension d = new java.awt.Dimension(Ui.px(w), Ui.px(h));
+        f.changeShape(d, d, d);
     }
 
     private static JPanel stat(TokenLabel number, String label) {

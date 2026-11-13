@@ -5,6 +5,8 @@ import proto.ui.UiContext;
 import proto.ui.UiSettings;
 import proto.ui.component.Buttons;
 import proto.ui.component.Listeners;
+import proto.ui.component.PathLabel;
+import proto.ui.layout.SizeClass;
 import proto.ui.component.ScrollPanel;
 import proto.ui.component.Segmented;
 import proto.ui.component.TimeCombo;
@@ -51,8 +53,9 @@ public class SettingsView implements ContentView {
     private final Segmented<Mode> start = new Segmented<>(List.of(Mode.TODAY, Mode.WEEK, Mode.MONTH),
             SettingsView::modeLabel);
     private final ToggleSwitch sound = new ToggleSwitch(UiSettings.reminderSound(), "알림 소리");
-    private final TimeCombo from = new TimeCombo(UiSettings.freeFrom());
-    private final TimeCombo to = new TimeCombo(UiSettings.freeTo());
+    private final TimeCombo from = new TimeCombo(UiSettings.freeFrom()).named("활동 시작 시각");
+    private final TimeCombo to = new TimeCombo(UiSettings.freeTo()).named("활동 끝 시각");
+    private ScrollPanel body;
     private final TokenLabel hoursHint = new TokenLabel("빈 시간 찾기를 열면 이 시간대가 먼저 채워져요",
             Fonts.regular(Fonts.SMALL), Tokens.MUTED);
 
@@ -82,9 +85,9 @@ public class SettingsView implements ContentView {
     // ---- 조립 ----
 
     private JScrollPane build() {
-        ScrollPanel body = new ScrollPanel(null);
+        body = new ScrollPanel(null);
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-        body.setBorder(BorderFactory.createEmptyBorder(Ui.px(4), Ui.px(32), Ui.px(40), Ui.px(32)));
+        applySize(ctx.size());
         body.add(section("화면", List.of(
                 row("테마", "시스템을 고르면 컴퓨터의 밝기 설정을 따라가요", theme),
                 row("애니메이션", "화면 전환과 효과를 부드럽게 보여 줘요", animation),
@@ -101,6 +104,15 @@ public class SettingsView implements ContentView {
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
         return scroll;
+    }
+
+    /** 좁은 화면에서는 가로 여백을 줄인다 */
+    @Override
+    public void applySize(SizeClass sc) {
+        if (body != null) {
+            int g = Ui.px(sc.gutter());
+            body.setBorder(BorderFactory.createEmptyBorder(Ui.px(4), g, Ui.px(40 - sc.verticalTrim()), g));
+        }
     }
 
     private JPanel section(String heading, List<JComponent> rows) {
@@ -165,16 +177,20 @@ public class SettingsView implements ContentView {
 
     private JPanel dataRow() {
         Path dir = Path.of("data").toAbsolutePath();
-        TokenLabel path = new TokenLabel(dir.toString(), Fonts.regular(Fonts.SMALL), Tokens.MUTED);
-        path.setToolTipText(dir.toString());
+        PathLabel path = new PathLabel(dir.toString());
         JButton open = Buttons.secondary("폴더 열기");
         open.setEnabled(Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN));
         open.addActionListener(e -> openFolder(dir));
         return row("데이터 폴더", path, open);
     }
 
+    /** 폴더를 연다. 폴더가 없거나 운영체제가 열지 못하면 토스트로 알리고 앱은 그대로 계속 쓴다 */
     private void openFolder(Path dir) {
         try {
+            if (!java.nio.file.Files.isDirectory(dir)) {
+                ctx.actions().error("데이터 폴더가 아직 없어요");
+                return;
+            }
             Desktop.getDesktop().open(dir.toFile());
         } catch (IOException | RuntimeException e) {
             ctx.actions().error("폴더를 열 수 없어요");

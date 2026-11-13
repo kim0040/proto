@@ -7,6 +7,7 @@ import proto.ui.Fmt;
 import proto.ui.UiContext;
 import proto.ui.component.OccurrenceList;
 import proto.ui.component.TokenLabel;
+import proto.ui.layout.SizeClass;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
@@ -33,11 +34,13 @@ public class TodayView implements ContentView {
     private final TokenLabel summary = new TokenLabel("", Fonts.medium(Fonts.BODY), Tokens.MUTED);
     private final OccurrenceList list;
     private final EmptyState empty;
+    private final JScrollPane scroll;
 
     public TodayView(UiContext ctx) {
         this.ctx = ctx;
         this.list = new OccurrenceList(ctx.actions(), false);
         this.empty = new EmptyState("새 일정", () -> ctx.actions().newSchedule(ctx.schedules().today()));
+        this.scroll = new JScrollPane(list);
         root.setOpaque(false);
         root.add(buildList(), LIST);
         root.add(empty, EMPTY);
@@ -46,14 +49,26 @@ public class TodayView implements ContentView {
     private JPanel buildList() {
         JPanel p = new JPanel(new BorderLayout());
         p.setOpaque(false);
-        summary.setBorder(BorderFactory.createEmptyBorder(Ui.px(4), Ui.px(32), Ui.px(12), Ui.px(32)));
-        JScrollPane scroll = new JScrollPane(list);
-        scroll.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(28), Ui.px(24), Ui.px(28)));
+        applyPadding(ctx.size());
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
         p.add(summary, BorderLayout.NORTH);
         p.add(scroll, BorderLayout.CENTER);
         return p;
+    }
+
+    private void applyPadding(SizeClass sc) {
+        int g = sc.gutter();
+        int trim = sc.verticalTrim();
+        summary.setBorder(BorderFactory.createEmptyBorder(Ui.px(4 - trim / 2), Ui.px(g), Ui.px(12 - trim), Ui.px(g)));
+        scroll.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(g - 4), Ui.px(24 - trim), Ui.px(g - 4)));
+    }
+
+    /** 좁은 화면에서는 카테고리 이름을 감추고 점만 남긴다 (상태 알약은 항상 보인다) */
+    @Override
+    public void applySize(SizeClass sc) {
+        applyPadding(sc);
+        list.setHideCategoryName(sc.compact());
     }
 
     @Override

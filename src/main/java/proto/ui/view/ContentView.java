@@ -1,5 +1,7 @@
 package proto.ui.view;
 
+import proto.ui.layout.SizeClass;
+
 import javax.swing.JComponent;
 
 /**
@@ -25,6 +27,10 @@ public interface ContentView {
     /** 위쪽 줄에 검색창을 보여 줄지 (설정 보기는 숨긴다) */
     default boolean hasSearch() {
         return true;
+    }
+
+    /** 화면 크기 등급이 바뀌었을 때 배치(구조)를 맞춘다. 내용은 이어서 부르는 refresh가 다시 채운다 */
+    default void applySize(SizeClass sizeClass) {
     }
 
     /** controller에서 다시 읽어 화면을 맞춘다. animate가 true면 바뀐 부분만 부드럽게 바뀐다 */

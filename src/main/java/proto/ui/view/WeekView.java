@@ -1,28 +1,29 @@
 package proto.ui.view;
 
+import com.formdev.flatlaf.util.UIScale;
 import proto.entity.Occurrence;
 import proto.ui.AppState;
 import proto.ui.Fmt;
 import proto.ui.UiContext;
+import proto.ui.component.DayHeader;
+import proto.ui.component.Hairline;
 import proto.ui.component.ScrollPanel;
 import proto.ui.component.TokenLabel;
 import proto.ui.component.WeekChip;
+import proto.ui.layout.SizeClass;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
-import javax.swing.Box;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Dimension;
+import java.awt.CardLayout;
 import java.awt.FlowLayout;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
@@ -32,34 +33,88 @@ import java.util.List;
 
 /**
  * [경계 boundary] 이번 주 보기 (F2): 월~일 7칸에 하루치 일정을 작은 칩으로 보여 준다. 오늘은 숫자 뒤에 강조 동그라미.
+ * 하루 칸이 너무 좁아지면(약 110px 미만) 7칸 대신 날짜별로 묶은 세로 목록(아젠다)으로 바꿔 같은 칩을 보여 준다.
  */
 public class WeekView implements ContentView {
 
     private static final int GAP = 10;
+    /** 하루 칸이 이보다 좁으면 아젠다로 바꾼다 (논리 px) */
+    private static final int MIN_COLUMN = 110;
+    /** 아젠다에서 다시 칸 보기로 돌아가는 폭 — 경계에서 깜박이지 않게 조금 더 넉넉하게 */
+    private static final int BACK_TO_COLUMNS = 122;
+    private static final String COLUMNS = "columns";
+    private static final String AGENDA = "agenda";
     private static final String[] ORDINALS = {"첫째", "둘째", "셋째", "넷째", "다섯째"};
 
     private final UiContext ctx;
-    private final JPanel root = new JPanel(new BorderLayout());
+    private final JPanel root = new JPanel(new CardLayout());
     private final JPanel columns = new JPanel(new GridLayout(1, 7, Ui.px(GAP), 0));
+    private final ScrollPanel agenda = new ScrollPanel(null);
+    private final JScrollPane columnsScroll;
+    private final JScrollPane agendaScroll;
     private final List<WeekChip> chips = new ArrayList<>();
+    private final List<WeekChip> agendaChips = new ArrayList<>();
+    private List<Occurrence> data = List.of();
+    private boolean agendaMode;
+    private SizeClass size;
 
     public WeekView(UiContext ctx) {
         this.ctx = ctx;
+        this.size = ctx.size();
         root.setOpaque(false);
         columns.setOpaque(false);
+        agenda.setLayout(new BoxLayout(agenda, BoxLayout.Y_AXIS));
         ScrollPanel holder = new ScrollPanel(new BorderLayout());
         holder.add(columns, BorderLayout.NORTH);
-        JScrollPane scroll = new JScrollPane(holder);
-        scroll.setBorder(BorderFactory.createEmptyBorder(Ui.px(4), Ui.px(24), Ui.px(24), Ui.px(24)));
-        scroll.setOpaque(false);
-        scroll.getViewport().setOpaque(false);
-        root.add(scroll, BorderLayout.CENTER);
-        columns.addComponentListener(new ComponentAdapter() {
+        columnsScroll = scroll(holder);
+        agendaScroll = scroll(agenda);
+        root.add(columnsScroll, COLUMNS);
+        root.add(agendaScroll, AGENDA);
+        applyPadding();
+        root.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
-                applyChipWidth();
+                if (chooseMode()) {
+                    render();
+                } else {
+                    applyChipWidth();
+                }
             }
         });
+    }
+
+    private static JScrollPane scroll(JComponent view) {
+        JScrollPane s = new JScrollPane(view);
+        s.setOpaque(false);
+        s.getViewport().setOpaque(false);
+        return s;
+    }
+
+    private void applyPadding() {
+        int g = Ui.px(size.gutter() - 8);
+        int bottom = Ui.px(24 - size.verticalTrim());
+        columnsScroll.setBorder(BorderFactory.createEmptyBorder(Ui.px(4), g, bottom, g));
+        agendaScroll.setBorder(BorderFactory.createEmptyBorder(Ui.px(4), g, bottom, g));
+    }
+
+    @Override
+    public void applySize(SizeClass sc) {
+        size = sc;
+        applyPadding();
+        chooseMode();
+    }
+
+    /** 칸 너비로 칸 보기/아젠다를 고른다. 바뀌었으면 true */
+    private boolean chooseMode() {
+        int viewport = root.getWidth() - Ui.px(size.gutter() - 8) * 2 - Ui.px(12);
+        if (root.getWidth() <= 0) {
+            return false;
+        }
+        int colWidth = UIScale.unscale((viewport - Ui.px(GAP) * 6) / 7);
+        boolean next = agendaMode ? colWidth < BACK_TO_COLUMNS : colWidth < MIN_COLUMN;
+        boolean changed = next != agendaMode;
+        agendaMode = next;
+        return changed;
     }
 
     @Override
@@ -102,28 +157,50 @@ public class WeekView implements ContentView {
     public void refresh(boolean animate) {
         AppState s = ctx.state();
         LocalDate start = s.weekStart();
-        List<Occurrence> all = ctx.schedules().getOccurrences(start, start.plusDays(6), s.categoryId(), s.keyword());
+        data = ctx.schedules().getOccurrences(start, start.plusDays(6), s.categoryId(), s.keyword());
+        chooseMode();
+        render();
+    }
+
+    /** 지금 고른 모양(칸/아젠다)으로 데이터를 다시 그린다 */
+    private void render() {
+        LocalDate start = ctx.state().weekStart();
+        if (agendaMode) {
+            renderAgenda(start);
+        } else {
+            renderColumns(start);
+        }
+        ((CardLayout) root.getLayout()).show(root, agendaMode ? AGENDA : COLUMNS);
+        applyChipWidth();
+    }
+
+    private void renderColumns(LocalDate start) {
         columns.removeAll();
         chips.clear();
         for (int i = 0; i < 7; i++) {
             LocalDate day = start.plusDays(i);
-            columns.add(column(day, all.stream().filter(o -> o.date().equals(day)).toList()));
+            columns.add(column(day, itemsOf(day)));
         }
-        applyChipWidth();
         columns.revalidate();
         columns.repaint();
+    }
+
+    private List<Occurrence> itemsOf(LocalDate day) {
+        return data.stream().filter(o -> o.date().equals(day)).toList();
     }
 
     private void applyChipWidth() {
         int w = Math.max(Ui.px(60), (columns.getWidth() - Ui.px(GAP) * 6) / 7);
         chips.forEach(c -> c.setWrapWidth(w));
+        int aw = Math.max(Ui.px(120), root.getWidth() - Ui.px(size.gutter() - 8) * 2 - Ui.px(16));
+        agendaChips.forEach(c -> c.setWrapWidth(aw));
     }
 
     private JPanel column(LocalDate day, List<Occurrence> items) {
         JPanel col = new JPanel();
         col.setOpaque(false);
         col.setLayout(new BoxLayout(col, BoxLayout.Y_AXIS));
-        col.add(header(day));
+        col.add(new DayHeader(day, day.equals(ctx.schedules().today())));
         col.add(Box.createVerticalStrut(Ui.px(8)));
         for (Occurrence o : items) {
             WeekChip chip = new WeekChip(ctx.actions(), o);
@@ -136,48 +213,62 @@ public class WeekView implements ContentView {
         return col;
     }
 
-    private JPanel header(LocalDate day) {
-        boolean today = day.equals(ctx.schedules().today());
-        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, Ui.px(6), 0));
-        p.setOpaque(false);
-        p.setAlignmentX(0f);
-        p.add(new TokenLabel(Fmt.weekdayShort(day.getDayOfWeek()), Fonts.medium(Fonts.SMALL),
-                today ? Tokens.ACCENT : Tokens.MUTED));
-        p.add(new DayNumber(day.getDayOfMonth(), today));
-        p.setMaximumSize(new Dimension(Integer.MAX_VALUE, p.getPreferredSize().height));
-        return p;
+    // ---- 아젠다 (칸이 좁을 때) ----
+
+    private void renderAgenda(LocalDate start) {
+        agenda.removeAll();
+        agendaChips.clear();
+        for (int i = 0; i < 7; i++) {
+            LocalDate day = start.plusDays(i);
+            agenda.add(agendaDay(day, itemsOf(day)));
+        }
+        agenda.revalidate();
+        agenda.repaint();
     }
 
-    /** 날짜 숫자. 오늘이면 뒤에 강조색 동그라미를 깐다 */
-    private static final class DayNumber extends JComponent {
-        private final int number;
-        private final boolean today;
-
-        DayNumber(int number, boolean today) {
-            this.number = number;
-            this.today = today;
+    private JPanel agendaDay(LocalDate day, List<Occurrence> items) {
+        JPanel section = new JPanel();
+        section.setOpaque(false);
+        section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
+        section.setAlignmentX(0f);
+        section.add(agendaHeader(day, items.size()));
+        if (items.isEmpty()) {
+            TokenLabel none = new TokenLabel("일정 없음", Fonts.regular(Fonts.SMALL), Tokens.FAINT);
+            none.setBorder(BorderFactory.createEmptyBorder(Ui.px(2), Ui.px(8), Ui.px(8), 0));
+            none.setAlignmentX(0f);
+            section.add(none);
         }
-
-        @Override
-        public Dimension getPreferredSize() {
-            return new Dimension(Ui.px(28), Ui.px(28));
+        for (Occurrence o : items) {
+            WeekChip chip = new WeekChip(ctx.actions(), o);
+            chip.setAlignmentX(0f);
+            agendaChips.add(chip);
+            section.add(chip);
+            section.add(Box.createVerticalStrut(Ui.px(6)));
         }
+        section.add(Box.createVerticalStrut(Ui.px(8)));
+        return section;
+    }
 
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            Ui.smooth(g2);
-            if (today) {
-                g2.setColor(Tokens.get(Tokens.ACCENT));
-                g2.fillOval(0, 0, getWidth(), getHeight());
-            }
-            g2.setFont(Fonts.semibold(Fonts.BODY));
-            java.awt.FontMetrics fm = g2.getFontMetrics();
-            Color c = Tokens.get(today ? Tokens.ON_ACCENT : Tokens.TEXT);
-            g2.setColor(c);
-            String s = String.valueOf(number);
-            g2.drawString(s, (getWidth() - fm.stringWidth(s)) / 2, (getHeight() - fm.getHeight()) / 2 + fm.getAscent());
-            g2.dispose();
+    /** 날짜 머리글: 요일·날짜와 일정 개수, 아래에 가는 선. 칩 목록과 구분되도록 굵게 보인다 */
+    private JPanel agendaHeader(LocalDate day, int count) {
+        JPanel head = new JPanel(new BorderLayout());
+        head.setOpaque(false);
+        head.setAlignmentX(0f);
+        head.setBorder(BorderFactory.createCompoundBorder(new Hairline(),
+                BorderFactory.createEmptyBorder(Ui.px(4), 0, Ui.px(4), 0)));
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        left.setOpaque(false);
+        left.add(new DayHeader(day, day.equals(ctx.schedules().today())));
+        head.add(left, BorderLayout.WEST);
+        if (count > 0) {
+            head.add(new TokenLabel(count + "개", Fonts.medium(Fonts.SMALL), Tokens.MUTED), BorderLayout.EAST);
         }
+        head.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, head.getPreferredSize().height));
+        return head;
+    }
+
+    /** 스크린샷·점검용: 지금 아젠다 모양인지 */
+    public boolean isAgenda() {
+        return agendaMode;
     }
 }
