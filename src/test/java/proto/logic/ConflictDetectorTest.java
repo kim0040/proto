@@ -63,6 +63,16 @@ class ConflictDetectorTest {
     }
 
     @Test
+    void dailyCandidateIncludesDay27AndExcludesDay28() {
+        // 2026-11-09부터 28일: 11-09(0) ~ 12-06(27). 12-07은 창 밖
+        Schedule candidate = repeating("new", "new", "2026-11-09", "09:00", "10:00", RepeatRule.DAILY, null);
+        Schedule onDay27 = single("in", "in", "2026-12-06", "09:30", "10:30");
+        Schedule onDay28 = single("out", "out", "2026-12-07", "09:30", "10:30");
+        assertEquals(List.of(d("2026-12-06")),
+                conflicts(candidate, onDay27, onDay28).stream().map(Occurrence::date).toList());
+    }
+
+    @Test
     void repeatingExistingSeriesIsExpandedWithinTheWindowAndIgnoredOccurrencesAreSkipped() {
         Schedule weekly = repeating("w", "weekly", "2026-11-09", "09:30", "09:45", RepeatRule.WEEKLY, null);
         Schedule candidate = repeating("new", "new", "2026-11-09", "09:00", "10:00", RepeatRule.WEEKLY, null);
