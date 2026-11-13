@@ -7,14 +7,24 @@ import proto.entity.RepeatRule;
 import proto.entity.Schedule;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static proto.TestData.d;
 import static proto.TestData.t;
@@ -125,5 +135,114 @@ class ScheduleRepositoryTest {
         try (var files = Files.list(dir)) {
             assertEquals(List.of("schedules.csv"), files.map(p -> p.getFileName().toString()).toList());
         }
+    }
+
+    @Test
+    void syntaxErrorLoadsNothingAndKeepsTheOriginalBytesInABackup() throws IOException {
+        Path file = dir.resolve("schedules.csv");
+        String original = HEADER
+                + "before,first,2026-11-09,09:00,10:00,class,,NONE,,NONE,,\n"
+                + "bad,broken,2026-11-09,09:00,10:00,class,,NONE,,NONE,,\"\n"
+                + "after,last,2026-11-09,09:00,10:00,class,,NONE,,NONE,,\n";
+        Files.writeString(file, original);
+        ScheduleRepository repo = new ScheduleRepository(file, fixedClock());
+        repo.load();
+
+        assertTrue(repo.getAll().isEmpty());
+        String warning = repo.getWarnings().get(0);
+        assertTrue(warning.contains("일정 파일 3번째 줄"));
+        assertTrue(warning.contains("원본은 schedules-backup-20261114-101500.csv에 보관했어요"));
+        Path backup = dir.resolve("schedules-backup-20261114-101500.csv");
+        assertEquals(original, Files.readString(backup));
+
+        repo.add(new Schedule("new", "새 일정", d("2026-11-11"), t("09:00"), t("10:00"), "class", "",
+                RepeatRule.NONE, null, ReminderOption.NONE));
+        repo.save();
+        assertEquals(original, Files.readString(backup));
+        assertFalse(Files.readString(file).contains("after,last"));
+    }
+
+    @Test
+    void invalidUtf8IsBackedUpBeforeALaterSaveReplacesTheFile() throws IOException {
+        Path file = dir.resolve("schedules.csv");
+        byte[] good = (HEADER + "old,important,2026-11-09,09:00,10:00,class,,NONE,,NONE,,\n")
+                .getBytes(StandardCharsets.UTF_8);
+        byte[] broken = new byte[good.length + 1];
+        System.arraycopy(good, 0, broken, 0, good.length);
+        broken[broken.length - 1] = (byte) 0xff;
+        Files.write(file, broken);
+
+        ScheduleRepository repo = new ScheduleRepository(file, fixedClock());
+        repo.load();
+
+        assertTrue(repo.getAll().isEmpty());
+        assertTrue(repo.getWarnings().get(0).contains("schedules-backup-20261114-101500.csv"));
+        assertArrayEquals(broken, Files.readAllBytes(dir.resolve("schedules-backup-20261114-101500.csv")));
+
+        repo.add(new Schedule("new", "새 일정", d("2026-11-11"), t("09:00"), t("10:00"), "class", "",
+                RepeatRule.NONE, null, ReminderOption.NONE));
+        repo.save();
+        assertArrayEquals(broken, Files.readAllBytes(dir.resolve("schedules-backup-20261114-101500.csv")));
+        assertFalse(Files.readString(file).contains("important"));
+    }
+
+    @Test
+    void rowsThatBreakScheduleRulesAreSkippedAndTheOriginalIsBackedUp() throws IOException {
+        Path file = dir.resolve("schedules.csv");
+        String original = HEADER
+                + "good,정상,2026-11-09,09:00,10:00,class,,NONE,,NONE,,\n"
+                + "bad,,2026-11-09,11:00,10:00,class,,NONE,,NONE,,\n"
+                + "early,종료,2026-11-10,09:00,10:00,class,,DAILY,2026-11-01,NONE,,\n";
+        Files.writeString(file, original);
+        ScheduleRepository repo = new ScheduleRepository(file, fixedClock());
+        repo.load();
+
+        assertEquals(List.of("good"), repo.getAll().stream().map(Schedule::getId).toList());
+        assertEquals(2, repo.getWarnings().size());
+        assertTrue(repo.getWarnings().get(0).contains("일정 파일 3번째 줄을 읽지 못해 건너뛰었어요"));
+        assertTrue(repo.getWarnings().get(0).contains("원본은 schedules-backup-20261114-101500.csv에 보관했어요"));
+        assertEquals(original, Files.readString(dir.resolve("schedules-backup-20261114-101500.csv")));
+    }
+
+    @Test
+    void failedBackupBlocksALaterSaveAndLeavesTheOriginalUntouched() throws IOException {
+        Path folder = dir.resolve("locked");
+        Files.createDirectories(folder);
+        Path file = folder.resolve("schedules.csv");
+        byte[] original = (HEADER + "old,important,2026-11-09,09:00,10:00,class,,NONE,,NONE,,\n\"\n")
+                .getBytes(StandardCharsets.UTF_8);
+        Files.write(file, original);
+        Set<PosixFilePermission> saved = Files.getPosixFilePermissions(folder);
+        ScheduleRepository repo = new ScheduleRepository(file, fixedClock());
+        try {
+            Files.setPosixFilePermissions(folder, EnumSet.of(PosixFilePermission.OWNER_READ,
+                    PosixFilePermission.OWNER_EXECUTE));
+            repo.load();
+            assertTrue(repo.getAll().isEmpty());
+            assertTrue(repo.getWarnings().get(0).contains("보관하지 못해서"));
+            IOException blocked = assertThrows(IOException.class, repo::save);
+            assertTrue(blocked.getMessage().contains("덮어쓰지 않았어요"));
+            assertArrayEquals(original, Files.readAllBytes(file));
+        } finally {
+            Files.setPosixFilePermissions(folder, saved);
+        }
+    }
+
+    @Test
+    void backupAddsASuffixInsteadOfOverwriting() throws IOException {
+        Path file = dir.resolve("schedules.csv");
+        Files.writeString(file, "a");
+        LocalDateTime now = LocalDateTime.of(2026, 11, 14, 10, 15);
+        Path first = CsvFileStore.backup(file, now);
+        Files.writeString(file, "b");
+        Path second = CsvFileStore.backup(file, now);
+        assertEquals("schedules-backup-20261114-101500.csv", first.getFileName().toString());
+        assertEquals("schedules-backup-20261114-101500-1.csv", second.getFileName().toString());
+        assertEquals("a", Files.readString(first));
+        assertEquals("b", Files.readString(second));
+    }
+
+    private static Clock fixedClock() {
+        return Clock.fixed(Instant.parse("2026-11-14T10:15:00Z"), ZoneOffset.UTC);
     }
 }

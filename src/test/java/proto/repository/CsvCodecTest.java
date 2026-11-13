@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class CsvCodecTest {
 
@@ -54,5 +55,23 @@ class CsvCodecTest {
     @Test
     void emptyTextHasNoRows() {
         assertEquals(List.of(), CsvCodec.parse(""));
+    }
+
+    @Test
+    void unterminatedQuoteReportsTheLineWhereItOpened() {
+        CsvSyntaxException ex = assertThrows(CsvSyntaxException.class, () -> CsvCodec.parse("a,b\n\"열림\n"));
+        assertEquals(2, ex.lineNumber());
+    }
+
+    @Test
+    void quoteInsideAnUnquotedFieldIsRejected() {
+        CsvSyntaxException ex = assertThrows(CsvSyntaxException.class, () -> CsvCodec.parse("a,b\nc,d\"e\n"));
+        assertEquals(2, ex.lineNumber());
+    }
+
+    @Test
+    void textAfterAClosingQuoteIsRejected() {
+        CsvSyntaxException ex = assertThrows(CsvSyntaxException.class, () -> CsvCodec.parse("ok\n\"ab\"x\n"));
+        assertEquals(2, ex.lineNumber());
     }
 }

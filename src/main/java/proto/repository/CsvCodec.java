@@ -35,13 +35,18 @@ public final class CsvCodec {
         return '"' + field.replace("\"", "\"\"") + '"';
     }
 
-    /** CSV 문자열을 행 목록으로 읽는다. 빈 줄은 건너뛰고, 줄바꿈은 \n, \r\n, \r 모두 받는다 */
+    /**
+     * CSV 문자열을 행 목록으로 읽는다. 빈 줄은 건너뛰고, 줄바꿈은 \n, \r\n, \r 모두 받는다.
+     *
+     * @throws CsvSyntaxException 따옴표가 닫히지 않았거나, 따옴표 없는 칸 중간에 따옴표가 있거나,
+     *                            닫는 따옴표 뒤에 쉼표·줄바꿈이 아닌 글자가 올 때
+     */
     public static List<List<String>> parse(String text) {
-        Parser parser = new Parser(text.startsWith("﻿") ? text.substring(1) : text);
+        Parser parser = new Parser(text.startsWith("\uFEFF") ? text.substring(1) : text);
         return parser.parse();
     }
 
-    /** 문자 하나씩 읽으며 칸과 행을 쌓는 상태 기계 */
+    /** 문자 하나씩 읽으며 칸과 행을 쌓는 상태 기계. 줄 번호는 오류 위치를 알려 주려고 센다 */
     private static final class Parser {
         private final String text;
         private final List<List<String>> rows = new ArrayList<>();
@@ -49,6 +54,8 @@ public final class CsvCodec {
         private final StringBuilder field = new StringBuilder();
         private boolean quoted;
         private boolean fieldWasQuoted;
+        private int line = 1;
+        private int quoteStartLine;
 
         Parser(String text) {
             this.text = text;
@@ -58,7 +65,10 @@ public final class CsvCodec {
             for (int i = 0; i < text.length(); i++) {
                 i = quoted ? readQuoted(i) : readPlain(i);
             }
-            if (quoted || fieldWasQuoted || field.length() > 0 || !row.isEmpty()) {
+            if (quoted) {
+                throw new CsvSyntaxException(quoteStartLine, "따옴표가 닫히지 않았어요");
+            }
+            if (fieldWasQuoted || field.length() > 0 || !row.isEmpty()) {
                 endRow();
             }
             return rows;
@@ -69,6 +79,7 @@ public final class CsvCodec {
             char c = text.charAt(i);
             if (c != '"') {
                 field.append(c);
+                countLine(i);
             } else if (i + 1 < text.length() && text.charAt(i + 1) == '"') {
                 field.append('"');
                 return i + 1;
@@ -80,19 +91,40 @@ public final class CsvCodec {
 
         private int readPlain(int i) {
             char c = text.charAt(i);
-            if (c == '"') {
-                quoted = true;
-                fieldWasQuoted = true;
-            } else if (c == ',') {
+            if (c == ',') {
                 endField();
             } else if (c == '\n' || c == '\r') {
                 boolean crlf = c == '\r' && i + 1 < text.length() && text.charAt(i + 1) == '\n';
                 endRow();
+                line++;
                 return crlf ? i + 1 : i;
+            } else if (fieldWasQuoted) {
+                throw new CsvSyntaxException(line, "닫는 따옴표 뒤에 다른 글자가 있어요");
+            } else if (c == '"') {
+                openQuote();
             } else {
                 field.append(c);
             }
             return i;
+        }
+
+        /** 따옴표는 칸의 맨 앞에서만 열 수 있다 */
+        private void openQuote() {
+            if (field.length() > 0) {
+                throw new CsvSyntaxException(line, "따옴표 없는 칸 중간에 따옴표가 있어요");
+            }
+            quoted = true;
+            fieldWasQuoted = true;
+            quoteStartLine = line;
+        }
+
+        /** 따옴표 안의 줄바꿈도 줄 번호에 센다 (\r\n은 한 번) */
+        private void countLine(int i) {
+            char c = text.charAt(i);
+            boolean crBeforeLf = c == '\r' && i + 1 < text.length() && text.charAt(i + 1) == '\n';
+            if ((c == '\n' || c == '\r') && !crBeforeLf) {
+                line++;
+            }
         }
 
         private void endField() {

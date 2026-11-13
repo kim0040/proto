@@ -43,8 +43,8 @@ final class ScheduleCsvMapper {
 
     /** 잘못된 행이면 RuntimeException(IllegalArgumentException, DateTimeException)을 던진다 */
     static Schedule fromRow(List<String> row) {
-        if (row.size() < HEADER.size()) {
-            throw new IllegalArgumentException("칸이 모자라요");
+        if (row.size() != HEADER.size()) {
+            throw new IllegalArgumentException("칸 수가 " + HEADER.size() + "개가 아니에요");
         }
         if (row.get(0).isBlank()) {
             throw new IllegalArgumentException("id가 비어 있어요");
