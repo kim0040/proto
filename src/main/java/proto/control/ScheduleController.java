@@ -1,5 +1,6 @@
 package proto.control;
 
+import proto.entity.Category;
 import proto.entity.Occurrence;
 import proto.entity.RepeatRule;
 import proto.entity.Schedule;
@@ -40,6 +41,8 @@ import java.util.function.Predicate;
  * <p>리스너 알림은 {@link EventThread} 규칙을 따른다(EDT이거나 headless면 즉시 호출).
  * 등록·수정·삭제·완료가 성공할 때마다 CSV에 저장하고(F11), 저장에 실패해도 메모리의 변경은 유지한 채
  * {@code storageFailed}로 알린다.</p>
+ *
+ * <p>모든 public 메소드는 Swing 이벤트 스레드(EDT)에서 불러야 한다 (화면과 타이머가 이미 EDT에서 부른다).</p>
  */
 public class ScheduleController {
 
@@ -52,10 +55,12 @@ public class ScheduleController {
     private final Clock clock;
     private final List<ScheduleListener> listeners = new CopyOnWriteArrayList<>();
 
+    /** 불러온 일정 중 없는 카테고리를 가리키는 것은 메모리에서 "개인"으로 옮긴다 (다음 저장 때 파일에도 반영) */
     public ScheduleController(ScheduleRepository schedules, CategoryRepository categories, Clock clock) {
         this.schedules = schedules;
         this.categories = categories;
         this.clock = clock;
+        moveUnknownCategoriesToPersonal();
     }
 
     public void addListener(ScheduleListener listener) {
@@ -134,6 +139,17 @@ public class ScheduleController {
         return DraftMapper.toDraft(occurrence, repeatEnd);
     }
 
+    /**
+     * 수정 화면용 F1 검증. 반복 일정의 "이 일정만" 수정이면 반복 없음(반복 종료일 없음)으로 바꾼 값을 검사한다.
+     * 실제 {@link #update}가 검사하는 값과 같다 (추가된 public 메소드).
+     *
+     * @param editing 수정 중인 하루치 일정 (새로 등록이면 null)
+     * @param scope   수정 범위 (새로 등록이거나 반복이 없으면 무시)
+     */
+    public List<String> validate(ScheduleDraft draft, Occurrence editing, EditScope scope) {
+        return validate(effectiveDraft(draft, editing, scope));
+    }
+
     /** F1 검증 규칙. 문제가 없으면 빈 목록, 있으면 사용자에게 보여 줄 이유들 */
     public List<String> validate(ScheduleDraft draft) {
         List<String> errors = new ArrayList<>(ScheduleValidator.validate(DraftMapper.toSchedule(draft, "draft")));
@@ -151,16 +167,13 @@ public class ScheduleController {
      * @param scope   수정 범위 (새로 등록이거나 반복이 없으면 무시)
      */
     public List<Occurrence> findConflicts(ScheduleDraft draft, Occurrence editing, EditScope scope) {
-        if (!validate(draft).isEmpty()) {
+        ScheduleDraft effective = effectiveDraft(draft, editing, scope);
+        if (!validate(effective).isEmpty()) {
             return List.of();
         }
-        Schedule candidate = DraftMapper.toSchedule(draft, "candidate");
-        boolean thisOnly = editing != null && editing.isRepeating() && scope != EditScope.THIS_AND_FOLLOWING;
-        if (thisOnly) {
-            candidate.setRepeatRule(RepeatRule.NONE);
-            candidate.setRepeatEndDate(null);
-        }
-        return ConflictDetector.findConflicts(candidate, schedules.getAll(), selfFilter(editing, thisOnly));
+        Schedule candidate = DraftMapper.toSchedule(effective, "candidate");
+        return ConflictDetector.findConflicts(candidate, schedules.getAll(),
+                selfFilter(editing, isThisOnly(editing, scope)));
     }
 
     /** F1: 검증을 통과하면 저장(F11)하고 리스너에 알린다 */
@@ -176,7 +189,8 @@ public class ScheduleController {
 
     /** F3: 수정. 반복 일정이면 scope에 따라 이 날짜만 / 이 날짜부터 뒤로 전부 바뀐다 */
     public OperationResult update(Occurrence target, ScheduleDraft draft, EditScope scope) {
-        List<String> errors = validate(draft);
+        ScheduleDraft effective = effectiveDraft(draft, target, scope);
+        List<String> errors = validate(effective);
         if (!errors.isEmpty()) {
             return OperationResult.fail(errors);
         }
@@ -184,7 +198,7 @@ public class ScheduleController {
         if (series.isEmpty()) {
             return OperationResult.fail(NOT_FOUND);
         }
-        Schedule candidate = DraftMapper.toSchedule(draft, UUID.randomUUID().toString());
+        Schedule candidate = DraftMapper.toSchedule(effective, UUID.randomUUID().toString());
         applyChange(editSeries(series.get(), target, candidate, scope));
         return OperationResult.ok();
     }
@@ -286,6 +300,31 @@ public class ScheduleController {
             return SeriesEditor.updateFollowing(series, target.date(), candidate);
         }
         return SeriesEditor.updateThisOnly(series, target.date(), candidate);
+    }
+
+    /** 반복 일정의 하루치를 "이 일정만" 수정하는지 (scope가 null이어도 이 일정만으로 본다) */
+    private static boolean isThisOnly(Occurrence editing, EditScope scope) {
+        return editing != null && editing.isRepeating() && scope != EditScope.THIS_AND_FOLLOWING;
+    }
+
+    /** 실제로 저장될 값: "이 일정만" 수정이면 반복 없음 + 반복 종료일 없음으로 바꾼다 (검증·겹침·저장에 똑같이 쓴다) */
+    private static ScheduleDraft effectiveDraft(ScheduleDraft d, Occurrence editing, EditScope scope) {
+        if (!isThisOnly(editing, scope)) {
+            return d;
+        }
+        return new ScheduleDraft(d.title(), d.date(), d.startTime(), d.endTime(), d.categoryId(), d.memo(),
+                RepeatRule.NONE, null, d.reminder());
+    }
+
+    private void moveUnknownCategoriesToPersonal() {
+        if (categories.findById(Category.PERSONAL_ID).isEmpty()) {
+            return;
+        }
+        for (Schedule s : schedules.getAll()) {
+            if (categories.findById(s.getCategoryId()).isEmpty()) {
+                s.setCategoryId(Category.PERSONAL_ID);
+            }
+        }
     }
 
     /** 겹침 검사에서 뺄 "수정 중인 자기 자신" 조건 */

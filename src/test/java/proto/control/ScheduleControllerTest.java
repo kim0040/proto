@@ -3,6 +3,7 @@ package proto.control;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import proto.entity.Category;
 import proto.entity.Occurrence;
 import proto.entity.ReminderOption;
 import proto.entity.RepeatRule;
@@ -224,6 +225,70 @@ class ScheduleControllerTest {
     }
 
     @Test
+    void updateThisOnlyPastTheRepeatEndValidatesTheDetachedSingleDate() {
+        ScheduleDraft series = new ScheduleDraft("회의", d("2026-11-09"), t("15:00"), t("16:00"), "class", "",
+                RepeatRule.WEEKLY, d("2026-11-30"), ReminderOption.NONE);
+        assertTrue(c.create(series).success());
+        Occurrence nov16 = meetingOn("2026-11-16");
+        ScheduleDraft moved = new ScheduleDraft("회의", d("2026-12-01"), t("15:00"), t("16:00"), "class", "",
+                RepeatRule.WEEKLY, d("2026-11-30"), ReminderOption.NONE);
+        assertFalse(c.validate(moved).isEmpty());
+        assertTrue(c.validate(moved, nov16, EditScope.THIS_ONLY).isEmpty());
+        c.create(draft("다른", "2026-12-01", "15:00", "16:00"));
+
+        assertEquals(List.of("다른"), c.findConflicts(moved, nov16, EditScope.THIS_ONLY).stream()
+                .map(Occurrence::title).toList());
+        assertTrue(c.update(nov16, moved, EditScope.THIS_ONLY).success());
+        assertEquals(RepeatRule.NONE, f.occurrenceOn("회의", "2026-12-01").repeatRule());
+    }
+
+    @Test
+    void updateFollowingWithAnEarlierDateDoesNotOverlapTheOldSeries() {
+        ScheduleDraft daily = new ScheduleDraft("매일", d("2026-11-01"), t("09:00"), t("10:00"), "class", "",
+                RepeatRule.DAILY, null, ReminderOption.NONE);
+        assertTrue(c.create(daily).success());
+        c.setCompleted(f.occurrenceOn("매일", "2026-11-03"), true);
+        c.setCompleted(f.occurrenceOn("매일", "2026-11-06"), true);
+        c.delete(f.occurrenceOn("매일", "2026-11-07"), EditScope.THIS_ONLY);
+        ScheduleDraft moved = new ScheduleDraft("변경", d("2026-11-05"), t("09:00"), t("10:00"), "class", "",
+                RepeatRule.DAILY, null, ReminderOption.NONE);
+
+        assertTrue(c.update(f.occurrenceOn("매일", "2026-11-10"), moved, EditScope.THIS_AND_FOLLOWING).success());
+
+        assertEquals(List.of(
+                "매일@2026-11-01 09:00",
+                "매일@2026-11-02 09:00",
+                "매일@2026-11-03 09:00 완료",
+                "매일@2026-11-04 09:00",
+                "변경@2026-11-05 09:00",
+                "변경@2026-11-06 09:00 완료",
+                "변경@2026-11-08 09:00",
+                "변경@2026-11-09 09:00",
+                "변경@2026-11-10 09:00"), f.summary("2026-11-01", "2026-11-10"));
+        Schedule original = f.scheduleRepo.getAll().stream()
+                .filter(s -> s.getTitle().equals("매일")).findFirst().orElseThrow();
+        assertEquals(d("2026-11-04"), original.getRepeatEndDate());
+    }
+
+    @Test
+    void updateFollowingOnOrBeforeTheSeriesStartRewritesInPlace() {
+        ScheduleDraft daily = new ScheduleDraft("매일", d("2026-11-01"), t("09:00"), t("10:00"), "class", "",
+                RepeatRule.DAILY, null, ReminderOption.NONE);
+        assertTrue(c.create(daily).success());
+        String id = f.occurrenceOn("매일", "2026-11-10").scheduleId();
+        ScheduleDraft backToStart = new ScheduleDraft("변경", d("2026-11-01"), t("11:00"), t("12:00"), "class", "",
+                RepeatRule.DAILY, null, ReminderOption.NONE);
+
+        assertTrue(c.update(f.occurrenceOn("매일", "2026-11-10"), backToStart,
+                EditScope.THIS_AND_FOLLOWING).success());
+
+        assertEquals(1, f.scheduleRepo.getAll().size());
+        assertEquals(id, f.scheduleRepo.getAll().get(0).getId());
+        assertEquals(List.of("변경@2026-11-01 11:00", "변경@2026-11-02 11:00"),
+                f.summary("2026-11-01", "2026-11-02"));
+    }
+
+    @Test
     void updateFollowingOnTheFirstDateRewritesTheSeriesInPlace() {
         createWeeklyMeeting();
         String id = meetingOn("2026-11-09").scheduleId();
@@ -382,5 +447,19 @@ class ScheduleControllerTest {
         assertEquals(1, s.delayed());
         assertEquals(2, s.countByDay().get(java.time.DayOfWeek.MONDAY));
         assertEquals(120L, s.minutesByCategory().get("class")); // 60 + 60
+    }
+
+    @Test
+    void unknownCategoryOnLoadMovesToPersonalWithoutRewritingTheFile() throws IOException {
+        Path file = dir.resolve("orphan.csv");
+        ScheduleRepository repo = new ScheduleRepository(file);
+        repo.add(new Schedule("s1", "고아", d("2026-11-10"), t("09:00"), t("10:00"), "ghost", "",
+                RepeatRule.NONE, null, ReminderOption.NONE));
+        repo.save();
+
+        new ScheduleController(repo, f.categoryRepo, f.clock);
+
+        assertEquals(Category.PERSONAL_ID, repo.getAll().get(0).getCategoryId());
+        assertTrue(Files.readString(file).contains("ghost"));
     }
 }

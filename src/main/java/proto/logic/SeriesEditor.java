@@ -53,21 +53,36 @@ public final class SeriesEditor {
     }
 
     /**
-     * 앞으로 전부 수정: 첫 날짜면 반복 규칙 자체를 바꾸고(id 유지),
-     * 아니면 원래 반복을 전날로 끝내고 그 날짜부터 새 반복(candidate)을 만든다.
+     * 앞으로 전부 수정. 자르는 날은 고른 날과 새 시작일 중 더 이른 날이다.
+     * 그 날이 반복의 시작 이전이거나 같으면 그 자리에서 바꾸고(id 유지),
+     * 아니면 원래 반복을 전날로 끝내고 새 반복을 만든다.
+     * 자르는 날 이후의 완료·제외 중 새 규칙에 맞는 것만 새 반복으로 옮긴다.
      */
     public static Change updateFollowing(Schedule series, LocalDate day, Schedule candidate) {
-        if (day.equals(series.getDate())) {
+        LocalDate cut = earlier(day, candidate.getDate());
+        if (!cut.isAfter(series.getDate())) {
             copyFields(series, candidate);
             keepValidDates(series);
             return Change.none();
         }
-        Set<LocalDate> doneLater = filter(series.getCompletedDates(), d -> !d.isBefore(day));
-        Set<LocalDate> excludedLater = filter(series.getExcludedDates(), d -> !d.isBefore(day));
-        trimSeriesBefore(series, day);
-        candidate.replaceDateSets(filter(doneLater, d -> RepeatExpander.matchesRule(candidate, d)),
-                filter(excludedLater, d -> RepeatExpander.matchesRule(candidate, d)));
+        moveTail(series, candidate, cut);
         return new Change(List.of(candidate), removedIfEmpty(series));
+    }
+
+    private static LocalDate earlier(LocalDate a, LocalDate b) {
+        return a.isBefore(b) ? a : b;
+    }
+
+    /** cut 이전은 원래 반복에 남기고, cut 이후 기록 중 새 규칙에 맞는 것만 옮긴다 */
+    private static void moveTail(Schedule series, Schedule candidate, LocalDate cut) {
+        Set<LocalDate> doneLater = filter(series.getCompletedDates(), d -> !d.isBefore(cut));
+        Set<LocalDate> excludedLater = filter(series.getExcludedDates(), d -> !d.isBefore(cut));
+        trimSeriesBefore(series, cut);
+        candidate.replaceDateSets(matching(candidate, doneLater), matching(candidate, excludedLater));
+    }
+
+    private static Set<LocalDate> matching(Schedule candidate, Set<LocalDate> dates) {
+        return filter(dates, d -> RepeatExpander.matchesRule(candidate, d));
     }
 
     /** 이 일정만 삭제: 그 날짜를 반복에서 뺀다. 남는 날짜가 없으면 일정 전체를 지운다 */
