@@ -6,6 +6,7 @@ import proto.repository.CategoryRepository;
 import proto.repository.ScheduleRepository;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -15,10 +16,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * [제어 control] 카테고리 추가·이름 변경·삭제를 처리한다 (F7).
  * 삭제하면 그 카테고리의 일정은 "개인"으로 옮기고, 카테고리와 일정 리스너 양쪽에 알린다.
+ *
+ * <p>모든 public 메소드는 Swing 이벤트 스레드(EDT)에서 불러야 한다 (화면이 이미 EDT에서 부른다).</p>
  */
 public class CategoryController {
 
-    private static final int MAX_NAME_LENGTH = 20;
+    private static final int MAX_NAME_LENGTH = CategoryRepository.MAX_NAME_LENGTH;
     private static final String PERSONAL_NAME = "개인";
 
     private final CategoryRepository categories;
@@ -91,7 +94,12 @@ public class CategoryController {
         return OperationResult.ok();
     }
 
-    /** 삭제. 남은 일정은 "개인"으로 옮기고 저장(F11), 두 리스너(카테고리, 일정)에 모두 알린다 */
+    /**
+     * 삭제. 남은 일정은 "개인"으로 옮기고 저장(F11), 두 리스너(카테고리, 일정)에 모두 알린다.
+     * 일정 파일을 먼저 저장하고, 그 저장이 실패하면 옮긴 것을 되돌리고 카테고리도 지우지 않는다.
+     * 일정 저장 뒤 카테고리 파일 저장만 실패하면 삭제는 유지하고 저장 실패만 알린다
+     * (다음 실행 때 없는 카테고리의 일정은 "개인"으로 옮겨지므로 어긋나지 않는다).
+     */
     public OperationResult delete(String categoryId) {
         if (Category.PERSONAL_ID.equals(categoryId)) {
             return OperationResult.fail("'개인' 카테고리는 지울 수 없어요");
@@ -100,13 +108,13 @@ public class CategoryController {
         if (category.isEmpty()) {
             return OperationResult.fail("없는 카테고리예요");
         }
-        for (Schedule s : schedules.getAll()) {
-            if (s.getCategoryId().equals(categoryId)) {
-                s.setCategoryId(Category.PERSONAL_ID);
-            }
+        List<Schedule> moved = moveSchedules(categoryId, Category.PERSONAL_ID);
+        if (!trySave(schedules::save)) {
+            moved.forEach(s -> s.setCategoryId(categoryId));
+            return OperationResult.fail("저장하지 못해서 카테고리를 지우지 않았어요");
         }
         categories.remove(category.get());
-        saveBoth();
+        trySave(categories::save);
         scheduleController.notifySchedulesChanged();
         notifyCategoriesChanged();
         return OperationResult.ok();
@@ -128,25 +136,36 @@ public class CategoryController {
     }
 
     private void saveCategoriesAndNotify() {
-        try {
-            categories.save();
-        } catch (IOException e) {
-            scheduleController.notifyStorageFailed(ScheduleController.saveFailedMessage(e));
-        }
+        trySave(categories::save);
         notifyCategoriesChanged();
     }
 
-    private void saveBoth() {
+    /** 이 카테고리의 일정들을 to로 옮기고, 옮긴 일정들을 돌려준다 (되돌릴 때 쓴다) */
+    private List<Schedule> moveSchedules(String fromId, String toId) {
+        List<Schedule> moved = new ArrayList<>();
+        for (Schedule s : schedules.getAll()) {
+            if (s.getCategoryId().equals(fromId)) {
+                s.setCategoryId(toId);
+                moved.add(s);
+            }
+        }
+        return moved;
+    }
+
+    /** 파일 저장. 실패하면 storageFailed로 알리고 false */
+    private boolean trySave(FileSave save) {
         try {
-            schedules.save();
+            save.run();
+            return true;
         } catch (IOException e) {
             scheduleController.notifyStorageFailed(ScheduleController.saveFailedMessage(e));
+            return false;
         }
-        try {
-            categories.save();
-        } catch (IOException e) {
-            scheduleController.notifyStorageFailed(ScheduleController.saveFailedMessage(e));
-        }
+    }
+
+    /** IOException을 던질 수 있는 저장 동작 */
+    private interface FileSave {
+        void run() throws IOException;
     }
 
     private void notifyCategoriesChanged() {
