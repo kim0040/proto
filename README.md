@@ -59,7 +59,8 @@
 | `entity` | 엔티티 (entity) | `Schedule`, `Occurrence`, `Category`, `RepeatRule` 등 데이터 |
 | `control` | 제어 (control) | `ScheduleController`, `CategoryController`, `ReminderTimer`, `StateRefreshTimer`. 화면이 부르는 유일한 문 |
 | `logic` | 애플리케이션 로직 (application logic) | 검증·상태 계산·반복 펼치기·겹침/빈 시간/통계 계산. 화면 없이 테스트 가능 |
-| `repository` | 저장소 (repository) | 일정·카테고리 목록을 들고 CSV로 저장·불러오기 |
+| `repository` | 저장소 (repository) | 일정·카테고리 목록을 들고 CSV로 저장·불러오기 (`ScheduleStore`·`CategoryStore` 인터페이스) |
+| `server` | 서버 대비 (현재 사용 안 함) | 아래 "서버 대비 패키지" 참고 |
 | `ui` | 경계 (boundary) | Swing 화면 (`ui.view`, `ui.dialog`, `ui.component`, `ui.theme`, `ui.motion`, `ui.layout`, `ui.dev`) |
 
 규칙: ui는 entity·repository를 직접 건드리지 않고 controller를 거치며, controller는 리스너(인터페이스)로 ui에 결과를 알립니다.
@@ -82,4 +83,10 @@ F1 등록 · F2 조회(오늘/이번 주/달력) · F3 수정 · F4 삭제 · F5
 
 ## 서버 대비 패키지(`proto.server`)
 
-서버를 붙일 때를 대비한 **선택** 패키지로, 앱 실행에는 쓰이지 않습니다. 지금 소스에는 없을 수 있으며, 있다면 `src/main/java/proto/server`(와 대응 테스트)를 폴더째 지워도 나머지 코드는 그대로 빌드됩니다.
+나중에 서버를 붙일 때를 대비해 **따로 떼어 둔** 패키지입니다. 기본값은 꺼짐이라 지금 앱은 이 코드를 타지 않고, 서버에 접속하지도 않습니다.
+
+- 켜는 법: `data/server.properties`에 `enabled=true`와 `baseUrl`을 적으면 "이 컴퓨터 우선 + 서버 동기화"로 동작합니다 (서버가 꺼져 있어도 CSV로 계속 동작).
+- 갈림길은 `proto.app.StoreFactory` 하나이고, controller는 `ScheduleStore`·`CategoryStore` 인터페이스만 봅니다.
+- 안 쓰기로 하면 `src/main/java/proto/server`, `src/test/java/proto/server`, `StoreFactory`의 서버 분기, `docs/server-api.md`를 지우면 됩니다.
+- 수업용 클래스 다이어그램에서는 빼도 됩니다. 클래스 목록표에서도 마지막에 따로 모아 두었습니다.
+- 자세한 내용: [docs/server-api.md](docs/server-api.md)

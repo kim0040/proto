@@ -229,7 +229,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
             disposed = true;
             ctx.schedules().removeListener(this);
             ctx.categories().removeListener(this);
-            // TODO: ReminderTimer.removeListener(this) — 합칠 때 코디네이터가 연결한다 (reminderDue는 disposed면 무시)
+            ctx.reminders().removeListener(this);
             javax.swing.UIManager.removePropertyChangeListener(lafListener);
             saveBounds.stop();
             header.dispose();
