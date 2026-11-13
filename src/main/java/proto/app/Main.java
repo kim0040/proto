@@ -4,8 +4,6 @@ import proto.control.CategoryController;
 import proto.control.ReminderTimer;
 import proto.control.ScheduleController;
 import proto.control.StateRefreshTimer;
-import proto.repository.CategoryRepository;
-import proto.repository.ScheduleRepository;
 import proto.ui.UiLauncher;
 
 import javax.swing.SwingUtilities;
@@ -26,13 +24,12 @@ public final class Main {
 
     public static void main(String[] args) {
         Clock clock = Clock.systemDefaultZone();
-        ScheduleRepository scheduleRepository = new ScheduleRepository(DATA_DIR.resolve("schedules.csv"));
-        CategoryRepository categoryRepository = new CategoryRepository(DATA_DIR.resolve("categories.csv"));
-        categoryRepository.loadOrSeed();
-        scheduleRepository.loadOrSeed(LocalDateTime.now(clock));
+        StoreFactory.Stores stores = StoreFactory.create(DATA_DIR);
+        stores.categories().loadOrSeed();
+        stores.schedules().loadOrSeed(LocalDateTime.now(clock));
 
-        ScheduleController schedules = new ScheduleController(scheduleRepository, categoryRepository, clock);
-        CategoryController categories = new CategoryController(categoryRepository, scheduleRepository, schedules);
+        ScheduleController schedules = new ScheduleController(stores.schedules(), stores.categories(), clock);
+        CategoryController categories = new CategoryController(stores.categories(), stores.schedules(), schedules);
         ReminderTimer reminders = new ReminderTimer(schedules, clock);
         new StateRefreshTimer(schedules).start();
         reminders.start();
