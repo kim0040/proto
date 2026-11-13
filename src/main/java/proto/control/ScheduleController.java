@@ -15,8 +15,8 @@ import proto.logic.ScheduleValidator;
 import proto.logic.SeriesEditor;
 import proto.logic.StateCalculator;
 import proto.logic.StatisticsCalculator;
-import proto.repository.CategoryRepository;
-import proto.repository.ScheduleRepository;
+import proto.repository.CategoryStore;
+import proto.repository.ScheduleStore;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -50,13 +50,13 @@ public class ScheduleController {
     private static final int MIN_FREE_MINUTES = 15;
     private static final int MAX_FREE_MINUTES = 480;
 
-    private final ScheduleRepository schedules;
-    private final CategoryRepository categories;
+    private final ScheduleStore schedules;
+    private final CategoryStore categories;
     private final Clock clock;
     private final List<ScheduleListener> listeners = new CopyOnWriteArrayList<>();
 
     /** 불러온 일정 중 없는 카테고리를 가리키는 것은 메모리에서 "개인"으로 옮긴다 (다음 저장 때 파일에도 반영) */
-    public ScheduleController(ScheduleRepository schedules, CategoryRepository categories, Clock clock) {
+    public ScheduleController(ScheduleStore schedules, CategoryStore categories, Clock clock) {
         this.schedules = schedules;
         this.categories = categories;
         this.clock = clock;

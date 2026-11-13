@@ -3,7 +3,8 @@ package proto.control;
 import proto.entity.Category;
 import proto.entity.Schedule;
 import proto.repository.CategoryRepository;
-import proto.repository.ScheduleRepository;
+import proto.repository.CategoryStore;
+import proto.repository.ScheduleStore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,13 +25,13 @@ public class CategoryController {
     private static final int MAX_NAME_LENGTH = CategoryRepository.MAX_NAME_LENGTH;
     private static final String PERSONAL_NAME = "개인";
 
-    private final CategoryRepository categories;
-    private final ScheduleRepository schedules;
+    private final CategoryStore categories;
+    private final ScheduleStore schedules;
     private final ScheduleController scheduleController;
     private final List<CategoryListener> listeners = new CopyOnWriteArrayList<>();
 
     /** @param scheduleController 일정 쪽 리스너(일정 목록 갱신, 저장 실패 알림)에 알리는 데 쓴다 */
-    public CategoryController(CategoryRepository categories, ScheduleRepository schedules,
+    public CategoryController(CategoryStore categories, ScheduleStore schedules,
                               ScheduleController scheduleController) {
         this.categories = categories;
         this.schedules = schedules;

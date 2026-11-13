@@ -22,7 +22,7 @@ import java.util.function.Supplier;
  * 불러오면서 문제가 하나라도 생기면 원본을 같은 폴더에 백업한 뒤에야 덮어쓸 수 있고,
  * 백업마저 실패하면 이 파일에는 저장하지 않는다 (읽지 못한 기록이 조용히 사라지지 않게).
  */
-public class ScheduleRepository {
+public class ScheduleRepository implements ScheduleStore {
 
     private final Path file;
     private final Clock clock;
@@ -49,6 +49,7 @@ public class ScheduleRepository {
      * 파일 전체를 읽지 못했거나 CSV 구조가 깨졌으면 아무 일정도 불러오지 않는다.
      * 문제가 있으면 원본을 백업하고, 경고 문장에 백업 파일 이름을 넣는다.
      */
+    @Override
     public void load() {
         warnings.clear();
         saveBlocked = false;
@@ -64,11 +65,13 @@ public class ScheduleRepository {
     }
 
     /** 파일이 있으면 읽고, 없으면 예시 일정 5개(오늘 고정 시각)를 만들어 바로 저장한다 (F11) */
+    @Override
     public void loadOrSeed(LocalDate today) {
         seedOrLoad(() -> SampleScheduleFactory.create(today));
     }
 
     /** 파일이 있으면 읽고, 없으면 지금 시각 기준 예시 일정 5개를 만들어 바로 저장한다 (F11) */
+    @Override
     public void loadOrSeed(LocalDateTime now) {
         seedOrLoad(() -> SampleScheduleFactory.create(now));
     }
@@ -90,6 +93,7 @@ public class ScheduleRepository {
     }
 
     /** 전체를 파일에 쓴다. 불러올 때 원본을 백업하지 못했으면 덮어쓰지 않고 IOException을 던진다 */
+    @Override
     public void save() throws IOException {
         if (saveBlocked) {
             throw LoadProblems.saveBlocked(file);
@@ -103,22 +107,27 @@ public class ScheduleRepository {
     }
 
     /** 불러올 때 생긴 경고들 (한국어 문장). 없으면 빈 목록 */
+    @Override
     public List<String> getWarnings() {
         return List.copyOf(warnings);
     }
 
+    @Override
     public List<Schedule> getAll() {
         return Collections.unmodifiableList(schedules);
     }
 
+    @Override
     public Optional<Schedule> findById(String id) {
         return schedules.stream().filter(s -> s.getId().equals(id)).findFirst();
     }
 
+    @Override
     public void add(Schedule schedule) {
         schedules.add(schedule);
     }
 
+    @Override
     public void remove(Schedule schedule) {
         schedules.remove(schedule);
     }

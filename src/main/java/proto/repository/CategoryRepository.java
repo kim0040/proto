@@ -18,7 +18,7 @@ import java.util.Optional;
  * 파일이 없으면 기본 4개(수업, 과제, 팀플, 개인)로 시작한다.
  * 불러오면서 문제가 생기면 원본을 같은 폴더에 백업한 뒤에야 덮어쓴다 (백업 실패 시 저장하지 않음).
  */
-public class CategoryRepository {
+public class CategoryRepository implements CategoryStore {
 
     /** 카테고리 이름 최대 글자 수 (앞뒤 공백 제외) */
     public static final int MAX_NAME_LENGTH = 20;
@@ -43,6 +43,7 @@ public class CategoryRepository {
      * 파일이 있으면 읽고, 없으면 기본 카테고리로 시작해 바로 저장한다.
      * 파일 전체를 읽지 못했거나 CSV 구조가 깨졌으면 기본 카테고리로 시작한다. 문제가 있으면 원본을 백업한다.
      */
+    @Override
     public void loadOrSeed() {
         warnings.clear();
         saveBlocked = false;
@@ -64,6 +65,7 @@ public class CategoryRepository {
     }
 
     /** 전체를 파일에 쓴다. 불러올 때 원본을 백업하지 못했으면 덮어쓰지 않고 IOException을 던진다 */
+    @Override
     public void save() throws IOException {
         if (saveBlocked) {
             throw LoadProblems.saveBlocked(file);
@@ -77,22 +79,27 @@ public class CategoryRepository {
     }
 
     /** 불러올 때 생긴 경고들 (한국어 문장). 없으면 빈 목록 */
+    @Override
     public List<String> getWarnings() {
         return List.copyOf(warnings);
     }
 
+    @Override
     public List<Category> getAll() {
         return Collections.unmodifiableList(categories);
     }
 
+    @Override
     public Optional<Category> findById(String id) {
         return categories.stream().filter(c -> c.getId().equals(id)).findFirst();
     }
 
+    @Override
     public void add(Category category) {
         categories.add(category);
     }
 
+    @Override
     public void remove(Category category) {
         categories.remove(category);
     }
