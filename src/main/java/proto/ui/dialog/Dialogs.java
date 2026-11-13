@@ -1,0 +1,99 @@
+package proto.ui.dialog;
+
+import proto.control.EditScope;
+import proto.entity.Occurrence;
+import proto.ui.Fmt;
+import proto.ui.component.CategoryDot;
+import proto.ui.component.TokenLabel;
+import proto.ui.dialog.ConfirmDialog.Choice;
+import proto.ui.dialog.ConfirmDialog.Kind;
+import proto.ui.theme.Fonts;
+import proto.ui.theme.Tokens;
+import proto.ui.theme.Ui;
+
+import javax.swing.BoxLayout;
+import javax.swing.JPanel;
+import java.awt.FlowLayout;
+import java.awt.Window;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
+
+/**
+ * [경계 boundary] 자주 쓰는 질문 대화상자 모음: 삭제 확인(F4), 반복 범위 선택(F3, F4), 겹침 경고(F13), 안내.
+ */
+public final class Dialogs {
+
+    private Dialogs() {
+    }
+
+    /** 반복이 없는 일정을 지울지 확인한다 */
+    public static boolean confirmDelete(Window owner, String title) {
+        ConfirmDialog d = new ConfirmDialog(owner, "일정 삭제", "‘" + shorten(title) + "’을(를) 삭제할까요?",
+                "삭제한 일정은 되돌릴 수 없어요.", null,
+                List.of(new Choice("취소", Kind.SECONDARY), new Choice("삭제", Kind.DANGER)));
+        return d.ask() == 1;
+    }
+
+    /** 반복 일정에서 어디까지 바꿀지 묻는다. 취소하면 비어 있다 */
+    public static Optional<EditScope> chooseScope(Window owner, String title, String verb, boolean danger) {
+        String message = "반복 일정을 " + verb + "할까요?";
+        String detail = "‘이 일정만’은 이 날짜 하나만, ‘앞으로 전부’는 이 날짜부터 뒤의 모든 반복에 적용돼요.";
+        Kind main = danger ? Kind.DANGER : Kind.PRIMARY;
+        ConfirmDialog d = new ConfirmDialog(owner, title, message, detail, null, List.of(
+                new Choice("취소", Kind.GHOST), new Choice(EditScope.THIS_ONLY.label(), Kind.SECONDARY),
+                new Choice(EditScope.THIS_AND_FOLLOWING.label(), main)));
+        return switch (d.ask()) {
+            case 1 -> Optional.of(EditScope.THIS_ONLY);
+            case 2 -> Optional.of(EditScope.THIS_AND_FOLLOWING);
+            default -> Optional.empty();
+        };
+    }
+
+    /** 시간이 겹치는 일정을 보여 주고 그래도 저장할지 묻는다 (F13) */
+    public static boolean confirmConflicts(Window owner, List<Occurrence> conflicts,
+                                           Function<String, String> categoryName) {
+        JPanel list = new JPanel();
+        list.setOpaque(false);
+        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
+        int shown = Math.min(conflicts.size(), 4);
+        for (int i = 0; i < shown; i++) {
+            list.add(conflictRow(conflicts.get(i), categoryName));
+        }
+        if (conflicts.size() > shown) {
+            list.add(new TokenLabel("외 " + (conflicts.size() - shown) + "개", Fonts.regular(Fonts.SMALL), Tokens.MUTED));
+        }
+        ConfirmDialog d = new ConfirmDialog(owner, "시간이 겹쳐요", "이 시간에 다른 일정이 있어요",
+                "아래 일정과 시간이 겹쳐요. 그래도 저장할까요?", list,
+                List.of(new Choice("돌아가기", Kind.SECONDARY), new Choice("그래도 저장", Kind.PRIMARY)));
+        return d.ask() == 1;
+    }
+
+    private static JPanel conflictRow(Occurrence o, Function<String, String> categoryName) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, Ui.px(8), Ui.px(3)));
+        row.setOpaque(false);
+        row.setAlignmentX(0f);
+        row.add(new CategoryDot(o.categoryId(), 8));
+        row.add(new TokenLabel(Fmt.dateShort(o.date()) + "  " + Fmt.range(o), Fonts.medium(Fonts.SMALL), Tokens.MUTED));
+        row.add(new TokenLabel(shorten(o.title()), Fonts.medium(Fonts.BODY), Tokens.TEXT));
+        return row;
+    }
+
+    /** 확인 버튼 하나뿐인 안내 */
+    public static void inform(Window owner, String title, String message) {
+        new ConfirmDialog(owner, title, message, null, null, List.of(new Choice("확인", Kind.PRIMARY))).ask();
+    }
+
+    /** 카테고리 삭제 확인 */
+    public static boolean confirmDeleteCategory(Window owner, String name, int scheduleCount) {
+        String detail = scheduleCount == 0 ? "이 카테고리에는 일정이 없어요."
+                : "일정 " + scheduleCount + "개가 ‘개인’으로 옮겨져요.";
+        ConfirmDialog d = new ConfirmDialog(owner, "카테고리 삭제", "‘" + shorten(name) + "’ 카테고리를 지울까요?",
+                detail, null, List.of(new Choice("취소", Kind.SECONDARY), new Choice("삭제", Kind.DANGER)));
+        return d.ask() == 1;
+    }
+
+    private static String shorten(String s) {
+        return s.length() > 24 ? s.substring(0, 23) + "…" : s;
+    }
+}

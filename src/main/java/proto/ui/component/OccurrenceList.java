@@ -1,0 +1,56 @@
+package proto.ui.component;
+
+import proto.entity.Occurrence;
+
+import javax.swing.BoxLayout;
+import java.awt.Component;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * [경계 boundary] 일정 행을 세로로 쌓은 목록. 같은 일정(id@날짜)의 행은 다시 만들지 않고 재사용해서
+ * 완료·상태 변화 애니메이션이 끊기지 않는다.
+ */
+public class OccurrenceList extends ScrollPanel {
+
+    private final RowHandler handler;
+    private final boolean compact;
+    private final Map<String, OccurrenceRow> rows = new HashMap<>();
+
+    public OccurrenceList(RowHandler handler, boolean compact) {
+        super(null);
+        setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+        this.handler = handler;
+        this.compact = compact;
+    }
+
+    /** 목록을 새 내용으로 맞춘다. animate가 true면 바뀐 행만 부드럽게 바뀐다 */
+    public void setItems(List<Occurrence> items, boolean animate) {
+        Map<String, OccurrenceRow> next = new HashMap<>();
+        removeAll();
+        for (Occurrence o : items) {
+            OccurrenceRow row = rows.get(o.key());
+            boolean reused = row != null;
+            if (!reused) {
+                row = new OccurrenceRow(handler, compact);
+            }
+            row.update(o, handler.stateOf(o), animate && reused);
+            next.put(o.key(), row);
+            add(row);
+        }
+        rows.clear();
+        rows.putAll(next);
+        revalidate();
+        repaint();
+    }
+
+    public int count() {
+        return rows.size();
+    }
+
+    /** 첫 번째 행 (키보드 포커스 이동용). 없으면 null */
+    public Component firstRow() {
+        return getComponentCount() > 0 ? getComponent(0) : null;
+    }
+}
