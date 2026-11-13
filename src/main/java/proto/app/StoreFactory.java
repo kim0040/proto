@@ -6,6 +6,7 @@ import proto.repository.ScheduleRepository;
 import proto.repository.ScheduleStore;
 import proto.server.RemoteApiClient;
 import proto.server.ServerSettings;
+import proto.server.SettingsWarningScheduleStore;
 import proto.server.SyncingCategoryStore;
 import proto.server.SyncingScheduleStore;
 
@@ -37,6 +38,18 @@ public final class StoreFactory {
     }
 
     /**
+     * 꺼진 이유가 설정 오류(경고가 있음)면 일정 저장소의 경고에 실어 시작 때 사용자에게 알린다.
+     * 일부러 껐거나 파일이 없으면 경고가 없으므로 CSV 저장소 인스턴스를 그대로 돌려준다.
+     */
+    private static Stores disabledStores(ServerSettings settings, ScheduleRepository schedules,
+                                         CategoryRepository categories) {
+        if (settings.warning().isEmpty()) {
+            return new Stores(schedules, categories);
+        }
+        return new Stores(new SettingsWarningScheduleStore(schedules, settings.warning()), categories);
+    }
+
+    /**
      * 서버를 빼려면 이 메소드를 지우고, create가 CSV 저장소를 바로 돌려주게 하면 된다.
      * 꺼져 있으면 방금 만든 CSV 저장소 인스턴스를 그대로 돌려준다.
      */
@@ -44,7 +57,7 @@ public final class StoreFactory {
                                                    CategoryRepository categories) {
         ServerSettings settings = ServerSettings.load(dataDir.resolve("server.properties"));
         if (!settings.isEnabled()) {
-            return new Stores(schedules, categories);
+            return disabledStores(settings, schedules, categories);
         }
         RemoteApiClient client = new RemoteApiClient(settings);
         return new Stores(new SyncingScheduleStore(schedules, client), new SyncingCategoryStore(categories, client));

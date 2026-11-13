@@ -2,6 +2,8 @@ package proto.server;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -95,8 +97,8 @@ public final class ServerSettings {
             return off("server.properties의 baseUrl이 http 주소가 아니어서 서버를 쓰지 않아요");
         }
         String token = value(props, "token");
-        if (token.indexOf('\n') >= 0 || token.indexOf('\r') >= 0) {
-            return off("server.properties의 token을 읽지 못해 서버를 쓰지 않아요");
+        if (!isHeaderSafe(token)) {
+            return off("server.properties의 token에 쓸 수 없는 문자가 있어 서버를 쓰지 않아요");
         }
         Integer timeout = timeoutSeconds(value(props, "timeoutSeconds"));
         if (timeout == null) {
@@ -105,14 +107,40 @@ public final class ServerSettings {
         return new ServerSettings(true, baseUrl, token, timeout, "");
     }
 
-    /** http(s)만 받는다. 끝 슬래시는 떼고, 호스트가 없으면 null */
+    /** 토큰은 눈에 보이는 ASCII(0x21~0x7E)만 받는다. 공백·제어 문자·한글은 HTTP 헤더 값으로 보낼 수 없다 */
+    private static boolean isHeaderSafe(String token) {
+        for (int i = 0; i < token.length(); i++) {
+            char c = token.charAt(i);
+            if (c < 0x21 || c > 0x7E) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** http(s) 주소만 받는다. 끝 슬래시는 떼고, URI로 읽어 호스트·포트가 올바르지 않으면 null */
     private static String normalizeUrl(String raw) {
         String trimmed = stripTrailingSlashes(raw);
-        String host = hostOf(trimmed);
-        if (host == null || host.isBlank() || host.indexOf(' ') >= 0) {
+        URI uri = parse(trimmed);
+        if (uri == null || !isHttp(uri.getScheme())) {
             return null;
         }
-        return trimmed;
+        boolean hasHost = uri.getHost() != null && !uri.getHost().isBlank();
+        boolean portOk = uri.getPort() == -1 || (uri.getPort() >= 1 && uri.getPort() <= 65535);
+        boolean plain = uri.getRawQuery() == null && uri.getRawFragment() == null && uri.getRawUserInfo() == null;
+        return hasHost && portOk && plain ? trimmed : null;
+    }
+
+    private static URI parse(String text) {
+        try {
+            return new URI(text);
+        } catch (URISyntaxException e) {
+            return null;
+        }
+    }
+
+    private static boolean isHttp(String scheme) {
+        return "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
     }
 
     private static String stripTrailingSlashes(String raw) {
@@ -121,17 +149,6 @@ public final class ServerSettings {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
         return trimmed;
-    }
-
-    /** http(s) 주소가 아니면 null, 맞으면 스킴 뒤의 호스트 부분 */
-    private static String hostOf(String url) {
-        if (url.startsWith("https://")) {
-            return url.substring("https://".length());
-        }
-        if (url.startsWith("http://")) {
-            return url.substring("http://".length());
-        }
-        return null;
     }
 
     /** 비어 있으면 기본 5초. 1~120 밖이거나 숫자가 아니면 null (호출하는 쪽이 서버를 끈다) */
