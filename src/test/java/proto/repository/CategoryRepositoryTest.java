@@ -89,4 +89,61 @@ class CategoryRepositoryTest {
         assertTrue(repo.getWarnings().get(0).contains("categories-backup-20261114-101500.csv"));
         assertEquals(original, Files.readString(dir.resolve("categories-backup-20261114-101500.csv")));
     }
+
+    @Test
+    void personalIsKeptAndAnotherRowWithTheSameNameIsSkipped() throws IOException {
+        Path file = dir.resolve("categories.csv");
+        String original = "id,name\nx,개인\nclass,수업\npersonal,개인\n";
+        Files.writeString(file, original);
+        Clock clock = Clock.fixed(Instant.parse("2026-11-14T10:15:00Z"), ZoneOffset.UTC);
+        CategoryRepository repo = new CategoryRepository(file, clock);
+        repo.loadOrSeed();
+
+        assertEquals(List.of("class", Category.PERSONAL_ID), repo.getAll().stream().map(Category::getId).toList());
+        assertEquals(List.of("수업", "개인"), repo.getAll().stream().map(Category::getName).toList());
+        assertEquals(1, repo.getWarnings().size());
+        assertTrue(repo.getWarnings().get(0).contains("2번째 줄을 읽지 못해 건너뛰었어요"));
+        assertTrue(repo.getWarnings().get(0).contains("이미 있는 이름이에요"));
+        assertEquals(original, Files.readString(dir.resolve("categories-backup-20261114-101500.csv")));
+    }
+
+    @Test
+    void aRowNamedLikeTheMissingPersonalCategoryIsSkippedBeforeItIsInserted() throws IOException {
+        Path file = dir.resolve("categories.csv");
+        String original = "id,name\nx,개인\nclass,수업\n";
+        Files.writeString(file, original);
+        Clock clock = Clock.fixed(Instant.parse("2026-11-14T10:15:00Z"), ZoneOffset.UTC);
+        CategoryRepository repo = new CategoryRepository(file, clock);
+        repo.loadOrSeed();
+
+        assertEquals(List.of("class", Category.PERSONAL_ID), repo.getAll().stream().map(Category::getId).toList());
+        assertEquals(List.of("수업", "개인"), repo.getAll().stream().map(Category::getName).toList());
+        assertEquals(1, repo.getWarnings().size());
+        assertTrue(repo.getWarnings().get(0).contains("이미 있는 이름이에요"));
+        assertEquals(original, Files.readString(dir.resolve("categories-backup-20261114-101500.csv")));
+    }
+
+    @Test
+    void aDifferentNameBesideARenamedPersonalCategoryIsKept() throws IOException {
+        Path file = dir.resolve("categories.csv");
+        Files.writeString(file, "id,name\nx,개인\npersonal,나의일\n");
+        CategoryRepository repo = new CategoryRepository(file);
+        repo.loadOrSeed();
+
+        assertEquals(List.of("x", Category.PERSONAL_ID), repo.getAll().stream().map(Category::getId).toList());
+        assertEquals(List.of("개인", "나의일"), repo.getAll().stream().map(Category::getName).toList());
+        assertTrue(repo.getWarnings().isEmpty());
+    }
+
+    @Test
+    void personalNameMatchIgnoresCase() throws IOException {
+        Path file = dir.resolve("categories.csv");
+        Files.writeString(file, "id,name\nx,Math\npersonal,math\n");
+        CategoryRepository repo = new CategoryRepository(file);
+        repo.loadOrSeed();
+
+        assertEquals(List.of(Category.PERSONAL_ID), repo.getAll().stream().map(Category::getId).toList());
+        assertEquals("math", repo.findById(Category.PERSONAL_ID).orElseThrow().getName());
+        assertEquals(1, repo.getWarnings().size());
+    }
 }

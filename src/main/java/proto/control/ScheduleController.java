@@ -173,7 +173,7 @@ public class ScheduleController {
         }
         Schedule candidate = DraftMapper.toSchedule(effective, "candidate");
         return ConflictDetector.findConflicts(candidate, schedules.getAll(),
-                selfFilter(editing, isThisOnly(editing, scope)));
+                selfFilter(editing, effective, isThisOnly(editing, scope)));
     }
 
     /** F1: 검증을 통과하면 저장(F11)하고 리스너에 알린다 */
@@ -327,8 +327,11 @@ public class ScheduleController {
         }
     }
 
-    /** 겹침 검사에서 뺄 "수정 중인 자기 자신" 조건 */
-    private static Predicate<Occurrence> selfFilter(Occurrence editing, boolean thisOnly) {
+    /**
+     * 겹침 검사에서 뺄 "수정 중인 자기 자신".
+     * 앞으로 전부 수정이면 고른 날과 새 시작일 중 이른 날부터 원래 반복을 뺀다 (저장과 같은 자르는 날).
+     */
+    private static Predicate<Occurrence> selfFilter(Occurrence editing, ScheduleDraft draft, boolean thisOnly) {
         if (editing == null) {
             return o -> false;
         }
@@ -338,6 +341,12 @@ public class ScheduleController {
         if (thisOnly) {
             return o -> o.scheduleId().equals(editing.scheduleId()) && o.date().equals(editing.date());
         }
-        return o -> o.scheduleId().equals(editing.scheduleId()) && !o.date().isBefore(editing.date());
+        LocalDate cut = earlier(editing.date(), draft.date());
+        return o -> o.scheduleId().equals(editing.scheduleId()) && !o.date().isBefore(cut);
+    }
+
+    /** 두 날짜 중 더 이른 날. SeriesEditor가 앞으로 전부 수정을 자를 때와 같다 */
+    private static LocalDate earlier(LocalDate a, LocalDate b) {
+        return a.isBefore(b) ? a : b;
     }
 }

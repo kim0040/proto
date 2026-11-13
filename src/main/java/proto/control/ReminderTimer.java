@@ -1,6 +1,7 @@
 package proto.control;
 
 import proto.entity.Occurrence;
+import proto.entity.ReminderOption;
 import proto.logic.ReminderChecker;
 
 import javax.swing.Timer;
@@ -51,6 +52,11 @@ public class ReminderTimer {
         listeners.add(listener);
     }
 
+    /** 등록했던 리스너를 뺀다 (화면을 닫을 때) */
+    public void removeListener(ReminderListener listener) {
+        listeners.remove(listener);
+    }
+
     /** 30초 간격 확인 시작 (javax.swing.Timer) */
     public void start() {
         timer.start();
@@ -78,14 +84,13 @@ public class ReminderTimer {
         }
     }
 
-    /** 알릴 일정의 키를 모두 찍은 뒤에 리스너를 부른다. 부르기 직전 최신 상태를 다시 읽는다 */
+    /** 최신 알림 시각이 지금 맞은 일정만 키를 찍고 리스너를 부른다 */
     private void remindDue(LocalDateTime now) {
         LocalDate today = now.toLocalDate();
         // 내일 일정도 본다: 00:10 일정의 30분 전 알림은 전날 23:40이다
         List<Occurrence> due = ReminderChecker.findDue(candidates(today), now, appStartedAt, notifiedKeys);
-        due.forEach(o -> notifiedKeys.add(o.key()));
         for (Occurrence snapshot : due) {
-            fireFresh(snapshot, false);
+            fireFresh(snapshot, false, now);
         }
     }
 
@@ -93,22 +98,54 @@ public class ReminderTimer {
         return controller.getOccurrences(today, today.plusDays(1), null, null);
     }
 
-    /** 없거나 이미 완료한 일정은 알리지 않고, 남아 있으면 최신 객체를 보낸다 */
-    private void fireFresh(Occurrence snapshot, boolean snoozed) {
+    /**
+     * 없거나 완료된 일정은 알리지 않는다.
+     * 처음 알림은 최신 알림 시각이 앱을 켠 뒤부터 지금까지일 때만 보내고, 그때만 키를 찍는다.
+     * 다시 알림은 예약 시각에 보내고, 완료·삭제만 조용히 버린다.
+     */
+    private void fireFresh(Occurrence snapshot, boolean snoozed, LocalDateTime now) {
         controller.findOccurrence(snapshot.scheduleId(), snapshot.date())
-                .filter(o -> !o.completed())
-                .ifPresent(o -> fire(o, snoozed));
+                .filter(o -> snoozed ? !o.completed() : stillDue(o, now))
+                .ifPresent(o -> deliver(o, snoozed));
     }
 
-    /** F15: minutes분 뒤에 이 일정을 한 번 더 알린다 (메모리에만 보관) */
+    /** 최신 일정의 알림 시각이 앱을 켠 뒤부터 지금까지인지 */
+    private boolean stillDue(Occurrence occurrence, LocalDateTime now) {
+        if (occurrence.reminder() == ReminderOption.NONE || occurrence.completed()) {
+            return false;
+        }
+        int minutes = occurrence.reminder().minutesBefore();
+        LocalDateTime remindAt = occurrence.startDateTime().minusMinutes(minutes);
+        return !remindAt.isBefore(appStartedAt) && !remindAt.isAfter(now);
+    }
+
+    /** 처음 알림은 키를 찍은 뒤에 보낸다. 다시 알림은 예약에서 이미 빠졌다 */
+    private void deliver(Occurrence occurrence, boolean snoozed) {
+        if (!snoozed) {
+            notifiedKeys.add(occurrence.key());
+        }
+        fire(occurrence, snoozed);
+    }
+
+    /** F15: minutes분 뒤에 이 일정을 한 번 더 알린다 (메모리에만 보관). 없거나 완료됐으면 거절한다 */
     public OperationResult snooze(Occurrence occurrence, int minutes) {
         if (minutes < MIN_SNOOZE_MINUTES || minutes > MAX_SNOOZE_MINUTES) {
             return OperationResult.fail("다시 알림은 " + MIN_SNOOZE_MINUTES + "분에서 "
                     + MAX_SNOOZE_MINUTES + "분 사이로 정해 주세요");
         }
+        if (alreadyGone(occurrence)) {
+            return OperationResult.fail("이미 지워졌거나 완료한 일정이에요");
+        }
         LocalDateTime due = LocalDateTime.now(clock).plusMinutes(minutes);
         snoozes.put(occurrence.key(), new Snooze(occurrence, due));
         return OperationResult.ok();
+    }
+
+    /** 지금 그 날짜의 일정이 없거나 이미 완료했으면 true */
+    private boolean alreadyGone(Occurrence occurrence) {
+        return controller.findOccurrence(occurrence.scheduleId(), occurrence.date())
+                .filter(o -> !o.completed())
+                .isEmpty();
     }
 
     /** 시각이 된 다시 알림을 예약에서 모두 뺀 뒤 한 번씩 알린다. 완료·삭제된 일정은 조용히 버린다 */
@@ -121,7 +158,7 @@ public class ReminderTimer {
         }
         due.forEach(s -> snoozes.remove(s.occurrence().key()));
         for (Snooze s : due) {
-            fireFresh(s.occurrence(), true);
+            fireFresh(s.occurrence(), true, now);
         }
     }
 

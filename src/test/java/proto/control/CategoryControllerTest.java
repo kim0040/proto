@@ -45,6 +45,16 @@ class CategoryControllerTest {
     }
 
     @Test
+    void removedListenerIsNotNotified() {
+        AtomicInteger calls = new AtomicInteger();
+        CategoryListener listener = calls::incrementAndGet;
+        c.addListener(listener);
+        c.removeListener(listener);
+        assertTrue(c.add("동아리").success());
+        assertEquals(0, calls.get());
+    }
+
+    @Test
     void emptyTooLongAndDuplicateNamesAreRejected() {
         assertEquals("카테고리 이름을 입력해 주세요", c.add("").message());
         assertEquals("카테고리 이름을 입력해 주세요", c.add("   ").message());
