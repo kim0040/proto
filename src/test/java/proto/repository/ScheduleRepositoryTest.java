@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static proto.TestData.d;
 import static proto.TestData.t;
 
@@ -206,6 +207,8 @@ class ScheduleRepositoryTest {
 
     @Test
     void failedBackupBlocksALaterSaveAndLeavesTheOriginalUntouched() throws IOException {
+        // 폴더를 읽기 전용으로 만들어 백업 실패를 흉내 내는데, Windows는 POSIX 권한이 없어 건너뛴다 (Linux·macOS에서 검증)
+        assumeTrue(dir.getFileSystem().supportedFileAttributeViews().contains("posix"));
         Path folder = dir.resolve("locked");
         Files.createDirectories(folder);
         Path file = folder.resolve("schedules.csv");
