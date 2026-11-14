@@ -26,6 +26,7 @@ import java.util.function.Function;
 
 /**
  * [경계 boundary] 대화상자 입력 폼을 만드는 도우미: 라벨+입력+오류 묶음, 점이 있는 카테고리 콤보 등.
+ * ScheduleDialog와 FreeSlotDialog가 입력 폼을 만들 때 쓴다 (F1, F12). 이름/입력/오류를 세로로 묶는 모양을 한곳에 두어 모든 입력칸이 같은 간격을 갖게 한다.
  */
 final class FormKit {
 

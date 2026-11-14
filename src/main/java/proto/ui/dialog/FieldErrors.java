@@ -10,6 +10,7 @@ import java.util.Map;
 
 /**
  * [경계 boundary] 검증 오류 문장을 알맞은 입력칸 아래에 나눠 보여 주는 도우미 (문장 속 낱말로 칸을 찾는다).
+ * ScheduleDialog가 controller의 검증 결과(문장 목록, ScheduleValidator)를 받으면 여기에 넘겨서 해당하는 입력칸 아래에 보여 준다.
  */
 final class FieldErrors {
 
@@ -75,6 +76,11 @@ final class FieldErrors {
         relayout.run();
     }
 
+    /**
+     * 오류 문장에 들어 있는 낱말(제목, 날짜, 시간, 메모, 카테고리, 반복 종료일)로 어느 칸의 오류인지 고른다. 어디에도 맞지 않으면 GENERAL(대화상자 아래쪽)에 보여 준다.
+     * 검사 순서가 중요하다: "반복 종료일은 시작 날짜보다…"는 "날짜"도 들어 있으므로 "반복 종료일"을 먼저 본다.
+     * 이 방식은 검증 문장에 그 낱말이 들어 있다는 약속에 기대므로, ScheduleValidator의 문장을 바꿀 때 함께 확인해야 한다.
+     */
     static Field classify(String message) {
         if (message.contains("제목")) {
             return Field.TITLE;

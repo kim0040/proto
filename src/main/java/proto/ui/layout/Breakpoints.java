@@ -14,6 +14,9 @@ import java.util.function.Consumer;
 /**
  * [경계 boundary] 화면 크기에 따라 배치를 바꾸는 단 하나의 기준표. 본문 크기를 배율(UIScale)로 나눈 논리 px로
  * 크기 등급을 정하고, 등급이 바뀔 때만 구독자에게 알린다. 창 크기가 연달아 바뀌어도 이벤트 한 번에 한 번만 계산한다.
+ * UiContext가 하나 만들고 MainFrame이 본문(layeredPane)에 attach한다. 사이드바·헤더·각 보기는 onChange로 등급이 바뀔 때만 배치를 바꾼다 (SizeClass가 값, 이
+ * 클래스가 계산과 알림).
+ * 창이 열리기 전에는 prime으로 처음 등급을 어림잡는다.
  */
 public final class Breakpoints {
 
@@ -68,6 +71,7 @@ public final class Breakpoints {
         listeners.add(listener);
     }
 
+    /** 창 크기가 연달아 바뀌어도 이벤트 한 번에 한 번만 계산하도록 invokeLater로 모은다 (pending 깃발). */
     private void schedule() {
         if (!pending) {
             pending = true;

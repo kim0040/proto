@@ -12,6 +12,7 @@ import java.io.InputStream;
 
 /**
  * [경계 boundary] 번들된 Pretendard 글꼴을 등록하고 글자 크기 단계(타입 스케일)를 제공한다.
+ * ThemeManager#install이 LaF를 켜기 전에 install을 부른다. Pretendard 글꼴 파일은 resources/fonts에 들어 있고, 읽지 못하면 운영체제 한글 글꼴로 물러난다.
  */
 public final class Fonts {
 

@@ -23,6 +23,7 @@ import java.util.List;
 
 /**
  * [경계 boundary] 오늘 보기 (F2): 한 줄 요약과 시간순 일정 목록. 일정이 없으면 안내 문구를 보여 준다.
+ * MainFrame이 만들고, refresh 때 오늘 하루치 일정을 ScheduleController#getOccurrences로 읽는다. 오늘 날짜의 기준은 controller의 시계(today())이다.
  */
 public class TodayView implements ContentView {
 
@@ -115,6 +116,7 @@ public class TodayView implements ContentView {
         cards.show(root, LIST);
     }
 
+    /** "일정 N개 · 완료 N · 지연 N" 한 줄을 만든다. 지연은 저장된 값이 아니라 controller가 지금 시각으로 계산한 상태(StateCalculator, F6)를 센다. */
     private String summaryText(List<Occurrence> items) {
         long done = items.stream().filter(Occurrence::completed).count();
         long delayed = items.stream().filter(o -> ctx.schedules().stateOf(o) == ScheduleState.DELAYED).count();

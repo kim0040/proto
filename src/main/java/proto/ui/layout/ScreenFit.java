@@ -15,6 +15,7 @@ import java.util.List;
 /**
  * [경계 boundary] 창을 화면 안에 맞추는 도우미: 화면의 쓸 수 있는 영역(작업 표시줄·메뉴 막대 제외),
  * 여러 모니터에서 창이 있는 화면 찾기, 창을 화면 안으로 밀어 넣기.
+ * BaseDialog(대화상자 위치·크기), WindowState(저장된 창 위치 복원), MainFrame이 쓴다. 모니터를 빼거나 해상도가 바뀌어도 창이 화면 밖에서 열리지 않게 한다.
  */
 public final class ScreenFit {
 

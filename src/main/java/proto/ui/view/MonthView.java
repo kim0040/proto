@@ -29,6 +29,8 @@ import java.util.Map;
 
 /**
  * [경계 boundary] 달력 보기 (F2): 월간 격자와, 고른 날의 일정 목록 패널.
+ * MainFrame이 만들고, refresh 때마다 ScheduleController#getOccurrences로 보이는 6주(42일)치를 한 번에 읽어 날짜별로 나눈다. 날짜를 고르면 AppState의
+ * selectedDay가 바뀐다.
  * 넓은 화면에서는 패널이 오른쪽에, 좁거나 세로로 긴 화면에서는 격자 아래에 놓인다.
  */
 public class MonthView implements ContentView {
@@ -161,6 +163,7 @@ public class MonthView implements ContentView {
     public void refresh(boolean animate) {
         AppState s = ctx.state();
         LocalDate month = s.anchor().withDayOfMonth(1);
+        // 먼저 빈 데이터로 격자를 맞춰야 gridStart(보이는 첫 날)를 알 수 있고, 그 날짜 범위로 일정을 읽는다.
         grid.setData(month, ctx.schedules().today(), s.selectedDay(), Map.of());
         LocalDate from = grid.gridStart();
         List<Occurrence> all = ctx.schedules().getOccurrences(from, from.plusDays(41), s.categoryId(), s.keyword());

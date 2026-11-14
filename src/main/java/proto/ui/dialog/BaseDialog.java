@@ -18,6 +18,9 @@ import java.awt.event.KeyEvent;
 
 /**
  * [경계 boundary] 모든 대화상자의 공통 틀: 모달, Esc로 취소, 열릴 때 내용이 부드럽게 나타난다.
+ * ScheduleDialog, CategoryDialog, FreeSlotDialog, ConfirmDialog가 모두 이 클래스를 상속한다. 열기는 showDialog, 닫기는 close(cancelled
+ * 여부)로 통일해서
+ * 호출한 쪽(UiActions)이 wasCancelled로 결과를 알 수 있다.
  * 내용은 스크롤되는 영역에 담기고(테두리 없음), 화면보다 커지지 않으며, 항상 부모 가운데에 화면 안쪽으로 놓인다.
  * 아래 버튼 줄(footer)은 스크롤에서 빼서 늘 보이게 둘 수 있다.
  */
@@ -104,6 +107,7 @@ public class BaseDialog extends JDialog {
         repaint();
     }
 
+    /** 창이 화면 쓸 수 있는 영역보다 커지면 줄인다 (넘치는 만큼은 본문 스크롤). 세로 스크롤바가 새로 생기면 그 너비만큼 창을 넓혀서 가로 내용이 잘리지 않게 한다. */
     private void limitToScreen() {
         java.awt.Rectangle area = ScreenFit.usableOf(getOwner() != null && getOwner().isShowing() ? getOwner() : this);
         int margin = Ui.px(SCREEN_MARGIN) * 2;

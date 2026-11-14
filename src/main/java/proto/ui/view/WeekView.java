@@ -33,6 +33,7 @@ import java.util.List;
 
 /**
  * [경계 boundary] 이번 주 보기 (F2): 월~일 7칸에 하루치 일정을 작은 칩으로 보여 준다. 오늘은 숫자 뒤에 강조 동그라미.
+ * MainFrame이 만들고, refresh 때 ScheduleController#getOccurrences로 월~일 7일치를 읽는다. 날짜별로 WeekChip을 칸에 놓는다.
  * 하루 칸이 너무 좁아지면(약 110px 미만) 7칸 대신 날짜별로 묶은 세로 목록(아젠다)으로 바꿔 같은 칩을 보여 준다.
  */
 public class WeekView implements ContentView {
@@ -104,7 +105,10 @@ public class WeekView implements ContentView {
         chooseMode();
     }
 
-    /** 칸 너비로 칸 보기/아젠다를 고른다. 바뀌었으면 true */
+    /**
+     * 칸 너비로 칸 보기/아젠다를 고른다. 바뀌었으면 true. 왜 두 개의 기준(110/122)인가: 한 기준으로만 바꾸면 창 너비가 경계 근처에서 조금씩 변할 때마다 보기가 칸↔아젠다로 깜박인다.
+     * 아젠다에서 칸으로 돌아갈 때는 좀 더 넓어야 돌아가게 해서 이를 막는다.
+     */
     private boolean chooseMode() {
         int viewport = root.getWidth() - Ui.px(size.gutter() - 8) * 2 - Ui.px(12);
         if (root.getWidth() <= 0) {
@@ -122,6 +126,7 @@ public class WeekView implements ContentView {
         return root;
     }
 
+    /** 이번 주가 아니면 "11월 둘째 주"처럼 쓴다. 한 주가 두 달에 걸칠 수 있어서 그 주의 목요일이 속한 달과 주차로 정한다. */
     @Override
     public String title() {
         LocalDate start = ctx.state().weekStart();

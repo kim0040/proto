@@ -5,6 +5,7 @@ import java.awt.Color;
 
 /**
  * [경계 boundary] 테마 색 토큰 이름표. 색은 코드에 박지 않고 UIManager의 "proto.*" 키로만 읽는다.
+ * 화면 코드가 색을 쓰는 유일한 길이다. 실제 색 값은 resources의 FlatLaf 속성 파일(proto.ui.theme)에 밝은/어두운 테마별로 들어 있다.
  */
 public final class Tokens {
 

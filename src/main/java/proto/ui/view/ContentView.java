@@ -6,6 +6,8 @@ import javax.swing.JComponent;
 
 /**
  * [경계 boundary] 메인 창 가운데에 들어가는 보기(오늘·이번 주·달력·주간 통계)가 지켜야 할 약속.
+ * MainFrame이 보기를 모두 이 모양으로만 다룬다 (오늘 TodayView, 이번 주 WeekView, 달력 MonthView, 통계 StatsView, 설정 SettingsView). 보기를 하나
+ * 더해도 MainFrame의 나머지 코드는 바꾸지 않는다.
  */
 public interface ContentView {
 

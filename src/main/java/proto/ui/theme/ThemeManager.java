@@ -41,7 +41,10 @@ public final class ThemeManager {
         return dark;
     }
 
-    /** 테마를 지정한다. animated가 true이고 애니메이션이 켜져 있으면 크로스페이드로 바꾼다 */
+    /**
+     * 테마를 지정하고 저장한다. animated가 true이고 애니메이션이 켜져 있으면 FlatLaf의 스냅샷 크로스페이드로 바꾼다.
+     * 이미 같은 테마면 아무것도 하지 않는다.
+     */
     public static void apply(boolean toDark, boolean animated) {
         apply(toDark, animated, true);
     }

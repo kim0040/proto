@@ -28,6 +28,9 @@ import java.util.Map;
 
 /**
  * [경계 boundary] 주간 통계 보기 (F14): 큰 숫자 3개(전체·완료율·지연), 카테고리별 계획 시간 막대, 요일별 일정 수.
+ * MainFrame이 만들고, refresh 때 ScheduleController#weeklyStatistics(WeeklyStatistics)로 숫자를 받아 그리기만 한다. 통계 계산은 logic 패키지의
+ * 몫이고 이 화면은 계산하지 않는다.
+ * 검색·카테고리 필터는 적용되지 않는다 (usesFilters가 false).
  */
 public class StatsView implements ContentView {
 

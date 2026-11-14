@@ -22,6 +22,8 @@ import java.util.function.Function;
 
 /**
  * [경계 boundary] 자주 쓰는 질문 대화상자 모음: 삭제 확인(F4), 반복 범위 선택(F3, F4), 겹침 경고(F13), 안내.
+ * UiActions가 삭제(F4)·수정(F3) 전에, ScheduleDialog가 저장(F13) 전에 부른다. 반환 모양은 "참/거짓"이나 Optional로 단순하게 두어서 호출한 쪽이 화면 구조를 몰라도
+ * 된다.
  */
 public final class Dialogs {
 
@@ -36,7 +38,7 @@ public final class Dialogs {
         return d.ask() == 1;
     }
 
-    /** 반복 일정에서 어디까지 바꿀지 묻는다. 취소하면 비어 있다 */
+    /** 고른 범위를 EditScope로 돌려준다 (이 일정만: THIS_ONLY, 앞으로 전부: THIS_AND_FOLLOWING). 취소하거나 창을 닫으면 Optional.empty()이다. */
     public static Optional<EditScope> chooseScope(Window owner, String title, String verb, boolean danger) {
         String message = "반복 일정을 " + verb + "할까요?";
         String detail = "‘이 일정만’은 이 날짜 하나만, ‘앞으로 전부’는 이 날짜부터 뒤의 모든 반복에 적용돼요.";
@@ -94,7 +96,7 @@ public final class Dialogs {
         return d.ask() == 1;
     }
 
-    /** 긴 이름을 24글자(이모지는 한 글자로 셈)까지만 보여 준다 */
+    /** 긴 이름을 24글자까지만 보여 주고 나머지는 "…"로 줄인다. 이모지를 한 글자로 세려고 코드 포인트로 센다. */
     private static String shorten(String raw) {
         String s = TextUtil.clean(raw);
         if (s.codePointCount(0, s.length()) <= 24) {
