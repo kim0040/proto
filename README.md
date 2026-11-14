@@ -17,9 +17,9 @@
 | 테스트 | `./gradlew test` | `gradlew.bat test` |
 | 화면 캡처 | `./gradlew screenshots` | `gradlew.bat screenshots` |
 
-- `screenshots`는 임시 데이터로 여러 창 크기와 밝은/어두운 테마의 모든 화면을 `screenshots/`에 PNG로 저장합니다 (git에는 올라가지 않음).
-- 앱은 프로젝트 루트에서 실행되어 `data/` 폴더가 루트에 생깁니다.
-- 앱을 두 번 켜면 두 번째 창은 "일정 관리가 이미 실행 중이에요." 안내만 하고 끝납니다.
+- `screenshots`는 임시 데이터로 여러 창 크기와 밝은/어두운 테마의 모든 화면을 `screenshots/`에 PNG로 저장합니다 (git에는 올라가지 않습니다).
+- `./gradlew run`으로 실행하면 프로젝트 루트에 `data/` 폴더가 생깁니다.
+- 앱을 두 번 켜면 두 번째 창은 "일정 관리가 이미 실행 중이에요." 안내를 띄우고 바로 꺼집니다.
 
 ## 데이터가 저장되는 곳
 
@@ -30,7 +30,7 @@
 | `data/schedules-backup-yyyyMMdd-HHmmss.csv`, `data/categories-backup-…csv` | 불러올 때 읽지 못한 줄이 있으면 덮어쓰기 전에 원본을 이 이름으로 보관 |
 | `data/app.lock` | 단일 실행 잠금 (지우지 않아도 됨) |
 
-- 처음 실행해서 파일이 없으면 예시 일정 5개(매주 반복 "팀플 회의" 포함)를 만듭니다.
+- 처음 실행할 때 파일이 없으면 예시 일정 5개(매주 반복 "팀플 회의" 포함)를 자동으로 만듭니다.
 - 원본을 백업하지 못하면 그 파일에는 저장하지 않고 "저장하는 중 문제가 생겼어요" 알림을 띄웁니다.
 - 창 위치·테마·시작 화면 같은 환경설정은 CSV가 아니라 사용자별 Java 환경설정(`java.util.prefs`)에 저장됩니다.
 
@@ -64,7 +64,7 @@
 | `ui` | 경계 (boundary) | Swing 화면 (`ui.view`, `ui.dialog`, `ui.component`, `ui.theme`, `ui.motion`, `ui.layout`, `ui.dev`) |
 
 규칙: ui는 entity·repository를 직접 건드리지 않고 controller를 거치며, controller는 리스너(인터페이스)로 ui에 결과를 알립니다.
-상세 표는 문서를 보세요.
+자세한 표는 아래 문서에 있습니다.
 
 ## 문서
 
@@ -83,10 +83,10 @@ F1 등록 · F2 조회(오늘/이번 주/달력) · F3 수정 · F4 삭제 · F5
 
 ## 서버 대비 패키지(`proto.server`)
 
-나중에 서버를 붙일 때를 대비해 **따로 떼어 둔** 패키지입니다. 기본값은 꺼짐이라 지금 앱은 이 코드를 타지 않고, 서버에 접속하지도 않습니다.
+나중에 서버를 붙일 때를 대비해 **따로 떼어 둔** 패키지입니다. 기본값은 꺼짐이라 지금 앱은 이 코드를 실행하지 않고, 서버에 접속하지도 않습니다.
 
-- 켜는 법: `data/server.properties`에 `enabled=true`와 `baseUrl`을 적으면 "이 컴퓨터 우선 + 서버 동기화"로 동작합니다 (서버가 꺼져 있어도 CSV로 계속 동작).
-- 갈림길은 `proto.app.StoreFactory` 하나이고, controller는 `ScheduleStore`·`CategoryStore` 인터페이스만 봅니다.
+- 켜는 법: `data/server.properties`에 `enabled=true`와 `baseUrl`을 적으면 "이 컴퓨터 우선 + 서버 동기화"로 동작합니다 (서버가 꺼져 있어도 CSV로 계속 동작합니다).
+- 서버를 쓸지 말지는 `proto.app.StoreFactory` 한 곳에서만 정하고, controller는 `ScheduleStore`·`CategoryStore` 인터페이스만 봅니다.
 - 안 쓰기로 하면 `src/main/java/proto/server`, `src/test/java/proto/server`, `StoreFactory`의 서버 분기, `docs/server-api.md`를 지우면 됩니다.
 - 수업용 클래스 다이어그램에서는 빼도 됩니다. 클래스 목록표에서도 마지막에 따로 모아 두었습니다.
 - 자세한 내용: [docs/server-api.md](docs/server-api.md)
