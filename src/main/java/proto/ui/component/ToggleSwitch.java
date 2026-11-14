@@ -23,6 +23,7 @@ import java.util.function.Consumer;
 
 /**
  * [경계 boundary] 켜기/끄기 스위치. 동그란 손잡이가 150ms 동안 미끄러지고 색이 섞인다 (애니메이션이 꺼져 있으면 바로 바뀐다).
+ * SettingsView의 켜기/끄기 설정(알림 소리 등)에 쓴다. 접근성 도구가 켜짐 상태를 읽도록 AccessibleState.CHECKED를 직접 알려 준다.
  */
 public class ToggleSwitch extends JComponent {
 

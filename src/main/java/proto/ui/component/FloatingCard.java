@@ -14,6 +14,7 @@ import java.awt.LayoutManager;
 
 /**
  * [경계 boundary] 토스트·알림 카드의 공통 바탕: 둥근 면 + 얇은 테두리 + 옅은 그림자.
+ * ToastCard, ReminderCard, MoreCard의 부모 클래스이다. Overlay가 이 카드들을 창 위에 쌓는다. 카드 둘레에 투명 여백(MARGIN)을 두어 그림자가 잘리지 않게 한다.
  * 나타날 때 위로 16px 올라오며 서서히 보이고, 사라질 때 서서히 흐려진다.
  */
 public abstract class FloatingCard extends JPanel {
@@ -82,6 +83,7 @@ public abstract class FloatingCard extends JPanel {
         g2.dispose();
     }
 
+    /** 투명 여백은 카드가 아닌 것으로 친다. 그래야 카드 주변의 마우스가 아래 화면으로 통과한다. */
     @Override
     public boolean contains(int x, int y) {
         int m = Ui.px(MARGIN);

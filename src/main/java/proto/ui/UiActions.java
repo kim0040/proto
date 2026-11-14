@@ -22,6 +22,8 @@ import java.util.Optional;
 
 /**
  * [경계 boundary] 화면에서 일어나는 동작 모음: 새 일정, 수정, 삭제, 완료, 메뉴, 카테고리·빈 시간 창 열기.
+ * 화면의 어느 곳(일정 줄, 알림 카드, 사이드바)에서 일정에 대한 동작을 시작하든 여기를 거친다. ScheduleController에 요청하고
+ * 결과를 토스트나 대화상자로 보여 준다. 동작 직전에 항상 findOccurrence로 최신 값을 다시 확인해서(fresh), 이미 지워진 일정을 다루지 않게 한다 (F3, F4, F5, F10, F15).
  * 모든 요청은 controller를 거치고, 결과는 토스트나 대화상자로 알린다.
  */
 public final class UiActions implements RowHandler {
@@ -119,6 +121,7 @@ public final class UiActions implements RowHandler {
     /** 삭제 확인 → (반복이면 범위 선택) → 삭제. 실제로 지웠으면 true */
     @Override
     public boolean delete(Occurrence o) {
+        // 삭제 확인 대화상자가 열려 있는 동안 같은 삭제가 다시 시작되지 않게 막는다 (키를 연달아 눌렀을 때).
         if (busy) {
             return false;
         }

@@ -11,6 +11,7 @@ import java.awt.LayoutManager;
 
 /**
  * [경계 boundary] 열릴 때 투명도와 크기(97%→100%)가 부드럽게 변하는 대화상자 내용 판.
+ * 모든 대화상자의 바탕이다 (BaseDialog가 쓴다). 열릴 때 playIntro를 한 번 부른다.
  * Window.setOpacity를 쓰지 않고 직접 그려서 장식된 창에서도 잘 동작한다.
  */
 public class FadePanel extends JPanel {
@@ -33,6 +34,7 @@ public class FadePanel extends JPanel {
         return Tokens.get(Tokens.SURFACE);
     }
 
+    /** 인트로 중에는 배경을 먼저 채운 뒤, 가운데를 기준으로 97%→100% 크기와 투명도를 곁들여 내용을 그린다. 끝나면(0.999 이상) 평소 방식으로 그린다. */
     @Override
     public void paint(Graphics g) {
         float p = intro.value();

@@ -14,6 +14,7 @@ import java.util.function.Predicate;
 
 /**
  * [경계 boundary] 메인 창 위에 떠 있는 투명 층. 토스트(아래 가운데)와 알림 카드(아래 오른쪽)를 쌓아 보여 준다.
+ * MainFrame이 만들어 창의 맨 위 층(POPUP_LAYER)에 얹는다. UiActions가 토스트를, MainFrame#reminderDue가 알림 카드를 이 층에 올린다 (F10, F15).
  * 알림 카드는 가장 최근 3장만 보이고 나머지는 "+N개 더" 한 장으로 줄어 있다가 눌러서 펼친다.
  * 카드가 없는 곳의 마우스는 아래 화면으로 그대로 통과한다.
  */
@@ -39,6 +40,7 @@ public class Overlay extends JComponent {
         add(more);
     }
 
+    /** 카드가 있는 곳에서만 true이다. 이 투명 층이 창 전체를 덮고 있어도 카드 밖의 클릭은 아래 화면으로 통과한다. */
     @Override
     public boolean contains(int x, int y) {
         for (Component c : getComponents()) {
@@ -160,7 +162,10 @@ public class Overlay extends JComponent {
         layoutToasts(taken, m);
     }
 
-    /** 가장 최근 카드부터 아래에서 위로 쌓는다. 접힌 상태면 3장, 펼치면 화면에 들어가는 만큼 */
+    /**
+     * 가장 최근 카드부터 아래에서 위로 쌓는다. 접힌 상태면 3장, 펼치면 화면에 들어가는 만큼 보인다. 왜 아래에서 위로: 가장 최근 카드가 맨 아래(눈에 가장 잘 띄는 곳)에 오게 하려는 것이다. 한
+     * 장도 화면에 안 들어가는 높이여도 맨 아래 한 장은 보여 준다 (shown == 0).
+     */
     private void layoutReminders(int m, List<Rectangle> taken) {
         int y = getHeight() - Ui.px(EDGE) + m;
         int top = Ui.px(EDGE) - m;
@@ -207,6 +212,7 @@ public class Overlay extends JComponent {
         return new Rectangle(r.x + m, r.y + m, r.width - m * 2, r.height - m * 2);
     }
 
+    /** 토스트는 아래 가운데에 쌓는다. 알림 카드와 겹치면 카드 왼쪽으로 비켜 놓는다. */
     private void layoutToasts(List<Rectangle> taken, int m) {
         int y = getHeight() - Ui.px(EDGE + 8) + m;
         for (ToastCard t : toasts) {

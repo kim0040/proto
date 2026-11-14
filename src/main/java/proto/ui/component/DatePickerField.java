@@ -22,6 +22,7 @@ import java.util.function.Consumer;
 
 /**
  * [경계 boundary] 날짜를 보여 주는 칸. 누르면 작은 월 달력이 팝업으로 열려 날짜를 고른다. 값은 절대 null이 되지 않는다.
+ * 일정 대화상자(ScheduleDialog)와 빈 시간 찾기 대화상자(FreeSlotDialog)에서 날짜를 고를 때 쓴다 (F1, F3, F12).
  * 키보드로는 달력을 열어 고르거나, 칸에 포커스가 있을 때 화살표(±1일, ±7일)와 PageUp/PageDown(±1달)으로 바로 바꾼다.
  */
 public class DatePickerField extends JButton {

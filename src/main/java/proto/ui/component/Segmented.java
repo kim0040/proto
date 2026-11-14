@@ -21,6 +21,7 @@ import java.util.function.Function;
 
 /**
  * [경계 boundary] 여러 선택지 중 하나를 고르는 분할 버튼. 선택 표시가 옆으로 미끄러진다 (반복 선택 등).
+ * ScheduleDialog의 반복 선택(F9)과 설정·빈 시간 찾기 화면에서 쓴다. 여러 값(enum 등) 중 하나를 고르며, 값을 글자로 바꾸는 방법은 생성자로 받는다.
  * 칸 너비는 글자 길이에 맞춘다.
  */
 public class Segmented<T> extends JComponent {
@@ -154,6 +155,7 @@ public class Segmented<T> extends JComponent {
         g2.dispose();
     }
 
+    /** 선택 표시(thumb)가 두 칸 사이에 있을 때의 위치·너비를 앞뒤 칸의 값에서 비율로 섞어(보간) 계산한다. 그래서 칸 너비가 달라도 매끄럽게 미끄러진다. */
     private void paintThumb(Graphics2D g2, int arc) {
         int i0 = (int) Math.floor(thumb.value());
         int i1 = Math.min(values.size() - 1, i0 + 1);

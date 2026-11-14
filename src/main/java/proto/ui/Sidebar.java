@@ -26,6 +26,8 @@ import java.util.function.Consumer;
 
 /**
  * [경계 boundary] 왼쪽 사이드바: 앱 이름, 새 일정, 보기 이동, 빈 시간 찾기, 카테고리 필터, 설정 이동.
+ * MainFrame이 만들고, 넓은 화면에서는 본문 왼쪽에 SidebarHost가 붙여 둔다. 좁은 화면에서는 SidebarDrawer 안에 담겨 펼쳐진다.
+ * 버튼들은 직접 일을 하지 않고 생성자로 받은 동작(onNav, onCategory)이나 UiActions에 맡긴다 (F1 새 일정, F7 카테고리 필터·편집, F12 빈 시간 찾기).
  * 선택된 항목은 옆 막대 대신 둥근 알약이 미끄러지며 표시한다.
  */
 public final class Sidebar extends TokenPanel {
@@ -63,6 +65,7 @@ public final class Sidebar extends TokenPanel {
         setPreferredSize(new Dimension(Ui.px(logicalPx), 10));
     }
 
+    /** "새 일정" 버튼. 달력 보기에서는 고른 날짜로, 다른 보기에서는 오늘 날짜로 새 일정 창을 연다. */
     private JButton newButton() {
         JButton add = Buttons.primary("새 일정");
         add.setIcon(Icons.of("plus", 16, Tokens.ON_ACCENT));

@@ -17,6 +17,7 @@ import java.time.LocalDate;
 
 /**
  * [경계 boundary] 이번 주 보기의 날짜 머리글: 요일 글자 + 날짜 숫자. 오늘이면 숫자 뒤에 강조색 동그라미를 깐다 (막대 아님).
+ * WeekView가 요일마다 하나씩 만든다 (F2). 오늘 표시는 막대가 아니라 숫자 뒤 동그라미로 해서 접근성 이름에도 ", 오늘"을 붙인다.
  */
 public class DayHeader extends JPanel {
 

@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 /**
  * [경계 boundary] 날짜 선택 팝업 안에 들어가는 작은 월 달력 (월요일 시작). 마우스뿐 아니라 키보드로도 고른다
  * (화살표·PageUp/PageDown·Home·Enter·Esc).
+ * DatePickerField의 팝업 안에서만 쓴다. 날짜 칸은 항상 6주(42칸)를 그려서 달마다 높이가 변하지 않는다.
  */
 public class MiniCalendar extends JPanel {
 
@@ -53,6 +54,7 @@ public class MiniCalendar extends JPanel {
         grid.cursor = selected;
     }
 
+    // 오늘 날짜는 호출한 쪽(대화상자)이 controller의 시계에서 받아 넘겨 준다. 컴포넌트가 직접 LocalDate.now()를 부르지 않는다.
     private final LocalDate today;
 
     /** Esc를 눌렀을 때 부를 동작 (팝업 닫기) */

@@ -4,6 +4,8 @@ import java.time.LocalDate;
 
 /**
  * [경계 boundary] 화면이 지금 어떤 보기·날짜·필터를 보고 있는지 담은 화면 전용 상태 (저장하지 않는다).
+ * 화면 이동(MainFrame)과 각 보기(TodayView, WeekView 등)가 함께 읽고 쓴다. UiContext가 하나만 만들어 모두에게 나눠 준다.
+ * 일정 데이터가 아니라 "지금 무엇을 보고 있나"만 담으므로, 앱을 끄면 사라지고 controller나 저장소는 이 값을 모른다 (F2 조회의 기준 날짜, F7/F8의 필터가 여기에 있다).
  */
 public final class AppState {
 

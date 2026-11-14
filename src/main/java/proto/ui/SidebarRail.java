@@ -21,6 +21,7 @@ import java.util.function.Consumer;
 /**
  * [경계 boundary] 좁은 화면의 사이드바: 아이콘만 있는 얇은 띠. 맨 위 메뉴 버튼이 전체 사이드바를 서랍으로 펼치고,
  * 둥근 + 버튼이 새 일정을 연다. 모든 버튼은 툴팁과 접근성 이름을 가진다.
+ * MainFrame이 만들어 SidebarHost 안에 둔다. 좁은 화면에서 Sidebar 대신 보이는 아이콘 띠이다. 글자가 없어서 모든 항목에 툴팁과 접근성 이름을 붙인다.
  */
 public final class SidebarRail extends TokenPanel {
 
@@ -70,7 +71,10 @@ public final class SidebarRail extends TokenPanel {
         return p;
     }
 
-    /** 새 일정을 여는 둥근 + 버튼 */
+    /**
+     * 새 일정을 여는 둥근 + 버튼.
+     * FlatLaf의 스타일 문자열로 둥근 + 버튼을 만든다. arc를 크게(999) 주면 완전한 원이 되고, 40px 정사각형으로 크기를 고정한다.
+     */
     private JButton roundPlus() {
         JButton b = Buttons.primary(null);
         b.setIcon(Icons.of("plus", 18, Tokens.ON_ACCENT));

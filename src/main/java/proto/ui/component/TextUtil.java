@@ -9,6 +9,7 @@ import java.util.List;
 
 /**
  * [경계 boundary] 글자를 주어진 너비에 맞춰 "…"로 줄이고, 화면에 안전하게 보이도록 다듬는 도우미.
+ * 화면에서 사용자가 쓴 글(제목, 메모, 카테고리 이름)을 그릴 때마다 거치는 도우미이다. 줄바꿈이나 HTML이 들어 있어도 레이아웃이 깨지거나 HTML로 해석되지 않게 한다.
  * 이모지·한글 조합 글자는 쪼개지 않고, 번들 글꼴에 없는 글자는 대체 글꼴 폭으로 잰다.
  */
 public final class TextUtil {
@@ -26,7 +27,10 @@ public final class TextUtil {
         return text.replaceAll("[\\p{Cntrl}\\s&&[^ ]]+", " ").replaceAll(" {2,}", " ").strip();
     }
 
-    /** JLabel에 사용자가 쓴 글을 그대로 넣을 때: "&lt;html&gt;"로 시작해도 HTML로 해석되지 않게 한다 */
+    /**
+     * JLabel에 사용자가 쓴 글을 그대로 넣을 때: "&lt;html&gt;"로 시작해도 HTML로 해석되지 않게 한다.
+     * 앞에 폭 없는 공백(U+200B)을 붙여 "<html"로 시작하는 글자가 되지 않게 한다. JLabel은 "<html"로 시작하는 글을 HTML로 그리기 때문이다.
+     */
     public static String plain(String text) {
         String s = clean(text);
         return s.regionMatches(true, 0, "<html", 0, 5) ? "​" + s : s;

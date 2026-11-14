@@ -18,6 +18,7 @@ import java.util.List;
 /**
  * [경계 boundary] 카테고리별 계획 시간 가로 막대 그래프 (F14). 막대는 데이터라서 카테고리 색을 쓰고,
  * 열릴 때 0에서 자라난다.
+ * StatsView가 카테고리별 시간 통계를 보여 줄 때 쓴다. 데이터는 StatsView가 WeeklyStatistics에서 뽑아 Row로 넘긴다.
  */
 public class HorizontalBars extends JComponent {
 
@@ -88,6 +89,7 @@ public class HorizontalBars extends JComponent {
         int barH = Ui.px(10);
         g2.setColor(Tokens.get(Tokens.SUBTLE));
         g2.fillRoundRect(barX, cy - barH / 2, barW, barH, barH, barH);
+        // 막대마다 시작 시점을 조금씩 늦춰(i * 0.1) 위에서 아래로 차례로 자라게 한다. 1.3을 곱해서 마지막 막대도 끝까지 자란다.
         float local = Math.max(0f, Math.min(1f, grow.value() * 1.3f - i * 0.1f));
         int w = Math.max(barH, Math.round(barW * (r.minutes() / (float) max) * local));
         if (local > 0f) {

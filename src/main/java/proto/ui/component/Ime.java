@@ -12,6 +12,8 @@ import java.text.AttributedCharacterIterator;
 /**
  * [경계 boundary] 한글처럼 조합 중인 글자(IME)를 다루는 도우미. 입력칸의 값을 읽기 전에 조합을 끝내 마지막 글자가 빠지지 않게 하고,
  * 조합 중에는 Enter로 저장되지 않게 상태를 알려 준다.
+ * HeaderBar의 검색창, ScheduleDialog, CategoryDialog, TimeCombo가 쓴다. 한글은 글자를 조합하는 중에 아직 확정되지 않은 글자가 있어서,
+ * 확정 전에 값을 읽으면 마지막 글자가 빠지는 문제가 생긴다 (F1 제목 입력, F8 검색). 이 클래스가 읽기 전에 조합을 끝내 준다.
  */
 public final class Ime {
 

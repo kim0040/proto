@@ -24,6 +24,8 @@ import java.util.List;
 
 /**
  * [경계 boundary] 사이드바의 선택 목록. 선택된 항목 뒤의 둥근 알약이 새 항목으로 미끄러져 간다 (옆 막대 없음).
+ * Sidebar와 SidebarRail의 선택 목록이다 (보기 이동, 카테고리 필터 F7). 항목마다 따로 선택 배경을 그리지 않고, 목록 뒤에 알약 하나를 그려서 선택이 바뀌면 그 알약을 새 위치로
+ * 움직인다.
  */
 public class PillList extends JPanel {
 
@@ -87,6 +89,10 @@ public class PillList extends JPanel {
         syncPill();
     }
 
+    /**
+     * 알약을 선택된 항목의 위치·높이에 맞춘다. 처음 놓을 때나 애니메이션이 필요 없을 때는 바로 놓고, 그 뒤로는 260ms 동안 미끄러진다. 선택된 항목이 아직 배치되지 않았으면(높이 0) 알약을
+     * 숨긴다.
+     */
     private void syncPill() {
         Item target = null;
         for (Item i : items) {

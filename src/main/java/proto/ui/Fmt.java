@@ -11,6 +11,8 @@ import java.util.Locale;
 
 /**
  * [경계 boundary] 날짜·시간·길이를 화면에 보여 줄 한국어 문장으로 바꾼다. (예: "11월 14일 (금)", "14:00", "2시간 30분")
+ * 일정 줄, 달력, 대화상자 등 거의 모든 화면 클래스가 날짜·시간 글자를 만들 때 쓴다. 표시 형식을 한곳에 모아 화면마다 모양이 달라지지 않게 한다.
+ * 상태가 없는 정적 메서드뿐이다 (new로 만들지 않는다).
  */
 public final class Fmt {
 
@@ -79,7 +81,7 @@ public final class Fmt {
         return m == 0 ? h + "시간" : h + "시간 " + m + "분";
     }
 
-    /** 같은 해면 연도를 빼고, 다르면 연도를 붙인 짧은 날짜 범위 "11월 10일 – 11월 16일" */
+    /** 짧은 날짜 범위. 연도는 붙이지 않고 월·일만 쓴다. 예: "11월 10일 – 11월 16일"  */
     public static String dateRange(LocalDate from, LocalDate to) {
         return monthDay(from) + " – " + monthDay(to);
     }

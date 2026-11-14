@@ -27,6 +27,8 @@ import java.util.function.Consumer;
 
 /**
  * [경계 boundary] 월간 달력 칸 (6주 × 7일, 월요일 시작). 날짜 숫자, 일정 이름 또는 점(칸이 좁을 때), "+N"을 그린다.
+ * MonthView가 달력 본문으로 쓴다 (F2). 일정이 들어 있는 날짜별 목록(items)을 받아서 그리기만 하고, 일정을 직접 읽지 않는다.
+ * 칸을 누르면 onSelect, 두 번 누르거나 Enter를 누르면 onCreate가 불려 MonthView가 선택·새 일정 동작을 맡는다 (F1).
  * 오늘은 강조 동그라미, 고른 날은 옅은 채움. 세로로 길거나 낮은 화면에서는 이름 대신 점과 개수만 보여 준다.
  * 키보드: 화살표(±1일, ±7일), PageUp/PageDown(±1달), Home(오늘), Space(고르기), Enter(그 날에 새 일정).
  */
@@ -157,6 +159,7 @@ public class MonthGrid extends JComponent {
         }
     }
 
+    /** 마우스 위치(x, y)를 칸 번호(0~41)로 바꾼다. 요일 머리글 위이거나 칸 밖이면 -1이다. 칸 크기가 창 크기에 따라 달라지므로 비율로 계산한다. */
     private int indexAt(int x, int y) {
         int header = Ui.px(HEADER_H);
         if (y < header || x < 0 || x >= getWidth() || y >= getHeight()) {
@@ -240,6 +243,7 @@ public class MonthGrid extends JComponent {
         g2.drawString(s, cx - fm.stringWidth(s) / 2, y - Ui.px(1) + (dia - fm.getHeight()) / 2 + fm.getAscent());
     }
 
+    /** 칸이 충분히 크면 일정 이름을 줄마다 보여 준다. 줄이 모자라 일정이 더 있으면 마지막 줄을 "+N"으로 바꾼다. 칸이 좁으면(LABEL_MIN_CELL 미만) 이름 대신 점만 보여 준다. */
     private void paintItems(Graphics2D g2, List<Occurrence> list, int x, int y, int w, int availH) {
         int rowH = Ui.px(18);
         int maxRows = Math.max(1, Math.min(3, availH / rowH));

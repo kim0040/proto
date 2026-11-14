@@ -31,6 +31,8 @@ import javax.swing.KeyStroke;
 
 /**
  * [경계 boundary] 본문 위쪽 줄: 보기 제목과 날짜, 이전/오늘/다음 버튼, 검색창(입력 후 150ms 뒤 적용).
+ * MainFrame이 만들어 본문 위쪽에 붙인다. 이전/오늘/다음 버튼은 MainFrame의 shift·goToday로, 검색어는 MainFrame#search로 전달된다 (F2 조회 이동, F8 검색).
+ * 좁은 화면(SizeClass.compact)에서는 검색창을 아이콘 하나로 접었다가 눌렀을 때 펼쳐서 자리를 아낀다.
  */
 public final class HeaderBar extends JPanel {
 
@@ -52,6 +54,7 @@ public final class HeaderBar extends JPanel {
         super(new BorderLayout(Ui.px(16), 0));
         setOpaque(false);
         setBorder(BorderFactory.createEmptyBorder(Ui.px(Ui.isMac() ? 34 : 22), Ui.px(32), Ui.px(16), Ui.px(32)));
+        // 검색창에 글자를 칠 때마다 곧바로 검색하면 한 글자마다 화면을 다시 그리므로, 마지막 입력 뒤 150ms 동안 더 입력이 없을 때만 검색한다.
         debounce = new Timer(DEBOUNCE_MS, e -> onSearch.accept(search.getText()));
         debounce.setRepeats(false);
         this.onSearch = onSearch;
@@ -104,6 +107,7 @@ public final class HeaderBar extends JPanel {
         search.getAccessibleContext().setAccessibleName("일정 검색");
         Ime.track(search);
         Listeners.onTextChange(search, debounce::restart);
+        // Enter를 누르면 기다리지 않고 바로 검색한다. 그 전에 한글 조합 중인 마지막 글자를 확정해야 검색어에서 빠지지 않는다.
         search.addActionListener(e -> {
             Ime.commit(search);
             debounce.stop();

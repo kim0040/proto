@@ -11,6 +11,8 @@ import java.awt.Dimension;
 /**
  * [경계 boundary] 본문 왼쪽 자리를 차지하는 틀. 넓은 화면에서는 전체 사이드바를, 좁은 화면에서는 아이콘 띠를 담고,
  * 화면 등급이 바뀌면 너비를 200ms 안에 부드럽게 바꾼다 (애니메이션을 끄면 바로 바뀐다).
+ * MainFrame이 왼쪽 자리에 붙이는 틀이다. 크기 등급(SizeClass)이 바뀌면 apply로 너비를 바꾸고,
+ * 너비가 전체 사이드바와 아이콘 띠의 중간보다 넓을 때만 전체 사이드바를 보인다. 둘 다 이 틀 안에 있다.
  */
 public final class SidebarHost extends TokenPanel {
 
@@ -58,6 +60,7 @@ public final class SidebarHost extends TokenPanel {
         handle = Motion.run(ANIMATION_MS, f -> setWidth(from + (to - from) * f), this::finish);
     }
 
+    /** 애니메이션이 끝나면 좁은 화면에서는 전체 사이드바를 틀에서 떼어 낸다. 그래야 서랍(SidebarDrawer)이 이 사이드바를 가져다 쓸 수 있다. */
     private void finish() {
         if (compact && full.getParent() == this) {
             remove(full);

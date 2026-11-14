@@ -9,6 +9,7 @@ import java.awt.Dimension;
 
 /**
  * [경계 boundary] 알림 카드가 많을 때 숨은 카드를 한 줄로 줄여 보여 주는 작은 카드 ("+2개 더" / "접기"). 누르면 펼치거나 접는다.
+ * Overlay가 알림 카드가 3장을 넘을 때 하나 두는 "+N개 더 / 접기" 카드이다.
  */
 public class MoreCard extends FloatingCard {
 
