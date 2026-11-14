@@ -10,6 +10,8 @@ import java.util.Optional;
 
 /**
  * [저장소 repository] 일정 목록을 읽고 고치고 저장하는 통로.
+ * F1~F6, F9, F11에서 쓴다. ScheduleController와 StateRefreshTimer 등은 이 인터페이스만 알고,
+ * 실제로는 ScheduleRepository(CSV)나 SyncingScheduleStore(서버 동기화)가 구현한다. 그래서 저장 방식을 바꿔도 control·ui는 그대로이다.
  * 오늘은 {@link ScheduleRepository}(CSV)가 이 역할을 하고, controller와 Main은 구현 클래스가 아니라 이 인터페이스만 본다.
  * 서버 저장소가 나중에 같은 메소드를 구현해도 화면과 controller는 바꾸지 않는다.
  */
