@@ -16,6 +16,8 @@ import java.util.function.Supplier;
 
 /**
  * [제어 control] 카테고리 추가·이름 변경·삭제를 처리한다 (F7).
+ * F7(카테고리 관리)의 창구이다. CategoryDialog가 부르고, CategoryStore에 저장하며, 결과를 CategoryListener와 ScheduleController를 거쳐 화면에 알린다.
+ * 카테고리를 지우면 일정이 "카테고리 없음" 상태가 되지 않도록 그 일정들을 "개인"으로 옮기는 규칙을 이 클래스가 지킨다.
  * 삭제하면 그 카테고리의 일정은 "개인"으로 옮기고, 카테고리와 일정 리스너 양쪽에 알린다.
  *
  * <p>모든 public 메소드는 Swing 이벤트 스레드(EDT)에서 불러야 한다 (화면이 이미 EDT에서 부른다).</p>
@@ -38,20 +40,28 @@ public class CategoryController {
         this.scheduleController = scheduleController;
     }
 
+    /** 카테고리 변화를 받으려고 자신을 등록한다 (CategoryDialog 등). */
     public void addListener(CategoryListener listener) {
         listeners.add(listener);
     }
 
+    /** 등록했던 리스너를 뺀다. 등록하지 않은 것이면 아무 일도 없다. */
     public void removeListener(CategoryListener listener) {
         listeners.remove(listener);
     }
 
-    /** 카테고리 목록. 기본 4개(수업, 과제, 팀플, 개인)가 앞, 추가한 것은 추가한 순서대로 뒤 */
+    /**
+     * 카테고리 목록. 기본 4개(수업, 과제, 팀플, 개인)가 앞, 추가한 것은 추가한 순서대로 뒤.
+     * 돌려주는 목록은 복사본이라 호출한 쪽이 고쳐도 저장소에 영향이 없다.
+     */
     public List<Category> getCategories() {
         return List.copyOf(categories.getAll());
     }
 
-    /** id의 이름. 없는 id면 "개인" 이름 */
+    /**
+     * id의 이름. 없는 id면 "개인" 이름.
+     * 화면이 일정 옆에 카테고리 이름을 보여 줄 때 쓴다. 지워진 카테고리를 가리키는 일정이 있어도 화면이 깨지지 않도록 "개인"으로 대신한다.
+     */
     public String nameOf(String categoryId) {
         return categories.findById(categoryId)
                 .or(() -> categories.findById(Category.PERSONAL_ID))
@@ -69,7 +79,11 @@ public class CategoryController {
         return (int) schedules.getAll().stream().filter(s -> s.getCategoryId().equals(categoryId)).count();
     }
 
-    /** 추가. 이름은 앞뒤 공백 제거 후 1~20자, 중복 금지(대소문자 무시) */
+    /**
+     * 카테고리 추가. 이름은 앞뒤 공백을 지운 뒤 1~20자여야 하고, 대소문자를 구별하지 않고 이미 있는 이름이면 안 된다.
+     *
+     * @return 성공이면 ok(), 규칙을 어기면 이유가 든 실패 (저장하지 않음)
+     */
     public OperationResult add(String name) {
         String error = checkName(name, null);
         if (error != null) {
@@ -80,7 +94,11 @@ public class CategoryController {
         return OperationResult.ok();
     }
 
-    /** 이름 변경. 규칙은 add와 같음 (자기 이름 그대로는 허용) */
+    /**
+     * 카테고리 이름 변경. 규칙은 add와 같고, 자기 자신의 이름 그대로 저장하는 것은 허용한다.
+     *
+     * @return 성공이면 ok(), 카테고리가 없거나 규칙을 어기면 이유가 든 실패
+     */
     public OperationResult rename(String categoryId, String newName) {
         Optional<Category> category = categories.findById(categoryId);
         if (category.isEmpty()) {
@@ -100,6 +118,8 @@ public class CategoryController {
      * 일정 파일을 먼저 저장하고, 그 저장이 실패하면 옮긴 것을 되돌리고 카테고리도 지우지 않는다.
      * 일정 저장 뒤 카테고리 파일 저장만 실패하면 삭제는 유지하고 저장 실패만 알린다
      * (다음 실행 때 없는 카테고리의 일정은 "개인"으로 옮겨지므로 어긋나지 않는다).
+     * "개인"은 지울 수 없다. 카테고리가 없거나 "개인"이면 바로 실패를 돌려준다.
+     * 왜 일정 파일을 먼저 저장하나: 일정을 옮기고 나서 카테고리만 지워지면, 일정이 없는 카테고리를 가리키게 되는 일이 가장 위험해서이다.
      */
     public OperationResult delete(String categoryId) {
         if (Category.PERSONAL_ID.equals(categoryId)) {
@@ -121,7 +141,11 @@ public class CategoryController {
         return OperationResult.ok();
     }
 
-    /** 규칙을 어기면 이유, 괜찮으면 null. selfId는 이름을 바꾸는 자기 자신(중복 검사에서 뺀다) */
+    /**
+     * 이름을 검사한다. 비었거나 20자를 넘거나 이미 있으면 사용자에게 보여 줄 이유를, 괜찮으면 null을 돌려준다.
+     *
+     * @param selfId 이름을 바꾸는 자기 자신의 id (중복 검사에서 뺀다). 새로 추가할 때는 null
+     */
     private String checkName(String name, String selfId) {
         String trimmed = name == null ? "" : name.trim();
         if (trimmed.isEmpty()) {

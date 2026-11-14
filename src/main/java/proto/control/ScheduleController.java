@@ -37,6 +37,9 @@ import java.util.function.Predicate;
 /**
  * [제어 control] 일정 등록·조회·수정·삭제·완료와 빈 시간 찾기, 주간 통계를 처리한다
  * (F1~F6, F8, F9, F11~F14). 화면은 이 클래스의 public 메소드만 부른다.
+ * 화면이 일정에 대해 하는 거의 모든 요청의 창구이다. 화면은 UiContext#schedules()로 이 객체를 받아 쓰고,
+ * 이 클래스는 일을 logic(검증·반복 펼치기·겹침·상태·통계)과 ScheduleStore(저장)에 나눠 맡긴 뒤, 결과를 ScheduleListener로 화면에 알린다.
+ * 화면은 entity나 저장소를 직접 만지지 않는다. 입력값은 ScheduleDraft로 받고 검증을 통과해야만 저장한다.
  *
  * <p>리스너 알림은 {@link EventThread} 규칙을 따른다(EDT이거나 headless면 즉시 호출).
  * 등록·수정·삭제·완료가 성공할 때마다 CSV에 저장하고(F11), 저장에 실패해도 메모리의 변경은 유지한 채
@@ -55,7 +58,10 @@ public class ScheduleController {
     private final Clock clock;
     private final List<ScheduleListener> listeners = new CopyOnWriteArrayList<>();
 
-    /** 불러온 일정 중 없는 카테고리를 가리키는 것은 메모리에서 "개인"으로 옮긴다 (다음 저장 때 파일에도 반영) */
+    /**
+     * 불러온 일정 중 없는 카테고리를 가리키는 것은 메모리에서 "개인"으로 옮긴다 (다음 저장 때 파일에도 반영)
+     * 저장 뒤 카테고리가 지워졌거나 파일을 손으로 고쳤을 때 "없는 카테고리를 가리키는 일정"이 생길 수 있어서 시작할 때 한 번 정리한다.
+     */
     public ScheduleController(ScheduleStore schedules, CategoryStore categories, Clock clock) {
         this.schedules = schedules;
         this.categories = categories;
@@ -63,10 +69,12 @@ public class ScheduleController {
         moveUnknownCategoriesToPersonal();
     }
 
+    /** 화면(MainFrame 등)이 일정 변화를 받으려고 자신을 등록한다. 같은 리스너를 두 번 넣으면 두 번 알림을 받는다. */
     public void addListener(ScheduleListener listener) {
         listeners.add(listener);
     }
 
+    /** 등록했던 리스너를 뺀다. 등록하지 않은 것이면 아무 일도 없다. */
     public void removeListener(ScheduleListener listener) {
         listeners.remove(listener);
     }
@@ -93,7 +101,8 @@ public class ScheduleController {
 
     /**
      * F2, F7, F8: from~to(둘 다 포함) 사이 하루치 일정. 반복은 날짜마다 펼친다.
-     * 정렬: 날짜 → 시작 시간 → 제목.
+     * 정렬: 날짜 → 시작 시간 → 제목. 한 번 펼친 뒤에 필터와 정렬을 하며,
+     * 조건에 맞는 일정이 없으면 빈 목록이다.
      *
      * @param categoryId null이면 모든 카테고리
      * @param keyword    null이나 빈 문자열이면 검색 안 함. 제목 또는 메모에 들어 있으면 (대소문자 무시)
@@ -110,29 +119,36 @@ public class ScheduleController {
                 .toList();
     }
 
-    /** F6: 지금 시각 기준 상태 */
+    /**
+     * F6: 지금 시각 기준 상태.
+     * 상태는 저장하지 않고 호출할 때마다 현재 시각(now)으로 계산한다.
+     */
     public ScheduleState stateOf(Occurrence occurrence) {
         return StateCalculator.stateOf(occurrence, now());
     }
 
-    /** 바뀐 뒤의 최신 하루치 일정을 다시 찾는다. 삭제되었으면 빈 값 */
+    /**
+     * 바뀐 뒤의 최신 하루치 일정을 다시 찾는다. 삭제되었으면 빈 값.
+     * 화면이 들고 있던 Occurrence는 낡은 스냅샷일 수 있어서, 수정·알림 전에 이 메서드로 최신 값을 다시 확인한다.
+     * 날짜에 그 일정이 나타나지 않으면(삭제되었거나 반복에서 빠졌으면) Optional.empty()이다.
+     */
     public Optional<Occurrence> findOccurrence(String scheduleId, LocalDate date) {
         return schedules.findById(scheduleId)
                 .filter(s -> RepeatExpander.occursOn(s, date))
                 .map(s -> Occurrence.of(s, date));
     }
 
-    /** F1: 새 일정 입력 화면의 기본값. 카테고리는 "개인", 반복·알림 없음 (시간은 09:00~10:00) */
+    /** F1: 새 일정 대화상자를 열 때 채워 넣을 기본값. 카테고리는 "개인", 반복·알림 없음, 시간은 09:00~10:00 (DraftMapper#emptyDraft) */
     public ScheduleDraft newDraft(LocalDate date) {
         return DraftMapper.emptyDraft(date);
     }
 
-    /** F12: 빈 시간 하나를 고르면 그 날짜·시작·끝이 채워진 새 일정 입력값 */
+    /** F12: 빈 시간 하나를 고르면("이 시간에 추가") 그 날짜·시작·끝이 채워진 새 일정 입력값을 만든다. */
     public ScheduleDraft draftForSlot(TimeSlot slot) {
         return DraftMapper.emptyDraft(slot.date(), slot.start(), slot.end());
     }
 
-    /** F3: 수정 화면에 채울 기존 값. 날짜는 고른 하루치 일정의 날짜 */
+    /** F3: 수정 대화상자에 채울 기존 값을 만든다. 날짜는 고른 하루치 일정의 날짜이다. Occurrence에는 반복 종료일이 없어서 원본 Schedule에서 찾아 넣는다. */
     public ScheduleDraft draftOf(Occurrence occurrence) {
         LocalDate repeatEnd = schedules.findById(occurrence.scheduleId())
                 .map(Schedule::getRepeatEndDate).orElse(null);
@@ -150,7 +166,10 @@ public class ScheduleController {
         return validate(effectiveDraft(draft, editing, scope));
     }
 
-    /** F1 검증 규칙. 문제가 없으면 빈 목록, 있으면 사용자에게 보여 줄 이유들 */
+    /**
+     * F1 검증: ScheduleValidator 규칙에 "고른 카테고리가 실제로 있는지"를 더한다. 문제가 없으면 빈 목록,
+     * 있으면 사용자에게 그대로 보여 줄 한국어 이유들이다. 저장하지 않으며, 예외를 던지지 않는다.
+     */
     public List<String> validate(ScheduleDraft draft) {
         List<String> errors = new ArrayList<>(ScheduleValidator.validate(DraftMapper.toSchedule(draft, "draft")));
         String categoryId = draft.categoryId();
@@ -165,6 +184,7 @@ public class ScheduleController {
      *
      * @param editing 수정 중인 하루치 일정 (새로 등록이면 null). 자기 자신과는 겹침으로 보지 않는다
      * @param scope   수정 범위 (새로 등록이거나 반복이 없으면 무시)
+     * 입력값이 아직 올바르지 않으면 겹침 검사를 하지 않고 빈 목록을 돌려준다 (검증 오류가 먼저 보이도록).
      */
     public List<Occurrence> findConflicts(ScheduleDraft draft, Occurrence editing, EditScope scope) {
         ScheduleDraft effective = effectiveDraft(draft, editing, scope);
@@ -176,7 +196,12 @@ public class ScheduleController {
                 selfFilter(editing, effective, isThisOnly(editing, scope)));
     }
 
-    /** F1: 검증을 통과하면 저장(F11)하고 리스너에 알린다 */
+    /**
+     * F1 일정 등록. 검증을 통과하면 새 id(UUID)를 붙여 저장소에 넣고 저장한 뒤(F11) 리스너에 알린다.
+     * 시간이 겹치는지(F13)는 여기서 보지 않는다. 화면이 findConflicts로 먼저 묻고, 사용자가 그래도 저장하겠다고 해야 이 메서드를 부른다.
+     *
+     * @return 성공이면 ok(), 검증에 실패하면 이유 목록이 든 fail(...) (저장하지 않음)
+     */
     public OperationResult create(ScheduleDraft draft) {
         List<String> errors = validate(draft);
         if (!errors.isEmpty()) {
@@ -187,7 +212,12 @@ public class ScheduleController {
         return OperationResult.ok();
     }
 
-    /** F3: 수정. 반복 일정이면 scope에 따라 이 날짜만 / 이 날짜부터 뒤로 전부 바뀐다 */
+    /**
+     * F3 일정 수정. 반복 일정이면 범위(scope)에 따라 "이 일정만" 또는 "이 날짜부터 앞으로 전부" 바뀐다.
+     * 실제 수정 규칙은 SeriesEditor가 맡고, 이 메서드는 입력값 검증 → 일정 찾기 → 수정 → 저장·알림의 순서를 지킨다.
+     *
+     * @return 성공이면 ok(). 검증에 실패하면 이유 목록, 그 사이에 일정이 지워졌으면 "일정을 찾을 수 없어요" 실패 (저장하지 않음)
+     */
     public OperationResult update(Occurrence target, ScheduleDraft draft, EditScope scope) {
         ScheduleDraft effective = effectiveDraft(draft, target, scope);
         List<String> errors = validate(effective);
@@ -203,7 +233,11 @@ public class ScheduleController {
         return OperationResult.ok();
     }
 
-    /** F4: 삭제 (확인은 화면이 먼저 받는다). 반복 일정이면 scope에 따라 */
+    /**
+     * F4 일정 삭제 (삭제 확인은 화면이 먼저 받는다). 반복이 없으면 일정 전체를 지우고, 반복이면 범위(scope)에 따라 SeriesEditor가 이 날짜만 빼거나 앞으로 전부 지운다.
+     *
+     * @return 성공이면 ok(), 일정을 찾을 수 없으면 실패
+     */
     public OperationResult delete(Occurrence target, EditScope scope) {
         Optional<Schedule> series = locate(target);
         if (series.isEmpty()) {
@@ -220,7 +254,11 @@ public class ScheduleController {
         return OperationResult.ok();
     }
 
-    /** F5: 완료 체크/해제. 반복 일정은 그 날짜만 */
+    /**
+     * F5 완료 체크/해제. 반복 일정이어도 그 날짜 하나만 바뀐다. 상태(F6)는 저장하지 않으므로 완료 여부만 바꾸면 상태는 저절로 따라온다.
+     *
+     * @return 성공이면 ok(), 일정을 찾을 수 없으면 실패
+     */
     public OperationResult setCompleted(Occurrence target, boolean completed) {
         Optional<Schedule> series = locate(target);
         if (series.isEmpty()) {
@@ -234,6 +272,7 @@ public class ScheduleController {
     /**
      * F12: date의 from~to 사이에서 minutes분 이상 비어 있는 구간들 (시간 순서).
      * 그날의 모든 일정(완료 포함, 카테고리·검색 필터 무시)을 기준으로 하고, 오늘이면 지금 이후만.
+     * 필요한 시간(minutes)은 15분~480분 안으로 맞춘다. 너무 짧은 시간은 의미가 없고, 너무 긴 시간은 항상 빈 목록이 되기 때문이다.
      */
     public List<TimeSlot> findFreeSlots(LocalDate date, int minutes, LocalTime from, LocalTime to) {
         int needed = Math.max(MIN_FREE_MINUTES, Math.min(MAX_FREE_MINUTES, minutes));
@@ -241,22 +280,31 @@ public class ScheduleController {
         return FreeSlotFinder.find(day, date, needed, from, to, now());
     }
 
-    /** F14: anyDayInWeek가 들어 있는 주(월~일)의 통계 */
+    /**
+     * F14: anyDayInWeek가 들어 있는 주(월~일)의 통계.
+     * 그 주의 하루치 일정을 모아 StatisticsCalculator에 맡긴다.
+     */
     public WeeklyStatistics weeklyStatistics(LocalDate anyDayInWeek) {
         LocalDate monday = anyDayInWeek.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         List<Occurrence> week = getOccurrences(monday, monday.plusDays(6), null, null);
         return StatisticsCalculator.calculate(anyDayInWeek, week, now());
     }
 
-    /** 같은 control 패키지의 타이머·카테고리 controller가 쓰는 알림 */
+    /** 일정 목록이 바뀌었음을 모든 리스너에 알린다. CategoryController(카테고리 삭제로 일정이 옮겨질 때)도 쓰므로 같은 패키지에 열어 두었다. */
     void notifySchedulesChanged() {
         dispatch(ScheduleListener::schedulesChanged);
     }
 
+    /** 시간이 지나 일정 상태가 바뀌었음을 알린다 (StateRefreshTimer가 부른다). */
     void notifyStatesChanged() {
         dispatch(ScheduleListener::statesChanged);
     }
 
+    /**
+     * 저장·불러오기 문제를 사용자에게 알린다.
+     *
+     * @param message 사용자에게 그대로 보여 줄 한국어 문장
+     */
     void notifyStorageFailed(String message) {
         dispatch(l -> l.storageFailed(message));
     }
@@ -273,11 +321,15 @@ public class ScheduleController {
         return "저장하지 못했어요: " + (e.getMessage() == null ? e.toString() : e.getMessage());
     }
 
+    /** 리스너 호출은 항상 Swing 이벤트 스레드에서 해야 화면이 안전하다. 그 규칙은 EventThread가 지키므로 여기서는 그저 맡긴다. */
     private void dispatch(Consumer<ScheduleListener> action) {
         EventThread.run(() -> listeners.forEach(action));
     }
 
-    /** 저장(F11)하고 화면에 알린다. 저장 실패는 알리되 메모리 변경은 그대로 둔다 */
+    /**
+     * 저장(F11)하고 화면에 알린다. 저장 실패는 알리되 메모리 변경은 그대로 둔다.
+     * 왜 저장 실패 때 되돌리지 않나: 사용자가 방금 입력한 일정이 사라지는 것보다, 메모리에는 남기고 "저장하지 못했어요"라고 알려 주는 편이 낫다고 보았다.
+     */
     private void commit() {
         List<String> before = List.copyOf(schedules.getWarnings());
         try {
@@ -289,6 +341,7 @@ public class ScheduleController {
         notifySchedulesChanged();
     }
 
+    /** SeriesEditor가 알려 준 "뺄 일정과 더할 일정"을 저장소에 반영하고 저장한다. 반복 일정을 나누면 일정이 새로 생기거나 사라질 수 있다. */
     private void applyChange(SeriesEditor.Change change) {
         change.removed().forEach(schedules::remove);
         change.added().forEach(schedules::add);
@@ -317,7 +370,10 @@ public class ScheduleController {
         return editing != null && editing.isRepeating() && scope != EditScope.THIS_AND_FOLLOWING;
     }
 
-    /** 실제로 저장될 값: "이 일정만" 수정이면 반복 없음 + 반복 종료일 없음으로 바꾼다 (검증·겹침·저장에 똑같이 쓴다) */
+    /**
+     * 실제로 저장될 값: "이 일정만" 수정이면 반복 없음 + 반복 종료일 없음으로 바꾼다 (검증·겹침·저장에 똑같이 쓴다)
+     * 왜: "이 일정만" 수정은 반복에서 그 날짜를 빼고 반복 없는 새 일정을 만들기 때문에, 검증·겹침·저장이 모두 "반복 없음"으로 본 값으로 일해야 서로 어긋나지 않는다.
+     */
     private static ScheduleDraft effectiveDraft(ScheduleDraft d, Occurrence editing, EditScope scope) {
         if (!isThisOnly(editing, scope)) {
             return d;
@@ -326,6 +382,10 @@ public class ScheduleController {
                 RepeatRule.NONE, null, d.reminder());
     }
 
+    /**
+     * 없는 카테고리를 가리키는 일정은 화면에서 이름을 찾을 수 없으므로 "개인"으로 옮긴다. 메모리만 바꾸고 파일은 다음 저장 때 반영된다.
+     * "개인"이 없으면(비정상) 옮길 곳이 없으므로 아무것도 하지 않는다.
+     */
     private void moveUnknownCategoriesToPersonal() {
         if (categories.findById(Category.PERSONAL_ID).isEmpty()) {
             return;
