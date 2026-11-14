@@ -181,10 +181,10 @@ public class ScheduleController {
 
     /**
      * F13: 저장하려는 값과 시간이 겹치는 다른 하루치 일정들. 없으면 빈 목록.
+     * 입력값이 아직 올바르지 않으면 겹침 검사를 하지 않고 빈 목록을 돌려준다 (검증 오류가 먼저 보이도록).
      *
      * @param editing 수정 중인 하루치 일정 (새로 등록이면 null). 자기 자신과는 겹침으로 보지 않는다
      * @param scope   수정 범위 (새로 등록이거나 반복이 없으면 무시)
-     * 입력값이 아직 올바르지 않으면 겹침 검사를 하지 않고 빈 목록을 돌려준다 (검증 오류가 먼저 보이도록).
      */
     public List<Occurrence> findConflicts(ScheduleDraft draft, Occurrence editing, EditScope scope) {
         ScheduleDraft effective = effectiveDraft(draft, editing, scope);
