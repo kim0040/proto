@@ -14,6 +14,8 @@ import java.util.Optional;
  * [서버 대비 — 현재 사용 안 함] CSV 일정 저장소 앞에 두는 로컬 우선 장식자다.
  * [저장소 repository] 불러올 때는 서버 스냅샷(GET /api/v1/schedules)을 먼저 시도하고,
  * 성공하면 메모리와 CSV를 그 내용으로 바꾼다. 실패하면 이 컴퓨터의 CSV를 그대로 두고 경고만 남긴다.
+ * StoreFactory가 서버가 켜져 있을 때 ScheduleRepository를 이 클래스로 감싼다 (ScheduleStore를 구현하므로 ScheduleController는 모른다).
+ * 데이터의 기준은 언제나 이 컴퓨터의 CSV이다. 서버는 "불러올 때 한 번 받아 오고, 저장할 때마다 통째로 올리는" 보조 저장 장소일 뿐이다.
  * 저장은 항상 CSV를 먼저 쓰고, 그다음 서버에 통째로 PUT 한다. PUT이 실패해도 CSV는 지우지 않는다.
  */
 public final class SyncingScheduleStore implements ScheduleStore {
@@ -57,6 +59,7 @@ public final class SyncingScheduleStore implements ScheduleStore {
         pull();
     }
 
+    /** 서버 스냅샷을 받아 로컬을 바꾼다. 받은 값이 이상하거나(RuntimeException) 서버에 닿지 못하면 로컬을 그대로 두고 경고만 남긴다. */
     private void pull() {
         try {
             replaceAndSave(ScheduleJsonMapper.readSnapshot(client.get(PATH)));
@@ -82,6 +85,12 @@ public final class SyncingScheduleStore implements ScheduleStore {
         next.forEach(local::add);
     }
 
+    /**
+     * CSV에 먼저 저장하고, 그다음 서버로 올린다. CSV 저장이 실패하면 IOException을 던지고 서버에는 올리지 않는다.
+     * 서버에 올리지 못한 것은 예외가 아니라 경고({@link #PUSH_WARNING})로 남긴다. 이 컴퓨터에는 이미 저장됐기 때문이다.
+     *
+     * @throws IOException CSV 저장에 실패했을 때
+     */
     @Override
     public void save() throws IOException {
         local.save();
@@ -97,12 +106,14 @@ public final class SyncingScheduleStore implements ScheduleStore {
         }
     }
 
+    /** 같은 경고를 중복해서 쌓지 않는다. 저장할 때마다 서버가 실패해도 경고가 하나만 남게 하려는 것이다. */
     private void warn(String message) {
         if (!syncWarnings.contains(message)) {
             syncWarnings.add(message);
         }
     }
 
+    /** 로컬 저장소의 경고에 서버와 관련된 경고를 더한 목록 (복사본). */
     @Override
     public List<String> getWarnings() {
         List<String> all = new ArrayList<>(local.getWarnings());

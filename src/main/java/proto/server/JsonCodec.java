@@ -8,6 +8,8 @@ import java.util.Map;
 /**
  * [서버 대비 — 현재 사용 안 함] JSON 문자열과 자바 값(Map, List, String, Number, Boolean, null)을 서로 바꾼다.
  * [저장소 repository] 객체·배열·문자열·숫자·참/거짓·null만 다룬다. 외부 라이브러리는 쓰지 않는다.
+ * ScheduleJsonMapper와 CategoryJsonMapper가 서버로 보낼 스냅샷을 만들 때 write, 받은 스냅샷을 읽을 때 parse를 쓴다.
+ * 서버가 보낸 값은 믿을 수 없으므로 깊이·형식을 엄격하게 검사한다.
  * 문자열의 따옴표, 역슬래시, 줄바꿈, 유니코드 이스케이프를 지키고, 형식이 깨지면 {@link JsonSyntaxException}을 던진다.
  */
 public final class JsonCodec {

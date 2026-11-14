@@ -13,6 +13,8 @@ import java.util.Optional;
 /**
  * [서버 대비 — 현재 사용 안 함] 서버 설정이 잘못돼 서버를 끈 이유를 일정 저장소의 경고 목록에 실어 나른다.
  * [저장소 repository] 하는 일은 CSV 저장소 그대로이고, getWarnings() 끝에 설정 경고 한 문장만 더한다.
+ * StoreFactory가 서버 설정이 "잘못돼서" 꺼졌을 때만 CSV 저장소를 이 클래스로 감싼다. ScheduleStore의 모든 메서드를 그대로 local에 넘기고(위임),
+ * getWarnings()만 설정 경고를 더해 돌려준다. 그래서 Main의 reportLoadWarnings가 따로 코드를 늘리지 않고 이 경고도 사용자에게 알린다.
  * 그러면 시작할 때 reportLoadWarnings가 다른 불러오기 경고와 같은 길(storageFailed)로 사용자에게 알린다.
  */
 public final class SettingsWarningScheduleStore implements ScheduleStore {

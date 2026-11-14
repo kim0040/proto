@@ -12,6 +12,8 @@ import java.util.Properties;
 /**
  * [서버 대비 — 현재 사용 안 함] data/server.properties에서 서버를 쓸지 읽는다.
  * [엔티티 entity] 켜짐, 주소, 토큰, 제한 시간, 경고 문장을 담는다.
+ * StoreFactory가 시작할 때 한 번 읽고, 켜져 있으면 서버 저장소로 갈아 끼운다. 값이 잘못돼도 앱이 못 켜지면 안 되므로 예외 대신 "꺼짐 + 경고 문장"을 돌려준다.
+ * 객체는 만든 뒤 바뀌지 않는다. 경고는 SettingsWarningScheduleStore가 사용자에게 전달한다.
  * 파일이 없거나 값이 잘못되면 예외를 던지지 않고 꺼진 상태로 돌아간다. 파일을 새로 만들지도 않는다.
  */
 public final class ServerSettings {
@@ -36,8 +38,10 @@ public final class ServerSettings {
     }
 
     /**
-     * 파일이 없으면 꺼짐(경고 없음). enabled가 true가 아니어도 꺼짐.
-     * 파일을 읽지 못하거나 주소·제한 시간이 이상하면 꺼짐과 한국어 경고를 돌려준다.
+     * 설정 파일을 읽는다. 어떤 경우에도 예외를 던지지 않는다.
+     *
+     * @param file data/server.properties 경로
+     * @return 켜진 설정, 또는 꺼진 설정(이유가 있으면 {@link #warning()}에 한국어 문장)
      */
     public static ServerSettings load(Path file) {
         if (!Files.exists(file)) {
@@ -52,6 +56,7 @@ public final class ServerSettings {
         return fromProperties(props);
     }
 
+    /** 서버를 쓸지 여부. enabled=true이고 나머지 값이 모두 올바를 때만 true이다. */
     public boolean isEnabled() {
         return enabled;
     }
@@ -66,6 +71,7 @@ public final class ServerSettings {
         return token;
     }
 
+    /** 서버를 기다리는 제한 시간(초). 적지 않았으면 5, 올바른 값은 1~120이다. */
     public int timeoutSeconds() {
         return timeoutSeconds;
     }
@@ -107,7 +113,7 @@ public final class ServerSettings {
         return new ServerSettings(true, baseUrl, token, timeout, "");
     }
 
-    /** 토큰은 눈에 보이는 ASCII(0x21~0x7E)만 받는다. 공백·제어 문자·한글은 HTTP 헤더 값으로 보낼 수 없다 */
+    /** 왜 검사하나: 토큰은 HTTP 헤더(Authorization)에 그대로 들어가는데, 줄바꿈이나 한글이 있으면 요청이 깨지거나 헤더가 위조될 수 있다. */
     private static boolean isHeaderSafe(String token) {
         for (int i = 0; i < token.length(); i++) {
             char c = token.charAt(i);
