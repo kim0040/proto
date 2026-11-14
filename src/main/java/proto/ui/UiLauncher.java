@@ -9,6 +9,7 @@ import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
+import java.nio.file.Path;
 
 /**
  * [경계 boundary] 화면 시작점. Main이 controller들을 만든 뒤 Swing 이벤트 스레드(EDT)에서 부른다.
@@ -47,8 +48,8 @@ public final class UiLauncher {
     }
 
     public static void launch(ScheduleController schedules, CategoryController categories,
-                              ReminderTimer reminders) {
-        MainFrame frame = create(schedules, categories, reminders);
+                              ReminderTimer reminders, Path dataDir) {
+        MainFrame frame = create(schedules, categories, reminders, dataDir);
         frame.attachListeners();
         frame.setVisible(true);
     }
@@ -56,12 +57,18 @@ public final class UiLauncher {
     /** 창만 만들고 보여 주지는 않는다 (스크린샷 도구도 쓴다) */
     public static MainFrame create(ScheduleController schedules, CategoryController categories,
                                    ReminderTimer reminders) {
+        return create(schedules, categories, reminders, Path.of("data"));
+    }
+
+    /** dataDir은 설정 화면이 보여 주고 여는 데이터 폴더 (위치는 Main이 정해 넘긴다) */
+    public static MainFrame create(ScheduleController schedules, CategoryController categories,
+                                   ReminderTimer reminders, Path dataDir) {
         ThemeManager.install();
         if (!proto.ui.theme.Ui.isMac()) {
             JFrame.setDefaultLookAndFeelDecorated(true);
             JDialog.setDefaultLookAndFeelDecorated(true);
         }
-        UiContext ctx = new UiContext(schedules, categories, reminders);
+        UiContext ctx = new UiContext(schedules, categories, reminders, dataDir);
         return new MainFrame(ctx);
     }
 }

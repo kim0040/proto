@@ -18,12 +18,12 @@ import java.time.LocalDateTime;
 
 /**
  * [애플리케이션 시작점] 저장소·controller·타이머를 만들어 연결하고 화면(UiLauncher)을 띄운다.
- * 데이터는 실행 위치의 data/ 폴더(schedules.csv, categories.csv)에 저장된다.
- * 같은 데이터를 두 프로세스가 동시에 쓰지 않도록 data/app.lock을 잡고(프로세스가 끝날 때까지 유지), 이미 잡혀 있으면 안내만 하고 끝낸다.
+ * 데이터 폴더는 AppPaths가 정한다(개발 실행은 ./data, 설치된 앱은 사용자별 폴더). 안에 schedules.csv, categories.csv, server.properties가 놓인다.
+ * 같은 데이터를 두 프로세스가 동시에 쓰지 않도록 폴더 안의 app.lock을 잡고(프로세스가 끝날 때까지 유지), 이미 잡혀 있으면 안내만 하고 끝낸다.
  */
 public final class Main {
 
-    private static final Path DATA_DIR = Path.of("data");
+    private static final Path DATA_DIR = AppPaths.dataDir();
 
     /** 프로세스가 끝날 때까지 잡고 있는 단일 실행 잠금 (참조를 지키지 않으면 채널이 닫혀 잠금이 풀린다) */
     private static FileChannel lockChannel;
@@ -32,7 +32,7 @@ public final class Main {
     private Main() {
     }
 
-    /** data/app.lock을 잡는다. 다른 프로세스가 이미 잡았으면 false. 폴더를 못 만들 때처럼 잠금 자체를 쓸 수 없으면 막지 않고 true */
+    /** 데이터 폴더의 app.lock을 잡는다. 다른 프로세스가 이미 잡았으면 false. 폴더를 못 만들 때처럼 잠금 자체를 쓸 수 없으면 막지 않고 true */
     private static boolean acquireSingleInstanceLock() {
         try {
             Files.createDirectories(DATA_DIR);
@@ -65,7 +65,7 @@ public final class Main {
         reminders.start();
 
         SwingUtilities.invokeLater(() -> {
-            UiLauncher.launch(schedules, categories, reminders);
+            UiLauncher.launch(schedules, categories, reminders, DATA_DIR);
             // 화면이 리스너를 등록한 뒤, 불러오기 경고(건너뛴 줄 등)를 알린다
             SwingUtilities.invokeLater(schedules::reportLoadWarnings);
         });
