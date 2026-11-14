@@ -15,6 +15,8 @@ import java.util.Optional;
 
 /**
  * [저장소 repository] 카테고리 목록을 메모리에 들고 있고, CSV 파일(data/categories.csv: id,name)로 저장·불러온다 (F7, F11).
+ * F7(카테고리 관리)의 저장을 맡는다. CategoryController가 CategoryStore 인터페이스로만 이 클래스를 쓰고, StoreFactory가 만들어 준다.
+ * 메모리 목록이 "진짜 데이터"이고, 파일은 save()를 부를 때마다 통째로 새로 쓴다. 파일 쓰기는 CsvFileStore, 글자 변환은 CsvCodec이 맡는다.
  * 파일이 없으면 기본 4개(수업, 과제, 팀플, 개인)로 시작한다.
  * 불러오면서 문제가 생기면 원본을 같은 폴더에 백업한 뒤에야 덮어쓴다 (백업 실패 시 저장하지 않음).
  * "개인"(id personal)을 먼저 확보하고, 그 이름과 같은 다른 행은 경고와 함께 건너뛴다.
@@ -30,11 +32,21 @@ public class CategoryRepository implements CategoryStore {
     private final List<String> warnings = new ArrayList<>();
     private boolean saveBlocked;
 
+    /**
+     * 시스템 시계를 쓰는 보통 생성자.
+     *
+     * @param file 카테고리 CSV 파일 경로 (예: data/categories.csv)
+     */
     public CategoryRepository(Path file) {
         this(file, Clock.systemDefaultZone());
     }
 
-    /** @param clock 백업 파일 이름의 시각에 쓴다 */
+    /**
+     * 시계를 바꿔 끼울 수 있는 생성자. 시험에서 가짜 시계를 넣으면 백업 파일 이름을 미리 알 수 있다.
+     *
+     * @param file  카테고리 CSV 파일 경로
+     * @param clock 백업 파일 이름에 넣는 시각을 얻는 시계
+     */
     public CategoryRepository(Path file, Clock clock) {
         this.file = file;
         this.clock = clock;
@@ -43,6 +55,7 @@ public class CategoryRepository implements CategoryStore {
     /**
      * 파일이 있으면 읽고, 없으면 기본 카테고리로 시작해 바로 저장한다.
      * 파일 전체를 읽지 못했거나 CSV 구조가 깨졌으면 기본 카테고리로 시작한다. 문제가 있으면 원본을 백업한다.
+     * 이 메서드는 예외를 던지지 않는다. 문제는 모두 {@link #getWarnings()}에 한국어 문장으로 쌓고, 앱은 그대로 시작한다.
      */
     @Override
     public void loadOrSeed() {
@@ -65,7 +78,12 @@ public class CategoryRepository implements CategoryStore {
         }
     }
 
-    /** 전체를 파일에 쓴다. 불러올 때 원본을 백업하지 못했으면 덮어쓰지 않고 IOException을 던진다 */
+    /**
+     * 메모리 목록 전체를 파일에 새로 쓴다 (첫 줄은 열 이름). 쓰기는 임시 파일 + 옮기기 방식이라 도중에 끊겨도 파일이 깨지지 않는다.
+     * 불러올 때 원본을 백업하지 못했으면(saveBlocked) 덮어쓰지 않고 IOException을 던진다. 읽지 못한 옛 기록이 조용히 사라지지 않게 하기 위해서이다.
+     *
+     * @throws IOException 쓰기에 실패했거나 저장이 막혀 있을 때
+     */
     @Override
     public void save() throws IOException {
         if (saveBlocked) {
@@ -79,27 +97,31 @@ public class CategoryRepository implements CategoryStore {
         CsvFileStore.writeAtomically(file, CsvCodec.encode(rows));
     }
 
-    /** 불러올 때 생긴 경고들 (한국어 문장). 없으면 빈 목록 */
+    /** 불러올 때 생긴 경고들 (한국어 문장). 없으면 빈 목록. 복사본을 돌려주므로 호출한 쪽이 고쳐도 안전하다. */
     @Override
     public List<String> getWarnings() {
         return List.copyOf(warnings);
     }
 
+    /** 메모리의 카테고리 목록. 고칠 수 없는 보기(view)라서, 목록을 바꾸려면 add/remove를 써야 한다. */
     @Override
     public List<Category> getAll() {
         return Collections.unmodifiableList(categories);
     }
 
+    /** id가 같은 카테고리. 없으면 Optional.empty(). */
     @Override
     public Optional<Category> findById(String id) {
         return categories.stream().filter(c -> c.getId().equals(id)).findFirst();
     }
 
+    /** 목록 맨 뒤에 더한다. 메모리만 바뀌고 파일은 save()를 불러야 바뀐다. 이름 중복 같은 검사는 CategoryController가 먼저 한다. */
     @Override
     public void add(Category category) {
         categories.add(category);
     }
 
+    /** 목록에서 뺀다 (id가 같은 것). 없으면 아무 일도 없다. 메모리만 바뀌고 파일은 save()를 불러야 바뀐다. */
     @Override
     public void remove(Category category) {
         categories.remove(category);
@@ -132,7 +154,10 @@ public class CategoryRepository implements CategoryStore {
         return loaded;
     }
 
-    /** 지킬 "개인"의 이름. 올바른 personal 행이 있으면 그 이름이고, 없으면 덧붙일 이름이다 */
+    /**
+     * "개인" 이름을 먼저 정해 두는 이유: 다른 행이 "개인"과 같은 이름을 쓰고 있으면, 그 행이 파일에서 먼저 나오더라도
+     * (기본 카테고리인) 개인을 지키고 그 다른 행을 건너뛰기 위해서이다.
+     */
     private static String reservedPersonalName(List<List<String>> rows) {
         for (List<String> row : rows) {
             if (isUsablePersonalRow(row)) {

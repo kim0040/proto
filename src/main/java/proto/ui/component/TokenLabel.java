@@ -19,6 +19,7 @@ import java.awt.event.MouseEvent;
 
 /**
  * [경계 boundary] 글자색을 토큰 이름으로 정하는 라벨. 테마가 바뀌면 자동으로 새 색을 읽는다.
+ * 화면의 거의 모든 글자 라벨이다. "토큰"은 색에 붙인 이름("proto.text" 같은)으로, getForeground를 다시 정의해 그릴 때마다 현재 테마의 색을 찾아 쓴다.
  * 잘려서 "…"로 보이면 마우스를 올렸을 때 전체 글을 툴팁으로 보여 주고, 글꼴에 없는 글자(이모지)는 대체 글꼴로 그린다.
  */
 public class TokenLabel extends JLabel {
@@ -51,6 +52,7 @@ public class TokenLabel extends JLabel {
         return t != null && !t.isEmpty() && !t.regionMatches(true, 0, "<html", 0, 5);
     }
 
+    /** 글꼴에 없는 글자(이모지 등)가 있으면 JLabel의 기본 그리기 대신 Glyphs로 대체 글꼴을 섞어 직접 그린다. 폭을 재는 것도 같은 방법으로 해서 말줄임과 크기가 맞게 한다. */
     private boolean usesFallback() {
         return plainText() && Glyphs.needsFallback(getFont(), getText());
     }

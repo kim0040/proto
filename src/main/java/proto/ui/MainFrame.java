@@ -46,6 +46,10 @@ import java.util.Map;
 
 /**
  * [경계 boundary] 메인 창: 사이드바 + 제목줄 + 보기 영역을 조립하고, controller의 변화 알림(일정·카테고리·알림)을 받아 화면을 맞춘다.
+ * 이 앱 화면의 중심이다. Main → UiLauncher가 만들고(attachListeners로 controller에 연결), 사이드바·헤더·보기를 한 창에 조립한다.
+ * 화면에서 일어난 일은 ScheduleController 등에 요청하고, 결과는 ScheduleListener·CategoryListener·ReminderListener 메서드로 돌아와 화면을 다시
+ * 그린다(F2, F6, F10).
+ * "ui → controller만 호출, controller → 리스너로 ui에 알림"이라는 규칙이 이 클래스에서 만난다.
  */
 public final class MainFrame extends JFrame implements ScheduleListener, CategoryListener, ReminderListener {
 
@@ -67,6 +71,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
             refreshHiddenViews();
         }
     };
+    // 지금 보이는 보기. 보기 5개는 처음에 다 만들어 두고 전환할 때 current만 바꾼다.
     private ContentView current;
     private LocalDate knownToday;
     private boolean disposed;
@@ -83,6 +88,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         views.put(Mode.STATS, new StatsView(ctx));
         views.put(Mode.SETTINGS, new SettingsView(ctx));
         configureWindow();
+        // 창 크기 등급(SizeClass)은 사이드바·헤더·보기를 만들기 전에 정해 두어야 처음부터 알맞은 모양으로 그려진다.
         ctx.breakpoints().prime(getWidth(), getHeight());
         drawer = new SidebarDrawer(() -> rail().focusMenu());
         sidebar = new Sidebar(ctx, this::navigateFromSidebar, this::selectCategory, drawer::closeNow);
@@ -149,6 +155,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         }
         AppIcon.apply(this);
         installWindowListeners();
+        // macOS는 제목 줄을 투명하게 하고 내용이 창 전체를 쓰게 한다 (신호등 버튼 아래까지 사이드바 배경이 이어진다). 그래서 위쪽 여백이 더 크다.
         if (Ui.isMac()) {
             getRootPane().putClientProperty("apple.awt.fullWindowContent", true);
             getRootPane().putClientProperty("apple.awt.transparentTitleBar", true);
@@ -247,7 +254,10 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         super.dispose();
     }
 
-    /** 날짜가 바뀌었으면(자정을 넘기거나 절전에서 깨어남) "오늘" 표시들을 새 날짜로 맞춘다 */
+    /**
+     * 날짜가 바뀌었으면(자정을 넘기거나 절전에서 깨어남) "오늘" 표시들을 새 날짜로 맞춘다.
+     * 왜 필요한가: 창을 열어 둔 채 자정을 넘기거나 노트북이 절전에서 깨어나면 "오늘"이 어제 날짜로 남는다. 창이 다시 활성화될 때와 화면이 갱신될 때 확인한다.
+     */
     public void checkDate() {
         LocalDate today = ctx.schedules().today();
         if (today.equals(knownToday)) {
@@ -267,6 +277,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
 
     // ---- 이동 ----
 
+    /** 다른 보기로 이동한다. 이동하면 기준 날짜와 선택 날짜는 오늘로 돌아온다. 같은 보기를 다시 누르면 아무것도 하지 않는다. */
     private void navigate(Mode mode) {
         checkDate();
         if (mode == ctx.state().mode()) {
@@ -308,6 +319,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         moveAnchor(today, today.isAfter(s.anchor()) ? Dir.FROM_RIGHT : Dir.FROM_LEFT);
     }
 
+    /** 이전/다음/오늘 버튼으로 기준 날짜를 옮긴다. 달력(MONTH)에서 달이 바뀌면 선택한 날도 새 달 안으로 옮겨야 한다. 이번 달이면 오늘, 다른 달이면 그 달 1일을 고른다. */
     private void moveAnchor(LocalDate next, Dir dir) {
         AppState s = ctx.state();
         s.setAnchor(next);

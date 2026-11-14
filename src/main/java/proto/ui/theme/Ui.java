@@ -8,6 +8,7 @@ import java.awt.RenderingHints;
 
 /**
  * [경계 boundary] 크기 환산·그리기 힌트 같은 작은 화면 도우미.
+ * 모든 화면 클래스가 크기를 Ui.px로 감싸 쓴다. 화면 배율(HiDPI)이 바뀌어도 모양이 비슷하게 보이도록 논리 px만 코드에 적는다.
  */
 public final class Ui {
 

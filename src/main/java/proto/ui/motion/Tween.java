@@ -2,6 +2,7 @@ package proto.ui.motion;
 
 /**
  * [경계 boundary] 숫자 하나를 목표값까지 부드럽게 움직이는 도우미 (hover 배경, 체크, 알약 이동 등).
+ * 컴포넌트가 hover 같은 상태 하나마다 Tween 하나를 갖고, 그릴 때 value()를 읽는다. 값을 정하는 방법은 set(바로)과 to(애니메이션) 두 가지다.
  * 값이 바뀔 때마다 onChange를 불러 그 컴포넌트만 다시 그리게 한다.
  */
 public final class Tween {

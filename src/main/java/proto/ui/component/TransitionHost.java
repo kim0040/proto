@@ -15,6 +15,8 @@ import java.awt.image.BufferedImage;
 
 /**
  * [경계 boundary] 화면 내용을 바꿀 때 이전·이후 모습을 사진으로 찍어 크로스페이드 + 살짝 미끄러지게 보여 주는 틀.
+ * MainFrame이 본문 영역으로 쓴다 (보기 이동, 이전/다음 이동). 전환 방법: 바꾸기 전 모습(before)을 그림으로 찍고, 내용을 바꾼 뒤 모습(after)도 찍어서,
+ * 두 그림을 겹쳐 그리는 방식이라 실제 컴포넌트가 움직이지 않는다. 그래서 어떤 보기든 같은 코드로 전환 효과를 줄 수 있다.
  * 보기 전환은 위로 12px, 주/월 이동은 좌우로 미끄러진다. 애니메이션이 꺼져 있으면 즉시 바꾼다.
  */
 public class TransitionHost extends JPanel {
@@ -85,6 +87,7 @@ public class TransitionHost extends JPanel {
         repaint();
     }
 
+    /** 지금 모습을 그림으로 찍는다. 고해상도 화면(배율 2배 등)에서도 흐려지지 않도록 화면 배율만큼 크게 그린다. */
     private BufferedImage snapshot() {
         GraphicsConfiguration gc = getGraphicsConfiguration();
         double scale = gc == null ? 1.0 : gc.getDefaultTransform().getScaleX();
@@ -97,6 +100,7 @@ public class TransitionHost extends JPanel {
         return img;
     }
 
+    /** 전환 중에는 진짜 내용을 그리지 않는다. 두 그림(before, after)이 그 자리를 대신해야 하기 때문이다. */
     @Override
     protected void paintChildren(Graphics g) {
         if (!running) {

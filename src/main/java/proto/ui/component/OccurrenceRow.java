@@ -31,6 +31,8 @@ import java.awt.event.MouseEvent;
 
 /**
  * [경계 boundary] 일정 한 줄(시간·체크·제목·카테고리·상태). 오늘 목록과 달력 옆 목록이 함께 쓴다.
+ * OccurrenceList가 일정마다 하나씩 만든다. 사용자의 동작(클릭, 완료 체크, Delete 키, 오른쪽 클릭)은 RowHandler(실제로는 UiActions)에 넘기고,
+ * 상태(F6)는 RowHandler#stateOf로 묻는다. 줄은 자기 모양만 책임진다.
  * 마우스를 올리면 배경이 서서히 켜지고, 완료하면 체크와 제목이 부드럽게 바뀐다.
  */
 public class OccurrenceRow extends JPanel {

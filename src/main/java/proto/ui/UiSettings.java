@@ -7,6 +7,8 @@ import java.util.prefs.Preferences;
 
 /**
  * [경계 boundary] 설정 화면에서 바꾸는 작은 환경설정(시작 화면, 알림 소리, 빈 시간 기본 시간대)을 기억한다.
+ * SettingsView(설정 화면)가 값을 바꾸고, MainFrame(시작 화면, 알림 소리)과 FreeSlotDialog(F12 기본 시간대)가 읽는다.
+ * 데이터 파일(CSV)이 아니라 운영체제의 환경설정 저장소(java.util.prefs)에 저장하므로, 일정 데이터와 섞이지 않는다.
  * 테마는 ThemeManager, 애니메이션은 Motion이 각각 저장한다.
  */
 public final class UiSettings {
@@ -62,6 +64,7 @@ public final class UiSettings {
         PREFS.put(FREE_TO, to.toString());
     }
 
+    /** 저장된 값이 없거나 형식이 깨졌으면 fallback을 돌려준다. 설정이 이상해도 앱이 멈추지 않게 하려는 것이다. */
     private static LocalTime read(String key, LocalTime fallback) {
         try {
             return LocalTime.parse(PREFS.get(key, fallback.toString()));

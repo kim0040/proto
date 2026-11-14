@@ -10,6 +10,8 @@ import java.time.LocalTime;
 
 /**
  * [경계 boundary] 30분 단위 목록에서 고르거나 "14:05"처럼 직접 입력하는 시간 콤보.
+ * ScheduleDialog와 FreeSlotDialog, SettingsView의 시간 입력칸이다 (F1, F12). 입력을 읽는 규칙(parse)은 이 클래스에만 있다.
+ * 읽을 수 없는 입력은 예외 없이 null을 돌려주고, 사용자에게 보이는 오류 문장은 화면(FieldErrors)이 만든다.
  */
 public class TimeCombo extends JComboBox<String> {
 

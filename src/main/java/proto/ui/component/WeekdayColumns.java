@@ -17,6 +17,7 @@ import java.util.Map;
 
 /**
  * [경계 boundary] 요일별 일정 수 세로 막대 그래프 (F14). 월~일 7칸, 열릴 때 아래에서 자라난다.
+ * StatsView가 요일별 일정 수(F14)를 보여 줄 때 쓴다. 숫자는 WeeklyStatistics#countByDay에서 온다.
  */
 public class WeekdayColumns extends JComponent {
 

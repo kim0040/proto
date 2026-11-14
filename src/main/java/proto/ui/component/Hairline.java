@@ -9,6 +9,7 @@ import java.awt.Insets;
 
 /**
  * [경계 boundary] 아래쪽에만 그리는 1px 옅은 구분선 테두리 (목록 행 사이 선, 세로 장식선 아님).
+ * WeekView, SettingsView에서 줄 사이 구분선으로 쓰는 테두리이다.
  */
 public class Hairline extends AbstractBorder {
 

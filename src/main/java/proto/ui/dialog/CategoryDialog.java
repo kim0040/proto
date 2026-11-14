@@ -31,6 +31,9 @@ import java.awt.event.FocusEvent;
 
 /**
  * [경계 boundary] 카테고리 관리 창 (F7): 이름 바로 고치기, 삭제(개인은 불가), 추가.
+ * UiActions#openCategories가 연다 (F7). 카테고리 변경은 CategoryController에 요청하고, 결과는 CategoryListener(categoriesChanged)로 돌아와
+ * 목록을 다시 만든다.
+ * "개인" 카테고리는 삭제 버튼이 꺼져 있다 (CategoryController#canDelete). 이름 검사 규칙은 화면이 아니라 controller가 가진다.
  */
 public class CategoryDialog extends BaseDialog implements CategoryListener {
 
@@ -126,6 +129,7 @@ public class CategoryDialog extends BaseDialog implements CategoryListener {
         refit();
     }
 
+    /** 다른 곳(예: 같은 창의 추가·삭제)에서 카테고리가 바뀌면 불린다. controller가 어느 스레드에서든 알릴 수 있으므로 이벤트 스레드로 옮겨서 목록을 다시 만든다. */
     @Override
     public void categoriesChanged() {
         SwingUtilities.invokeLater(this::rebuildRows);
@@ -175,6 +179,7 @@ public class CategoryDialog extends BaseDialog implements CategoryListener {
         return f;
     }
 
+    /** 이름 입력칸에서 Enter를 누르거나 포커스가 빠질 때 이름을 바꾼다. 바뀐 게 없으면 아무것도 하지 않고, 규칙을 어겨 거절되면 칸을 원래 이름으로 되돌리고 오류를 보여 준다. */
     private void commitRename(Category c, JTextField field) {
         Ime.commit(field);
         String text = field.getText().strip();

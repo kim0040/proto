@@ -16,6 +16,8 @@ import java.awt.RenderingHints;
 
 /**
  * [경계 boundary] 일정 상태(예정/진행 중/지연/완료)를 보여 주는 작은 글자 알약. 상태가 바뀌면 색이 부드럽게 섞인다.
+ * OccurrenceRow가 일정 줄 오른쪽에 둔다. 상태(F6) 자체는 StateCalculator가 계산한 값을 받아(RowHandler#stateOf 경유) 이 클래스는 그 상태에 맞는 색과 글자만 보여
+ * 준다.
  */
 public class StatePill extends JComponent {
 
@@ -50,7 +52,7 @@ public class StatePill extends JComponent {
         repaint();
     }
 
-    /** 테마가 바뀌었을 때 새 색으로 맞춘다 */
+    /** 테마가 바뀌면(밝게↔어둡게) 상태 색 토큰을 다시 읽어, 애니메이션 없이 바로 새 색으로 맞춘다. */
     @Override
     public void updateUI() {
         super.updateUI();

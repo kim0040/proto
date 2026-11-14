@@ -17,6 +17,7 @@ import java.util.TreeMap;
 
 /**
  * [경계 boundary] 앱 아이콘 PNG(여러 크기)를 읽어 창, 작업 표시줄/독, 화면 안 작은 로고에 연결한다.
+ * MainFrame이 시작할 때 apply로 창에 연결하고, 사이드바가 icon으로 작은 로고를 그린다. 아이콘 파일이 없어도 앱은 정상으로 열린다.
  * 파일이 없으면 아무것도 하지 않고 넘어간다.
  */
 public final class AppIcon {

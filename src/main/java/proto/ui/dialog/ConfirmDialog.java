@@ -18,6 +18,7 @@ import java.util.List;
 
 /**
  * [경계 boundary] 질문 하나에 버튼 몇 개로 답하는 확인 대화상자 (삭제 확인, 반복 범위 선택, 겹침 경고에 쓴다).
+ * Dialogs의 모든 질문 창이 이 클래스로 만들어진다. 버튼은 Choice 목록으로 받고, ask가 누른 버튼의 번호를 돌려준다 (Esc나 창 닫기는 -1).
  */
 public class ConfirmDialog extends BaseDialog {
 
@@ -91,6 +92,7 @@ public class ConfirmDialog extends BaseDialog {
         return p;
     }
 
+    /** 메시지는 HTML 라벨로 그려서 줄바꿈과 자동 줄바꿈(width 스타일)을 쓴다. 사용자가 쓴 제목에 &, < 가 있어도 태그로 해석되지 않도록 먼저 바꿔 준다. */
     private static String html(String s) {
         return s.replace("&", "&amp;").replace("<", "&lt;").replace("\n", "<br>");
     }

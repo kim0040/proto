@@ -12,6 +12,9 @@ import java.util.prefs.Preferences;
 
 /**
  * [경계 boundary] 애니메이션 공통 진입점. 켜고 끄는 설정(저장됨)과 짧은 ease-out 모션 실행을 맡는다.
+ * 모든 애니메이션(Tween, ColorTween, TransitionHost, FadePanel)이 이 클래스를 거쳐 실행된다. 설정 화면의 "애니메이션" 스위치(SettingsView)가
+ * setEnabled를 부른다.
+ * Motion이 꺼져 있으면 시간을 기다리지 않고 끝 상태로 바로 넘어가므로, 화면 코드는 켜짐/꺼짐을 따로 나누지 않아도 된다 (Motion gating).
  * 꺼져 있으면 모든 모션이 즉시 끝 상태로 건너뛴다.
  */
 public final class Motion {
@@ -50,7 +53,7 @@ public final class Motion {
         LISTENERS.add(listener);
     }
 
-    /** 저장하지 않고 이번 실행에서만 켜고 끈다 (스크린샷 도구용) */
+    /** 스크린샷 도구가 쓴다. 캡처 때문에 사용자의 저장된 설정이 바뀌지 않게 한다. */
     public static void setEnabledTransient(boolean on) {
         enabled = on;
     }

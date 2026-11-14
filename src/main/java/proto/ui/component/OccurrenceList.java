@@ -11,6 +11,8 @@ import java.util.Map;
 /**
  * [경계 boundary] 일정 행을 세로로 쌓은 목록. 같은 일정(id@날짜)의 행은 다시 만들지 않고 재사용해서
  * 완료·상태 변화 애니메이션이 끊기지 않는다.
+ * TodayView와 MonthView가 일정 목록으로 쓴다 (F2). 새 목록이 올 때마다 모두 지우고 다시 만들면 완료 체크·상태 색 애니메이션이 끊기므로,
+ * 같은 키(일정id@날짜)의 줄은 그대로 두고 값만 바꾼다.
  */
 public class OccurrenceList extends ScrollPanel {
 

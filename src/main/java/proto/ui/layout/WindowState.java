@@ -10,6 +10,7 @@ import java.util.prefs.Preferences;
 
 /**
  * [경계 boundary] 메인 창의 위치·크기·최대화 상태를 기억하고 다시 열 때 복원한다.
+ * MainFrame이 시작할 때 restore, 창이 움직이거나 닫힐 때 remember와 save를 부른다. 저장 위치는 데이터 폴더(CSV)가 아니라 운영체제 환경설정(Preferences)이다.
  * 저장한 위치가 지금 연결된 화면 어디에서도 거의 보이지 않으면(모니터를 뺀 경우 등) 가운데 기본 위치로 돌아간다.
  */
 public final class WindowState {
@@ -50,7 +51,7 @@ public final class WindowState {
                 Math.max(h, min.height)));
     }
 
-    /** 최대화가 아닐 때의 크기·위치를 기억해 둔다 */
+    /** 최대화가 아닐 때의 크기·위치를 기억해 둔다. 최대화 중의 위치는 기억하지 않아서, 다음에 최대화를 풀면 원래 크기로 돌아간다. */
     public void remember(JFrame frame) {
         if ((frame.getExtendedState() & JFrame.MAXIMIZED_BOTH) == 0 && frame.isShowing()) {
             normal = frame.getBounds();

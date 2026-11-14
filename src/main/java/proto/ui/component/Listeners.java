@@ -12,6 +12,7 @@ import java.util.function.IntConsumer;
 
 /**
  * [경계 boundary] 자주 쓰는 리스너 묶음을 한 줄로 달아 주는 도우미 (포커스 때 다시 그리기, 글자 바뀜, 키 입력).
+ * 컴포넌트마다 반복되는 리스너 코드를 한 줄로 줄이려는 도우미이다 (OccurrenceRow, MonthGrid, PillList 등이 쓴다).
  */
 public final class Listeners {
 

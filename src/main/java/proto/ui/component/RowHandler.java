@@ -8,6 +8,8 @@ import java.awt.Point;
 
 /**
  * [경계 boundary] 일정 행·칩이 사용자 동작과 표시에 필요한 정보를 요청하는 통로.
+ * OccurrenceRow, WeekChip 같은 컴포넌트가 UiActions를 직접 알지 못하게 하려는 연결 틈새(인터페이스)이다. UiActions가 구현한다.
+ * 컴포넌트는 "열기/삭제/완료"를 요청하기만 하고, 확인 창·controller 호출 같은 실제 일은 구현체가 한다.
  */
 public interface RowHandler {
 

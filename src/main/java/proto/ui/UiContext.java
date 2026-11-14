@@ -13,6 +13,8 @@ import java.util.function.Supplier;
 
 /**
  * [경계 boundary] 화면 전체가 함께 쓰는 묶음: 세 controller, 화면 상태, 동작 모음, 알림 층.
+ * MainFrame과 모든 보기·대화상자가 생성자로 받아 쓰는 "공용 가방"이다. controller 세 개(ScheduleController, CategoryController, ReminderTimer)와
+ * 화면 상태(AppState), 동작 모음(UiActions), 알림 층(Overlay)을 한데 묶어서, 클래스마다 인자를 여러 개 넘기지 않게 한다. 화면은 이것을 통해서만 controller에 닿는다.
  */
 public final class UiContext {
 

@@ -16,6 +16,7 @@ import java.awt.GridBagLayout;
 
 /**
  * [경계 boundary] 보여 줄 일정이 없을 때의 안내 화면 (문장 + 선택적으로 새 일정 버튼).
+ * TodayView와 StatsView가 일정이 없을 때 보여 준다. 필터 때문에 비었는지(버튼 없음)와 정말 비었는지(버튼 있음)를 set의 인자로 구분한다.
  */
 public class EmptyState extends JPanel {
 

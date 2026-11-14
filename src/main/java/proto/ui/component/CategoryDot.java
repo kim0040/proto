@@ -10,6 +10,7 @@ import java.awt.Graphics2D;
 
 /**
  * [경계 boundary] 카테고리 색을 보여 주는 작은 동그라미 (카테고리는 점 + 이름으로 나타낸다).
+ * OccurrenceRow, ReminderCard, 카테고리 대화상자 등 카테고리를 보여 주는 곳 어디서나 쓴다 (F7). 색은 CategoryColors가 카테고리 id로 정한다.
  */
 public class CategoryDot extends JComponent {
 

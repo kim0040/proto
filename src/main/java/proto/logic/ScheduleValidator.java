@@ -9,6 +9,8 @@ import java.util.List;
 /**
  * [논리 application logic] 일정 입력값이 F1 규칙을 지키는지 검사하고,
  * 어긴 이유를 한국어 문장 목록으로 돌려준다. 화면·저장소 없이 단독으로 쓸 수 있다.
+ * F1(일정 등록), F3(일정 수정)에서 쓴다. ScheduleController가 저장하기 전에 부르고, 문제가 있으면 저장하지 않고 이유 목록을 화면에 돌려준다.
+ * 그래서 화면은 제목 길이 같은 규칙을 직접 알 필요가 없다. 반복 종료일과 시작 날짜의 관계도 여기서 본다.
  */
 public final class ScheduleValidator {
 
@@ -18,7 +20,11 @@ public final class ScheduleValidator {
     private ScheduleValidator() {
     }
 
-    /** 문제가 없으면 빈 목록, 있으면 사용자에게 보여 줄 이유들 */
+    /**
+     * 일정을 검사해서 사용자에게 그대로 보여 줄 한국어 문장들을 돌려준다. 문제가 없으면 빈 목록이다.
+     * 날짜나 시간이 비어 있어도(null) 오류 문장으로 알려 줄 뿐 예외를 던지지 않는다.
+     * 시작과 끝이 같으면 끝이 "더 늦지" 않으므로 오류다.
+     */
     public static List<String> validate(Schedule s) {
         List<String> errors = new ArrayList<>();
         checkTitle(s, errors);

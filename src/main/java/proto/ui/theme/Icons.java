@@ -12,6 +12,7 @@ import java.util.function.Supplier;
 
 /**
  * [경계 boundary] 글자색을 따라 색이 바뀌는 작은 SVG 아이콘 (Lucide 모양을 참고해 다시 그린 선 아이콘).
+ * Buttons, PillList, ReminderCard 등이 아이콘 이름("bell", "trash" 등)으로 쓴다. SVG 파일은 resources/proto/ui/icons에 있다.
  */
 public final class Icons {
 

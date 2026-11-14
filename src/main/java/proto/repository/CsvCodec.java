@@ -5,6 +5,8 @@ import java.util.List;
 
 /**
  * [저장소 repository] CSV 문자열과 행/칸 목록을 서로 바꾼다 (RFC 4180 방식).
+ * F11(자동 저장)에서 쓴다. ScheduleRepository와 CategoryRepository가 저장할 때 encode, 불러올 때 parse를 부른다.
+ * 엑셀이나 메모장으로 열어도 깨지지 않도록 표준 CSV 규칙을 따른다. 메모에 쉼표와 줄바꿈이 있어도 한 칸으로 읽혀야 하기 때문이다.
  * 쉼표·따옴표·줄바꿈이 든 칸은 따옴표로 감싸고, 안쪽 따옴표는 두 번 쓴다. 따옴표 안의 줄바꿈은 여러 줄에 걸쳐도 읽는다.
  */
 public final class CsvCodec {
@@ -74,7 +76,10 @@ public final class CsvCodec {
             return rows;
         }
 
-        /** 따옴표 안의 문자 처리. 처리한 마지막 위치를 돌려준다 */
+        /**
+         * 따옴표 안의 문자 하나를 처리하고, 처리를 끝낸 마지막 위치를 돌려준다.
+         * 따옴표 안에서는 쉼표·줄바꿈도 그냥 글자로 읽는다. 따옴표 두 개("")는 따옴표 글자 하나이고, 따옴표 하나는 칸의 끝이다.
+         */
         private int readQuoted(int i) {
             char c = text.charAt(i);
             if (c != '"') {
@@ -89,6 +94,7 @@ public final class CsvCodec {
             return i;
         }
 
+        /** 따옴표 밖의 글자를 처리한다. 쉼표는 칸의 끝, 줄바꿈은 행의 끝이다. \r\n은 한 번의 줄바꿈으로 센다. */
         private int readPlain(int i) {
             char c = text.charAt(i);
             if (c == ',') {

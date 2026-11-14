@@ -15,6 +15,7 @@ import java.awt.event.MouseEvent;
 
 /**
  * [경계 boundary] 한 줄 제목 라벨. 완료되면 글자색이 흐려지며 취소선이 그어진다 (애니메이션 포함).
+ * OccurrenceRow의 제목·메모 줄에 쓴다 (F5). 완료 상태(done)가 0→1로 바뀌는 동안 글자색이 흐려지고 취소선이 왼쪽에서 오른쪽으로 그어진다.
  */
 public class StrikeLabel extends JComponent {
 

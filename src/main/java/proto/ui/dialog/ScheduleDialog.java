@@ -39,7 +39,9 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * [경계 boundary] 일정 등록·수정 창 (F1, F3, F13). 저장하면 검증 → 겹침 확인 → (반복이면) 범위 선택 → 저장 순으로 진행한다.
+ * [경계 boundary] 일정 등록·수정 창 (F1, F3, F13). 저장하면 (반복이면) 범위 선택 → 검증 → 겹침 확인 → 저장 순으로 진행한다.
+ * UiActions#newSchedule, #editSchedule이 연다. 이 창은 입력값을 ScheduleDraft로 모아 ScheduleController에 넘기기만 하고, 검증 규칙(F1)과 겹침
+ * 판단(F13)은 모두 controller가 한다.
  */
 public class ScheduleDialog extends BaseDialog {
 
@@ -298,7 +300,10 @@ public class ScheduleDialog extends BaseDialog {
                 repeat.value(), until, (ReminderOption) reminder.getSelectedItem());
     }
 
-    /** 저장. 이미 진행 중이거나, 키보드(Enter)로 눌렀는데 한글 조합 중이면(그 Enter는 글자 확정용) 무시한다 */
+    /**
+     * 저장. 이미 진행 중이면 무시한다. 왜 Ime.swallowIfComposing인가: 한글을 입력하는 중에 누른 Enter는 마지막 글자를 확정하는 용도이므로 저장으로 이어지면 안 된다. 마우스
+     * 클릭은 그대로 저장한다.
+     */
     private void onSave(boolean fromKeyboard) {
         if (busy || (fromKeyboard && Ime.swallowIfComposing())) {
             return;
@@ -312,6 +317,7 @@ public class ScheduleDialog extends BaseDialog {
         }
     }
 
+    /** 순서가 이렇다: 범위를 검증보다 먼저 묻는 이유는 "이 일정만"으로 바꾸면 반복이 사라지므로, 검증을 그 범위에 맞는 규칙(반복 없음)으로 해야 하기 때문이다. */
     private void save() {
         errors.clear();
         ScheduleDraft draft = readDraft();

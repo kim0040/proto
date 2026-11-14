@@ -19,6 +19,7 @@ import java.awt.event.MouseEvent;
 /**
  * [경계 boundary] 좁은 화면에서 전체 사이드바를 본문 위에 펼치는 서랍. 왼쪽에서 미끄러지며 나타나고(200ms),
  * 바깥을 누르거나 Esc를 누르거나 항목을 고르면 닫힌다. 서랍 뒤 본문은 옅게 어두워진다.
+ * 좁은 화면에서 MainFrame이 사이드바(Sidebar)를 이 서랍에 담아 연다. 레이어드 팬의 팔레트 층에 얹혀 본문 위에 그려진다.
  */
 public final class SidebarDrawer extends JComponent {
 
@@ -107,6 +108,7 @@ public final class SidebarDrawer extends JComponent {
         repaint();
     }
 
+    /** 닫힌 동안 false를 돌려주어 마우스 클릭이 이 투명한 층을 통과해 아래 본문에 닿게 한다. */
     @Override
     public boolean contains(int x, int y) {
         return opened || open.value() > 0f;

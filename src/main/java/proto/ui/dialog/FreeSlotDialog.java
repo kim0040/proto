@@ -32,6 +32,9 @@ import java.util.List;
 
 /**
  * [경계 boundary] 빈 시간 찾기 창 (F12): 날짜·길이·시간대를 고르면 비어 있는 구간을 보여 주고, 고른 구간으로 새 일정을 연다.
+ * UiActions#openFreeSlots가 연다. 빈 구간 계산은 ScheduleController#findFreeSlots(FreeSlotFinder)가 하고 이 창은 입력과 결과 목록만 맡는다.
+ * 사용자가 [이 시간에 추가]를 누르면 chosenSlot으로 구간을 넘겨서 UiActions가 draft()로 새 일정 창을 연다 (F1과 이어진다).
+ * 날짜·길이·시간대를 바꿀 때마다 바로 다시 찾는다.
  */
 public class FreeSlotDialog extends BaseDialog {
 
@@ -151,6 +154,7 @@ public class FreeSlotDialog extends BaseDialog {
         return l == Length.CUSTOM ? (Integer) custom.getValue() : l.minutes;
     }
 
+    /** 조건이 올바르지 않으면(시작이 끝보다 늦거나 읽을 수 없는 시간) 결과 대신 안내 문장을 보여 준다. */
     private void search() {
         LocalTime f = from.time();
         LocalTime t = to.time();

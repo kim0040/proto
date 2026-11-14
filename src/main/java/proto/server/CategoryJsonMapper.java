@@ -11,12 +11,15 @@ import java.util.Map;
 /**
  * [서버 대비 — 현재 사용 안 함] 카테고리 목록과 JSON 스냅샷을 서로 바꾼다.
  * [저장소 repository] 루트는 {"categories":[{"id","name"}, ...]}이다. 이름은 앞뒤 공백을 떼고 1~20자다.
+ * SyncingCategoryStore가 서버와 주고받을 때만 쓴다. CategoryRepository의 CSV 규칙(이름 1~20자, 대소문자 무시 중복 금지)을
+ * 서버 데이터에도 똑같이 적용해서, 규칙을 어긴 카테고리가 로컬로 들어오지 않게 한다.
  */
 public final class CategoryJsonMapper {
 
     private CategoryJsonMapper() {
     }
 
+    /** 카테고리 목록 전체를 JSON 문자열 하나로 만든다. */
     public static String writeSnapshot(List<Category> categories) {
         List<Object> items = new ArrayList<>();
         for (Category category : categories) {
@@ -27,6 +30,12 @@ public final class CategoryJsonMapper {
         return JsonCodec.write(root);
     }
 
+    /**
+     * JSON 문자열을 카테고리 목록으로 읽는다. 형식이 깨졌거나 id가 비었거나 이름이 규칙에 맞지 않거나 id·이름이 겹치면 예외를 던진다.
+     *
+     * @throws JsonSyntaxException JSON 글자 구조가 깨졌을 때
+     * @throws IllegalArgumentException 값이 규칙에 맞지 않을 때
+     */
     public static List<Category> readSnapshot(String json) {
         Map<String, Object> root = JsonValues.asMap(JsonCodec.parse(json));
         List<Category> categories = new ArrayList<>();

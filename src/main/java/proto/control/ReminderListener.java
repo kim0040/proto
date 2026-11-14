@@ -4,6 +4,7 @@ import proto.entity.Occurrence;
 
 /**
  * [제어 control] 알림 시각이 된 일정을 화면에 알려 주는 리스너 (F10, F15). EDT에서 호출된다.
+ * F10, F15에서 쓴다. ReminderTimer가 알리고, 알림 카드를 띄우는 MainFrame이 구현한다.
  */
 public interface ReminderListener {
 

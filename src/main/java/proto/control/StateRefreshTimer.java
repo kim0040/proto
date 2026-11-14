@@ -10,6 +10,9 @@ import java.util.Map;
 
 /**
  * [제어 control] 1분마다 오늘 전후 일정의 상태(F6)를 다시 계산해, 바뀐 것이 있을 때만 화면에 알리는 타이머.
+ * F6(상태 자동 계산)에서 쓴다. Main이 만들어 start()한다. 상태는 저장하지 않고 시간이 지나면 저절로 바뀌므로,
+ * "언제 화면을 다시 그려야 하는지"를 이 타이머가 1분마다 확인해서 ScheduleListener#statesChanged로 알린다.
+ * 이렇게 바뀐 것이 있을 때만 알리는 이유는 매분 화면 전체를 다시 그리면 낭비이고 깜빡이기 때문이다.
  * 어제부터 7일 뒤까지의 하루치 일정을 지난번 계산과 비교한다.
  *
  * <p>모든 public 메소드는 Swing 이벤트 스레드(EDT)에서 불러야 한다 (화면이 이미 EDT에서 부른다).</p>
@@ -24,21 +27,27 @@ public class StateRefreshTimer {
     private final Timer timer = new Timer(INTERVAL_MILLIS, e -> tick());
     private Map<String, ScheduleState> previous;
 
+    /** 만들면서 지금 상태를 기준(previous)으로 기억하고, 일정이 바뀔 때마다 기준을 새로 잡는 리스너를 등록한다. */
     public StateRefreshTimer(ScheduleController controller) {
         this.controller = controller;
         this.previous = snapshot();
         controller.addListener(new Baseline());
     }
 
+    /** 1분 간격 확인을 시작한다 (javax.swing.Timer라서 확인은 항상 이벤트 스레드에서 일어난다). */
     public void start() {
         timer.start();
     }
 
+    /** 확인을 멈춘다. */
     public void stop() {
         timer.stop();
     }
 
-    /** 상태를 다시 계산해, 지난번과 달라진 일정이 있으면 statesChanged()를 알린다 (테스트에서 직접 부를 수 있음) */
+    /**
+     * 상태를 다시 계산해, 지난번과 달라진 일정이 있으면 statesChanged()를 알린다 (테스트에서 직접 부를 수 있음)
+     * 상태가 달라졌는지는 "일정 키 → 상태" 지도를 통째로 비교해서 판단한다. 비교 범위는 어제부터 7일 뒤까지(오늘 전후)이다.
+     */
     public void tick() {
         Map<String, ScheduleState> current = snapshot();
         boolean changed = !current.equals(previous);

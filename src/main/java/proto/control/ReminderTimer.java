@@ -18,6 +18,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * [제어 control] 30초마다 알림 시각이 된 일정을 찾아 리스너에 알리는 타이머 액터 역할 (F10, F15).
+ * F10(알림), F15(다시 알리기)에서 쓴다. Main이 만들어 start()하고, 화면(MainFrame)이 ReminderListener로 알림을 받으며
+ * "5분 뒤 다시"를 누르면 snooze를 부른다. 일정이 지워지거나 완료됐으면 알리지 않도록, 알리기 직전에 ScheduleController에서 최신 일정을 다시 확인한다.
+ * 알림 중복을 막는 notifiedKeys와 다시 알림 예약(snoozes)은 메모리에만 있어서 앱을 끄면 사라진다.
  * 앱을 켠 시각(생성 시각) 이전에 지난 알림은 보내지 않고, 같은 일정(같은 날짜)은 한 번만 알린다.
  * "다시 알림"(snooze)은 메모리에만 보관한다.
  *
@@ -42,12 +45,19 @@ public class ReminderTimer {
     private final List<ReminderListener> listeners = new CopyOnWriteArrayList<>();
     private boolean checking;
 
+    /**
+     * 앱을 켠 시각(appStartedAt)을 지금 시각으로 기억한다. 이 시각 이전에 지난 알림은 보내지 않는다.
+     *
+     * @param controller 일정을 조회하는 데 쓴다
+     * @param clock      지금 시각을 얻는 시계 (시험에서 바꿔 끼운다)
+     */
     public ReminderTimer(ScheduleController controller, Clock clock) {
         this.controller = controller;
         this.clock = clock;
         this.appStartedAt = LocalDateTime.now(clock);
     }
 
+    /** 알림을 받으려고 자신을 등록한다 (MainFrame 등). */
     public void addListener(ReminderListener listener) {
         listeners.add(listener);
     }
@@ -57,11 +67,12 @@ public class ReminderTimer {
         listeners.remove(listener);
     }
 
-    /** 30초 간격 확인 시작 (javax.swing.Timer) */
+    /** 30초 간격 확인을 시작한다 (javax.swing.Timer라서 확인은 항상 이벤트 스레드에서 일어난다). */
     public void start() {
         timer.start();
     }
 
+    /** 확인을 멈춘다. 예약된 다시 알림은 그대로 남는다. */
     public void stop() {
         timer.stop();
     }
@@ -84,7 +95,7 @@ public class ReminderTimer {
         }
     }
 
-    /** 최신 알림 시각이 지금 맞은 일정만 키를 찍고 리스너를 부른다 */
+    /** 찾은 일정은 알리기 직전에 최신 값으로 한 번 더 확인한다 (fireFresh). 다시 알림 예약처럼 오래된 스냅샷을 들고 있는 경우에도 같은 길을 쓰기 위해서이다. */
     private void remindDue(LocalDateTime now) {
         LocalDate today = now.toLocalDate();
         // 내일 일정도 본다: 00:10 일정의 30분 전 알림은 전날 23:40이다
@@ -119,7 +130,7 @@ public class ReminderTimer {
         return !remindAt.isBefore(appStartedAt) && !remindAt.isAfter(now);
     }
 
-    /** 처음 알림은 키를 찍은 뒤에 보낸다. 다시 알림은 예약에서 이미 빠졌다 */
+    /** 처음 알림은 키를 먼저 찍고 알린다. 다시 알림은 예약에서 이미 빠졌으므로 키를 찍지 않는다. 알림이 이벤트 스레드로 미뤄지는 사이에 다음 확인이 와도 같은 알림이 두 번 나가지 않게 하기 위해서이다. */
     private void deliver(Occurrence occurrence, boolean snoozed) {
         if (!snoozed) {
             notifiedKeys.add(occurrence.key());
@@ -127,7 +138,12 @@ public class ReminderTimer {
         fire(occurrence, snoozed);
     }
 
-    /** F15: minutes분 뒤에 이 일정을 한 번 더 알린다 (메모리에만 보관). 없거나 완료됐으면 거절한다 */
+    /**
+     * F15: minutes분 뒤에 이 일정을 한 번 더 알린다 (메모리에만 보관). 없거나 완료됐으면 거절한다.
+     * 예약은 key(일정id@날짜)별로 하나뿐이라 같은 일정을 다시 누르면 시각이 덮어써진다.
+     *
+     * @return 성공이면 ok(), 분이 1~60 밖이거나 일정이 이미 없거나 완료됐으면 실패
+     */
     public OperationResult snooze(Occurrence occurrence, int minutes) {
         if (minutes < MIN_SNOOZE_MINUTES || minutes > MAX_SNOOZE_MINUTES) {
             return OperationResult.fail("다시 알림은 " + MIN_SNOOZE_MINUTES + "분에서 "
@@ -148,7 +164,10 @@ public class ReminderTimer {
                 .isEmpty();
     }
 
-    /** 시각이 된 다시 알림을 예약에서 모두 뺀 뒤 한 번씩 알린다. 완료·삭제된 일정은 조용히 버린다 */
+    /**
+     * 시각이 된 다시 알림을 예약에서 모두 뺀 뒤 한 번씩 알린다. 완료·삭제된 일정은 조용히 버린다.
+     * 순서가 중요하다: 먼저 예약에서 다 뺀 뒤에 알린다. 알리는 도중 리스너가 snooze를 다시 불러도(같은 키) 방금 넣은 새 예약이 지워지지 않는다.
+     */
     private void fireDueSnoozes(LocalDateTime now) {
         List<Snooze> due = new ArrayList<>();
         for (Snooze s : snoozes.values()) {

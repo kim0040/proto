@@ -2,6 +2,8 @@ package proto.ui.layout;
 
 /**
  * [경계 boundary] 창 본문 크기를 논리 px 기준으로 나눈 크기 등급. 너비 3단계와 세로 모양(세로로 긴 화면, 낮은 화면)을 함께 담는다.
+ * Breakpoints가 계산해서 UiContext를 통해 MainFrame, 사이드바, 모든 보기에 나눠 준다. 보기마다 "넓으면 이렇게, 좁으면 저렇게"를 따로 정하지 않고 이 값 하나(여백, 사이드바
+ * 너비 등)를 따른다.
  *
  * @param width        너비 등급
  * @param tall         세로로 긴 화면 (높이 &gt; 너비 × 0.9)

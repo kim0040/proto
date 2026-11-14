@@ -24,6 +24,7 @@ import java.util.List;
 
 /**
  * [경계 boundary] 이번 주 보기의 작은 일정 칩: 카테고리 점 + 시간(상태는 글자색과 짧은 말), 아래에 제목 최대 2줄.
+ * WeekView가 하루 칸마다 일정 수만큼 만든다 (F2, F6). 상태는 RowHandler#stateOf로 받아 글자색과 짧은 말("지연", "진행", "완료")로만 나타낸다.
  */
 public class WeekChip extends JComponent {
 
@@ -152,6 +153,7 @@ public class WeekChip extends JComponent {
         g2.dispose();
     }
 
+    /** 제목을 최대 2줄까지 그린다. 완료한 일정은 흐린 색에 취소선을 긋는다. */
     private void paintTitle(Graphics2D g2, int x, int y, boolean done) {
         g2.setFont(Fonts.medium(Fonts.SMALL));
         FontMetrics fm = g2.getFontMetrics();

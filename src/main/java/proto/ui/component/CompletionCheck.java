@@ -22,6 +22,8 @@ import java.util.List;
 
 /**
  * [경계 boundary] 완료 처리(F5)용 동그란 체크박스. 체크하면 색이 차오르며 살짝 커졌다 돌아온다.
+ * OccurrenceRow가 일정 줄 앞에 둔다. 눌리면 리스너를 부를 뿐 완료 처리는 직접 하지 않는다. OccurrenceRow가 RowHandler#toggleDone으로 controller에 요청하고,
+ * 그 결과로 목록이 다시 그려질 때 setChecked로 모양이 바뀐다 ("화면은 요청만, 상태는 controller가 가진다").
  */
 public class CompletionCheck extends JComponent {
 
@@ -115,6 +117,7 @@ public class CompletionCheck extends JComponent {
         Graphics2D g2 = (Graphics2D) g.create();
         Ui.smooth(g2);
         float d = Ui.px(SIZE - 4);
+        // 체크할 때 살짝 커졌다 돌아오는 "톡" 효과: pulse가 0→1로 가는 동안 sin이 0→1→0이라 크기가 100%→116%→100%가 된다.
         float scale = 1f + 0.16f * (float) Math.sin(Math.PI * pulse.value());
         float cx = getWidth() / 2f;
         float cy = getHeight() / 2f;

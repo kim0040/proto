@@ -6,6 +6,7 @@ import java.awt.Color;
 
 /**
  * [경계 boundary] 색 하나를 다른 색으로 부드럽게 바꾸는 도우미 (상태 알약 색 전환 등).
+ * StatePill처럼 색이 바뀌는 컴포넌트가 쓴다. 숫자를 움직이는 Tween과 같은 방식이다.
  */
 public final class ColorTween {
 
@@ -38,7 +39,7 @@ public final class ColorTween {
         progress = 1f;
     }
 
-    /** 지금 보이는 색에서 c로 durationMs 동안 바뀐다 */
+    /** 지금 보이는 색에서 c로 durationMs 동안 바뀐다. 이미 같은 색이 목표면 아무것도 하지 않고, 진행 중이었어도 지금 보이는 색에서 이어서 시작해 색이 튀지 않는다. */
     public void to(Color c, int durationMs) {
         if (c.equals(to)) {
             return;

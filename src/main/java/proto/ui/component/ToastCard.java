@@ -14,6 +14,7 @@ import java.awt.FlowLayout;
 
 /**
  * [경계 boundary] 짧은 확인 알림 한 장("일정을 저장했어요"). 오류 알림은 닫기 버튼이 있고 계속 남는다.
+ * Overlay가 UiActions#toast, #error, #storageError 요청마다 만든다 (F1, F3~F5, F11 결과 알림). 오류 토스트는 사용자가 닫을 때까지 남는다.
  */
 public class ToastCard extends FloatingCard {
 
