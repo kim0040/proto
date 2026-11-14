@@ -44,7 +44,8 @@ import java.util.List;
 public class SettingsView implements ContentView {
 
     private static final int MAX_WIDTH = 720;
-    private static final String VERSION = "0.1.0";
+    /** 묶여 나온 jar의 매니페스트(Implementation-Version)에서 읽는다. gradle run·테스트처럼 jar가 아니면 "개발판" */
+    private static final String VERSION = versionText();
 
     private final UiContext ctx;
     private final JScrollPane root;
@@ -175,8 +176,13 @@ public class SettingsView implements ContentView {
         return p;
     }
 
+    private static String versionText() {
+        String version = SettingsView.class.getPackage().getImplementationVersion();
+        return version == null || version.isBlank() ? "개발판" : version;
+    }
+
     private JPanel dataRow() {
-        Path dir = Path.of("data").toAbsolutePath();
+        Path dir = ctx.dataDir().toAbsolutePath();
         PathLabel path = new PathLabel(dir.toString());
         JButton open = Buttons.secondary("폴더 열기");
         open.setEnabled(Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN));
@@ -206,7 +212,7 @@ public class SettingsView implements ContentView {
         text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
         text.add(new TokenLabel("일정 관리", Fonts.semibold(Fonts.LEAD), Tokens.TEXT));
         text.add(Box.createVerticalStrut(Ui.px(2)));
-        text.add(new TokenLabel("버전 " + VERSION, Fonts.regular(Fonts.SMALL), Tokens.MUTED));
+        text.add(new TokenLabel(VERSION.equals("개발판") ? "개발판" : "버전 " + VERSION, Fonts.regular(Fonts.SMALL), Tokens.MUTED));
         JPanel center = new JPanel(new GridBagLayout());
         center.setOpaque(false);
         java.awt.GridBagConstraints at = new java.awt.GridBagConstraints();

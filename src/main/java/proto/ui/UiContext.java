@@ -8,6 +8,7 @@ import proto.ui.layout.Breakpoints;
 import proto.ui.layout.SizeClass;
 
 import java.awt.Window;
+import java.nio.file.Path;
 import java.util.function.Supplier;
 
 /**
@@ -18,6 +19,7 @@ public final class UiContext {
     private final ScheduleController schedules;
     private final CategoryController categories;
     private final ReminderTimer reminders;
+    private final Path dataDir;
     private final AppState state;
     private Overlay overlay = new Overlay();
     private Supplier<Window> window = () -> null;
@@ -25,7 +27,9 @@ public final class UiContext {
     private Runnable refresher = () -> { };
     private UiActions actions;
 
-    public UiContext(ScheduleController schedules, CategoryController categories, ReminderTimer reminders) {
+    public UiContext(ScheduleController schedules, CategoryController categories, ReminderTimer reminders,
+                     Path dataDir) {
+        this.dataDir = dataDir;
         this.schedules = schedules;
         this.categories = categories;
         this.reminders = reminders;
@@ -43,6 +47,11 @@ public final class UiContext {
 
     public ReminderTimer reminders() {
         return reminders;
+    }
+
+    /** 데이터가 저장되는 폴더 (설정 화면이 보여 주고 연다) */
+    public Path dataDir() {
+        return dataDir;
     }
 
     public AppState state() {

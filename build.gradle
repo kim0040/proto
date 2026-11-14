@@ -3,7 +3,8 @@ plugins {
 }
 
 group = 'proto'
-version = '0.1.0'
+// 앱 버전의 유일한 출처. 묶음 파일 이름·설치 파일·설정 화면의 버전 표시가 모두 이 값을 따른다 (macOS는 첫 숫자가 1 이상이어야 함)
+version = '1.0.0'
 
 repositories {
     mavenCentral()
@@ -55,3 +56,15 @@ tasks.register('screenshots', JavaExec) {
     args = [layout.projectDirectory.dir('screenshots').asFile.path]
     jvmArgs '-Dfile.encoding=UTF-8', '-Dapple.awt.application.appearance=system', '--enable-native-access=ALL-UNNAMED'
 }
+
+// jar 매니페스트에 버전을 넣는다: 설정 화면이 Implementation-Version으로 읽는다 (gradle run·테스트처럼 jar가 아니면 "개발판")
+tasks.named('jar') {
+    manifest {
+        attributes 'Implementation-Title': 'ScheduleApp', 'Implementation-Version': project.version
+    }
+}
+
+// ───────────── 네이티브 앱 묶음 (jpackage) ─────────────
+// 서드파티 플러그인 없이, 빌드를 돌리는 JDK의 jpackage·jlink·jdeps를 그대로 쓴다.
+// 다른 JDK로 묶으려면 -PpackagingJdk=<JDK 경로>. 결과물: build/jpackage(중간), build/dist(최종)
+apply from: 'packaging/packaging.gradle'
