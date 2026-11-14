@@ -64,7 +64,7 @@ tasks.register('jpackageImage', Exec) {
                     '--input', installLibDir.get().asFile.path, '--main-jar', mainJarName.get(),
                     '--main-class', appMainClass.get(), '--name', appName,
                     '--app-version', appVersion, '--vendor', vendorName,
-                    '--description', '일정 관리 데스크톱 앱', '--icon', iconFile.path,
+                    '--description', 'Schedule manager desktop app', '--icon', iconFile.path,
                     '--add-modules', runtimeModules(),
                     '--jlink-options', '--strip-debug --no-header-files --no-man-pages --compress=zip-6']
         appJvmArgs.each { args += ['--java-options', it] }
@@ -129,7 +129,7 @@ tasks.register('jpackageInstaller', Exec) {
         def args = [jdkTool('jpackage'), '--type', type, '--dest', installerDir.get().asFile.path,
                     '--app-image', appImagePath.get().path, '--name', appName,
                     '--app-version', appVersion, '--vendor', vendorName,
-                    '--description', '일정 관리 데스크톱 앱', '--icon', iconFile.path]
+                    '--description', 'Schedule manager desktop app', '--icon', iconFile.path]
         if (isMac) {
             args += ['--mac-package-identifier', macIdentifier, '--mac-package-name', macDisplayName]
         } else {
