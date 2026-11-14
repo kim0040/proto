@@ -26,6 +26,7 @@ public final class FakeApiServer implements AutoCloseable {
     });
     private final Map<String, byte[]> bodies = new ConcurrentHashMap<>();
     private final Map<String, Integer> putStatuses = new ConcurrentHashMap<>();
+    private final Map<String, byte[]> putBodies = new ConcurrentHashMap<>();
     private volatile long stallMillis;
     public final AtomicInteger puts = new AtomicInteger();
 
@@ -59,6 +60,12 @@ public final class FakeApiServer implements AutoCloseable {
         return this;
     }
 
+    /** PUT에 200과 이 본문으로 답한다 (클라이언트가 쓰지 않는 응답 본문 테스트) */
+    public FakeApiServer putBody(String path, byte[] body) {
+        putBodies.put(path, body);
+        return this;
+    }
+
     /** GET 본문의 첫 바이트만 보내고 이만큼 멈춘다 (본문 수신 제한 시간 테스트) */
     public FakeApiServer stallBodyFor(long millis) {
         stallMillis = millis;
@@ -79,6 +86,10 @@ public final class FakeApiServer implements AutoCloseable {
             exchange.getRequestBody().readAllBytes();
             if ("PUT".equals(exchange.getRequestMethod())) {
                 puts.incrementAndGet();
+                if (putBodies.containsKey(path)) {
+                    sendBody(exchange, putBodies.get(path));
+                    return;
+                }
                 exchange.sendResponseHeaders(putStatuses.getOrDefault(path, 204), -1);
                 return;
             }

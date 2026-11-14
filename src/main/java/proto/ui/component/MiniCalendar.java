@@ -101,6 +101,11 @@ public class MiniCalendar extends JPanel {
             setFocusable(true);
             Listeners.repaintOnFocus(this);
             bindKeys();
+            bindMouse();
+        }
+
+        /** 누르면 그 날짜를 고르고, 마우스가 올라간 칸은 강조한다 (메서드 30줄 규칙 때문에 생성자에서 나눔) */
+        private void bindMouse() {
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {

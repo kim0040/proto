@@ -53,11 +53,12 @@ public final class RemoteApiClient {
      * @throws RemoteApiException 연결 실패, 제한 시간 초과, 2xx가 아닌 응답, 5MB 초과, UTF-8이 아닌 본문일 때
      */
     public String get(String path) throws RemoteApiException {
-        return send(path, null);
+        return decodeStrictly(send(path, null).body());
     }
 
     /**
      * 서버에 JSON을 통째로 올린다 (PUT). 본문은 UTF-8 JSON이고, 2xx면 응답 본문을 버리고 성공으로 본다.
+     * 응답 본문은 쓰지 않으므로 읽지도, UTF-8 검사도 하지 않는다 (서버가 이미 저장했는데 실패로 보는 일을 막는다).
      *
      * @throws RemoteApiException 연결 실패, 제한 시간 초과, 2xx가 아닌 응답일 때
      */
@@ -69,9 +70,10 @@ public final class RemoteApiClient {
      * 요청을 비동기로 보내고 정해진 시간까지만 기다린다. 왜 sendAsync + get(시간)인가: 요청 자체의 timeout은 응답 헤더까지만 보장하기 때문에,
      * 본문을 다 받을 때까지의 전체 시간을 따로 제한하려는 것이다.
      */
-    private String send(String path, String json) throws RemoteApiException {
+    private HttpResponse<byte[]> send(String path, String json) throws RemoteApiException {
         HttpRequest request = request(path, json);
-        CompletableFuture<HttpResponse<byte[]>> future = http.sendAsync(request, RemoteApiClient::bodyHandler);
+        boolean wantBody = json == null;
+        CompletableFuture<HttpResponse<byte[]>> future = http.sendAsync(request, info -> bodyHandler(info, wantBody));
         try {
             return requireSuccess(future.get(settings.timeoutSeconds(), TimeUnit.SECONDS));
         } catch (TimeoutException e) {
@@ -82,15 +84,20 @@ public final class RemoteApiClient {
         } catch (InterruptedException e) {
             future.cancel(true);
             Thread.currentThread().interrupt();
-            throw new RemoteApiException("서버 요청이 중단됐어요", e);
+            throw new RemoteApiException("서버 요청이 중단됐어요");
         }
     }
 
+    /**
+     * 원래 예외는 원인(cause)으로 붙이지 않는다. 이상한 서버가 토큰을 응답에 되돌려 보내면
+     * 그 내용이 원래 예외의 메시지에 들어가 스택 추적으로 새어 나갈 수 있기 때문이다. 예외 종류 이름만 남긴다.
+     */
     private static RemoteApiException failure(Throwable cause) {
         if (cause instanceof LimitedBodySubscriber.TooLargeException) {
             return new RemoteApiException("서버 응답이 너무 커서 받지 않았어요");
         }
-        return new RemoteApiException("서버에 연결하지 못했어요", cause);
+        String kind = cause == null ? "알 수 없음" : cause.getClass().getSimpleName();
+        return new RemoteApiException("서버에 연결하지 못했어요 (" + kind + ")");
     }
 
     /** 토큰이 든 예외 원인을 남기지 않으려고, 요청을 만들다 난 오류는 원인 없이 새 예외로 바꾼다 */
@@ -110,20 +117,20 @@ public final class RemoteApiClient {
         }
     }
 
-    /** 오류 응답(2xx가 아님)은 본문을 읽지 않고 버린다. 필요 없는 큰 본문을 받느라 시간을 쓰지 않기 위해서이다. */
-    private static HttpResponse.BodySubscriber<byte[]> bodyHandler(HttpResponse.ResponseInfo info) {
-        if (info.statusCode() < 200 || info.statusCode() >= 300) {
+    /** 오류 응답(2xx가 아님)과 PUT 응답은 본문을 읽지 않고 버린다. 필요 없는 큰 본문을 받느라 시간을 쓰지 않기 위해서이다. */
+    private static HttpResponse.BodySubscriber<byte[]> bodyHandler(HttpResponse.ResponseInfo info, boolean wantBody) {
+        if (!wantBody || info.statusCode() < 200 || info.statusCode() >= 300) {
             return HttpResponse.BodySubscribers.replacing(new byte[0]);
         }
         return new LimitedBodySubscriber(MAX_BODY_BYTES);
     }
 
-    private static String requireSuccess(HttpResponse<byte[]> response) throws RemoteApiException {
+    private static HttpResponse<byte[]> requireSuccess(HttpResponse<byte[]> response) throws RemoteApiException {
         int status = response.statusCode();
         if (status < 200 || status >= 300) {
             throw new RemoteApiException("서버가 오류로 답했어요 (HTTP " + status + ")");
         }
-        return decodeStrictly(response.body());
+        return response;
     }
 
     /** 깨진 UTF-8을 U+FFFD로 바꿔 받지 않고 거절한다 */

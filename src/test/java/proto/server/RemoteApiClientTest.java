@@ -3,8 +3,13 @@ package proto.server;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
@@ -75,6 +80,42 @@ class RemoteApiClientTest {
         assertNull(e.getCause());
         for (Throwable t = e; t != null; t = t.getCause()) {
             assertTrue(t.getMessage() == null || !t.getMessage().contains("SECRET"));
+        }
+    }
+
+    @Test
+    void putIgnoresUnusedResponseBodyEvenIfNotUtf8() throws Exception {
+        try (FakeApiServer api = FakeApiServer.start().putBody("/p", new byte[] {(byte) 0xFF})) {
+            api.client(dir, "t", 2).put("/p", "{}");
+            assertEquals(1, api.puts.get());
+        }
+    }
+
+    @Test
+    void transportFailureNeverKeepsTheReflectedToken() throws Exception {
+        try (ServerSocket raw = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+            Thread echo = new Thread(() -> reflectTokenAsStatusLine(raw));
+            echo.start();
+            Path props = dir.resolve("server.properties");
+            Files.writeString(props, "enabled=true\nbaseUrl=http://127.0.0.1:" + raw.getLocalPort()
+                    + "\ntoken=probe-SECRET-42\ntimeoutSeconds=2\n", StandardCharsets.UTF_8);
+            RemoteApiClient client = new RemoteApiClient(ServerSettings.load(props));
+            RemoteApiException e = assertThrows(RemoteApiException.class, () -> client.get("/x"));
+            echo.join(3000);
+            assertNull(e.getCause());
+            assertEquals(0, e.getSuppressed().length);
+            assertTrue(!e.toString().contains("SECRET"));
+        }
+    }
+
+    /** 잘못된 서버 흉내: 받은 토큰을 HTTP 상태 줄 자리에 그대로 되돌려 보낸다 */
+    private static void reflectTokenAsStatusLine(ServerSocket raw) {
+        try (Socket s = raw.accept()) {
+            s.getInputStream().read(new byte[4096]);
+            s.getOutputStream().write("probe-SECRET-42\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
+            s.getOutputStream().flush();
+        } catch (IOException ignored) {
+            // 테스트 서버의 연결 오류는 클라이언트 쪽 단언으로 확인한다
         }
     }
 
