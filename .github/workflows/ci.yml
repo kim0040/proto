@@ -23,16 +23,17 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: JDK 21 준비
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
 
+      # v6부터는 캐시 기능이 별도 상용 라이선스(Gradle 이용 약관)라서, MIT 라이선스인 v5를 쓴다
       - name: Gradle 캐시
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
 
       # 테스트는 headless 모드로 돌도록 build.gradle에 이미 설정되어 있다 (화면 없는 ubuntu에서도 된다)
       - name: 테스트

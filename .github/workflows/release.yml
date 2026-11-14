@@ -19,7 +19,7 @@ jobs:
     name: 확인 (태그·테스트)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # 태그(v1.0.0)와 build.gradle의 version('1.0.0')이 같아야 한다. 다르면 여기서 멈춘다
       - name: 태그와 버전 맞는지 확인
@@ -37,12 +37,13 @@ jobs:
           fi
           echo "태그 $GITHUB_REF_NAME 와 버전 $GRADLE_VERSION 이 맞아요."
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
 
-      - uses: gradle/actions/setup-gradle@v4
+      # v6부터는 캐시 기능이 별도 상용 라이선스(Gradle 이용 약관)라서, MIT 라이선스인 v5를 쓴다
+      - uses: gradle/actions/setup-gradle@v5
 
       - name: 테스트
         run: ./gradlew test --no-daemon
@@ -57,14 +58,15 @@ jobs:
         # macos-latest는 Apple Silicon(arm64)이다 → macOS 앱도 arm64 전용이 된다
         os: [windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
 
-      - uses: gradle/actions/setup-gradle@v4
+      # v6부터는 캐시 기능이 별도 상용 라이선스(Gradle 이용 약관)라서, MIT 라이선스인 v5를 쓴다
+      - uses: gradle/actions/setup-gradle@v5
 
       # Windows 설치 파일(msi)에는 WiX 3가 필요하다. 러너에 깔려 있으면 길만 잡아 주고, 없으면 설치한다
       - name: WiX 준비 (Windows)
@@ -93,7 +95,7 @@ jobs:
         shell: bash
         run: ls -l build/dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ScheduleApp-${{ runner.os }}
           path: build/dist/*
@@ -108,9 +110,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           pattern: ScheduleApp-*
