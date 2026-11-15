@@ -18,22 +18,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # 사용자는 irm ... | iex 로 실행하므로, 파일 내용을 문자열로 읽어 iex에 넘기는 방식 그대로 확인한다
+      # 사용자는 irm ... | iex 로 실행하므로, 파일 내용을 문자열로 읽어 iex에 넘기는 방식 그대로 확인한다.
+      # Windows PowerShell 5.1은 이 단계의 스크립트를 ANSI로 읽어 한글이 깨지므로, 아래 run에는 한글을 쓰지 않는다
+      # (바로 가기 이름은 환경 변수로 넘긴다. 환경 변수는 유니코드로 전달된다)
       - name: 설치, 업데이트, 지우기
         shell: powershell
         env:
           SCHEDULEAPP_INSTALL_DIR: ${{ runner.temp }}\apps\ScheduleApp
           SCHEDULEAPP_NO_OPEN: '1'
+          SHORTCUT_NAME: 일정 관리
         run: |
           Get-Content -Raw -Encoding UTF8 scripts/install-windows.ps1 | Invoke-Expression
           Get-Content -Raw -Encoding UTF8 scripts/install-windows.ps1 | Invoke-Expression
-          if (-not (Test-Path "$env:SCHEDULEAPP_INSTALL_DIR\ScheduleApp.exe")) { throw '설치된 exe가 없어요' }
-          $link = Join-Path ([Environment]::GetFolderPath('Programs')) '일정 관리.lnk'
-          if (-not (Test-Path -LiteralPath $link)) { throw '시작 메뉴 바로 가기가 없어요' }
+          if (-not (Test-Path "$env:SCHEDULEAPP_INSTALL_DIR\ScheduleApp.exe")) { throw 'installed exe is missing' }
+          $link = Join-Path ([Environment]::GetFolderPath('Programs')) "$env:SHORTCUT_NAME.lnk"
+          if (-not (Test-Path -LiteralPath $link)) { throw "Start menu shortcut is missing: $link" }
           $env:SCHEDULEAPP_UNINSTALL = '1'
           Get-Content -Raw -Encoding UTF8 scripts/install-windows.ps1 | Invoke-Expression
-          if (Test-Path $env:SCHEDULEAPP_INSTALL_DIR) { throw '지우기가 되지 않았어요' }
-          if (Test-Path -LiteralPath $link) { throw '바로 가기가 지워지지 않았어요' }
+          if (Test-Path $env:SCHEDULEAPP_INSTALL_DIR) { throw 'uninstall left the app folder' }
+          if (Test-Path -LiteralPath $link) { throw 'uninstall left the shortcut' }
 
   mac:
     name: Mac 설치·업데이트
@@ -50,4 +53,8 @@ jobs:
           bash scripts/install-mac.sh < /dev/null
           bash scripts/install-mac.sh < /dev/null
           codesign --verify --deep --strict "$INSTALL_DIR/ScheduleApp.app"
-          test -z "$(ls -A "$INSTALL_DIR" | grep -v '^ScheduleApp.app$')"
+          # 업데이트 뒤 임시 폴더(.ScheduleApp.app.new/.old)가 남지 않았는지
+          for f in "$INSTALL_DIR"/.[!.]* "$INSTALL_DIR"/*; do
+            [ -e "$f" ] && [ "$(basename "$f")" != ScheduleApp.app ] && { echo "left over: $f"; exit 1; }
+          done
+          true

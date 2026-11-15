@@ -164,7 +164,8 @@ jobs:
           bash scripts/install-mac.sh < /dev/null
           codesign --verify --deep --strict "$INSTALL_DIR/ScheduleApp.app"
 
-      # 사용자는 irm ... | iex 로 실행하므로, 파일 내용을 문자열로 읽어 iex에 넘기는 방식 그대로 확인한다
+      # 사용자는 irm ... | iex 로 실행하므로, 파일 내용을 문자열로 읽어 iex에 넘기는 방식 그대로 확인한다.
+      # Windows PowerShell 5.1은 이 단계의 스크립트를 ANSI로 읽어 한글이 깨지므로 run에는 한글을 쓰지 않는다
       - name: Windows 설치·지우기 스크립트
         if: runner.os == 'Windows'
         shell: powershell
@@ -176,7 +177,7 @@ jobs:
           Get-Content -Raw -Encoding UTF8 scripts/install-windows.ps1 | Invoke-Expression
           # 두 번째 실행은 업데이트(예전 앱과 바꿔치기) 경로를 확인한다
           Get-Content -Raw -Encoding UTF8 scripts/install-windows.ps1 | Invoke-Expression
-          if (-not (Test-Path "$env:SCHEDULEAPP_INSTALL_DIR\ScheduleApp.exe")) { throw '설치된 exe가 없어요' }
+          if (-not (Test-Path "$env:SCHEDULEAPP_INSTALL_DIR\ScheduleApp.exe")) { throw 'installed exe is missing' }
           $env:SCHEDULEAPP_UNINSTALL = '1'
           Get-Content -Raw -Encoding UTF8 scripts/install-windows.ps1 | Invoke-Expression
-          if (Test-Path $env:SCHEDULEAPP_INSTALL_DIR) { throw '지우기가 되지 않았어요' }
+          if (Test-Path $env:SCHEDULEAPP_INSTALL_DIR) { throw 'uninstall left the app folder' }
