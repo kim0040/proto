@@ -84,7 +84,8 @@ class TweenTest {
         }
         // 값은 흐른 시간으로 정해지므로, 테스트를 여럿 함께 돌려 CPU가 바쁘면 프레임 사이가 벌어져 한 걸음이 커진다.
         // 목표를 바꾼 순간에 튀지 않는지는 위의 atCut 비교가 확인하고, 여기서는 "통째로 건너뛰지 않음"만 넉넉하게 본다.
-        assertTrue(maxStep < 0.5f, "한 프레임에 크게 뛰었다: " + maxStep);
+        // 느린 CI 러너(macOS)에서는 프레임 사이가 100ms 넘게 벌어져 0.6쯤 뛰기도 했다. 여기서는 "끝까지 한 번에 건너뛰지 않음"만 본다
+        assertTrue(maxStep < 0.9f, "한 프레임에 크게 뛰었다: " + maxStep);
         assertTrue(max <= 1f && min >= 0f, "범위를 넘었다: " + min + " ~ " + max);
     }
 

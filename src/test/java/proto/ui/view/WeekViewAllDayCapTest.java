@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static proto.TestData.d;
 import static proto.TestData.t;
 
-/** 펼친 하루 종일 줄이 아무리 길어도 시간 본문이 보이고, 줄 안에서 스크롤해 마지막 칩까지 볼 수 있는지 (900×600, 하루에 40개) */
+/** 펼친 하루 종일 줄이 아무리 길어도 시간 본문이 보이고, 줄 안에서 스크롤해 마지막 칩까지 볼 수 있는지 (1600×600, 하루에 40개) */
 class WeekViewAllDayCapTest {
 
     private UiContext ctx;
@@ -90,7 +90,8 @@ class WeekViewAllDayCapTest {
     void 사십_개를_펼쳐도_시간_본문이_남고_줄_안에서_마지막_칩까지_스크롤된다() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             WeekView view = new WeekView(ctx);
-            view.component().setSize(900, 600);
+            // 너비가 좁으면 (운영체제마다 글자 폭·배율이 달라) 시간표 대신 날짜별 목록 모양이 골라질 수 있어 넉넉히 넓힌다
+            view.component().setSize(1600, 600);
             view.refresh(false);
             layoutTree(view.component());
             AllDayRow row = find(view.component(), AllDayRow.class);

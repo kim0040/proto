@@ -42,7 +42,8 @@ class ScrollChaseTest {
         SwingUtilities.invokeAndWait(() -> chase.push(50));
         Thread.sleep(500);
         assertEquals(50, bar.getValue());
-        assertTrue(seen.size() > 5, "여러 걸음으로 갔다: " + seen.size());
+        // 걸음 수는 타이머가 실제로 몇 번 돌았는지에 달려 있어 느린 CI 러너에서는 적다. "한 번에 뛰지 않았다"(2걸음 넘게)만 본다
+        assertTrue(seen.size() > 2, "여러 걸음으로 갔다: " + seen.size());
         for (int i = 1; i < seen.size(); i++) {
             assertTrue(seen.get(i) >= seen.get(i - 1), "되돌아가지 않는다");
             assertTrue(seen.get(i) <= 50, "목표를 넘지 않는다");
