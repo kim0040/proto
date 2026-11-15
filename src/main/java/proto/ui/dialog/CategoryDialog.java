@@ -5,7 +5,8 @@ import proto.control.OperationResult;
 import proto.entity.Category;
 import proto.ui.UiContext;
 import proto.ui.component.Buttons;
-import proto.ui.component.CategoryDot;
+import proto.ui.component.ColorChip;
+import proto.ui.component.ColorSwatchPopover;
 import proto.ui.component.Ime;
 import proto.ui.component.ScrollPanel;
 import proto.ui.component.TextUtil;
@@ -30,12 +31,17 @@ import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 
 /**
- * [경계 boundary] 카테고리 관리 창 (F7): 이름 바로 고치기, 삭제(개인은 불가), 추가.
+ * [경계 boundary] 카테고리 관리 창 (F7): 이름 바로 고치기, 색 고르기, 삭제(개인은 불가), 추가.
  * UiActions#openCategories가 연다 (F7). 카테고리 변경은 CategoryController에 요청하고, 결과는 CategoryListener(categoriesChanged)로 돌아와
  * 목록을 다시 만든다.
+ * 줄 앞의 색 칩을 누르면 12색 팝오버(ColorSwatchPopover)가 열리고, 고르는 즉시 CategoryController#setColor로 저장되어 시간표·사이드바 등 모든 화면에 반영된다.
  * "개인" 카테고리는 삭제 버튼이 꺼져 있다 (CategoryController#canDelete). 이름 검사 규칙은 화면이 아니라 controller가 가진다.
+ * 새 이름 칸이 비어 있고 고치는 중인 이름이 없으면 바깥 클릭·Esc로 닫힌다. 카테고리 삭제는 되돌릴 수 없어서 따로 확인을 받는다.
  */
 public class CategoryDialog extends BaseDialog implements CategoryListener {
+
+    /** 이름 칸에 원래 이름을 붙여 두는 키 (고치는 중인지 알아보려고) */
+    private static final String ORIGINAL = "proto.originalName";
 
     private final UiContext ctx;
     private final ScrollPanel rows = new ScrollPanel(null);
@@ -51,12 +57,46 @@ public class CategoryDialog extends BaseDialog implements CategoryListener {
         setBody(buildBody(), 28);
         rebuildRows();
         ctx.categories().addListener(this);
-        addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override
-            public void windowClosed(java.awt.event.WindowEvent e) {
-                ctx.categories().removeListener(CategoryDialog.this);
-            }
-        });
+        setInitialFocus(addField);
+    }
+
+    @Override
+    protected void onClosed() {
+        ctx.categories().removeListener(this);
+    }
+
+    /** 바깥 클릭: 새 이름을 쓰는 중이거나 이름을 고치는 중이면 닫지 않고 흔들어 알린다 */
+    @Override
+    protected void onScrimClick() {
+        Ime.commitFocused();
+        if (addField.getText().isBlank() && renaming() == null) {
+            onCancel();
+        } else {
+            shake();
+        }
+    }
+
+    /** Esc: 고치던 이름은 원래대로, 쓰던 새 이름은 지운다. 둘 다 없을 때 닫는다 */
+    @Override
+    protected void onEscape() {
+        JTextField field = renaming();
+        if (field != null) {
+            field.setText((String) field.getClientProperty(ORIGINAL));
+        } else if (!addField.getText().isEmpty()) {
+            addField.setText("");
+        } else {
+            onCancel();
+        }
+    }
+
+    /** 이름을 고치는 중인 칸 (포커스가 있고 원래 이름과 다른 칸). 없으면 null */
+    private JTextField renaming() {
+        java.awt.Component f = java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+        if (f instanceof JTextField t && t.getClientProperty(ORIGINAL) instanceof String original
+                && !t.getText().strip().equals(original)) {
+            return t;
+        }
+        return null;
     }
 
     private JPanel buildBody() {
@@ -99,7 +139,7 @@ public class CategoryDialog extends BaseDialog implements CategoryListener {
     private JPanel closeRow() {
         JButton close = Buttons.primary("닫기");
         close.addActionListener(e -> close(false));
-        getRootPane().setDefaultButton(null);
+        setDefaultButton(null);
         JPanel p = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         p.setOpaque(false);
         p.setBorder(BorderFactory.createEmptyBorder(Ui.px(6), 0, 0, 0));
@@ -136,6 +176,7 @@ public class CategoryDialog extends BaseDialog implements CategoryListener {
     }
 
     private void rebuildRows() {
+        String focusedChip = focusedChipCategory();
         rows.removeAll();
         for (Category c : ctx.categories().getCategories()) {
             rows.add(row(c));
@@ -145,6 +186,25 @@ public class CategoryDialog extends BaseDialog implements CategoryListener {
         rows.revalidate();
         rows.repaint();
         refit();
+        restoreChipFocus(focusedChip);
+    }
+
+    /** 색 칩에 포커스가 있었다면 그 카테고리 id (목록을 다시 만들어도 키보드로 이어 쓰게 하려고). 없으면 null */
+    private String focusedChipCategory() {
+        java.awt.Component f = java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+        return f instanceof ColorChip chip ? chip.categoryId() : null;
+    }
+
+    private void restoreChipFocus(String categoryId) {
+        if (categoryId == null) {
+            return;
+        }
+        for (java.awt.Component row : rows.getComponents()) {
+            if (row instanceof JPanel p && p.getComponent(0) instanceof ColorChip chip
+                    && chip.categoryId().equals(categoryId)) {
+                chip.requestFocusInWindow();
+            }
+        }
     }
 
     private JPanel row(Category c) {
@@ -153,7 +213,7 @@ public class CategoryDialog extends BaseDialog implements CategoryListener {
         p.setBorder(BorderFactory.createEmptyBorder(Ui.px(3), Ui.px(4), Ui.px(3), Ui.px(4)));
         p.setMaximumSize(new Dimension(Integer.MAX_VALUE, Ui.px(48)));
         p.setAlignmentX(0f);
-        p.add(new CategoryDot(c.getId(), 10), BorderLayout.WEST);
+        p.add(new ColorChip(c.getId(), c.getName(), chip -> pickColor(chip, c)), BorderLayout.WEST);
         p.add(nameField(c), BorderLayout.CENTER);
         JButton del = Buttons.icon("trash", c.isPersonal() ? "‘개인’은 지울 수 없어요" : "삭제");
         del.setEnabled(ctx.categories().canDelete(c.getId()));
@@ -162,8 +222,20 @@ public class CategoryDialog extends BaseDialog implements CategoryListener {
         return p;
     }
 
+    /** 색 칩 아래에 12색 팝오버를 열고, 고른 색을 바로 저장한다 (같은 색이면 controller가 아무것도 하지 않는다) */
+    private void pickColor(ColorChip chip, Category c) {
+        ColorSwatchPopover.show(chip, ctx.categories().palette(), ctx.categories().colorOf(c.getId()),
+                key -> applyColor(c, key));
+    }
+
+    private void applyColor(Category c, String key) {
+        OperationResult r = ctx.categories().setColor(c.getId(), key);
+        showError(r.success() ? null : r.message());
+    }
+
     private JTextField nameField(Category c) {
         JTextField f = new JTextField(c.getName());
+        f.putClientProperty(ORIGINAL, c.getName());
         f.setFont(Fonts.regular(Fonts.BODY));
         f.putClientProperty(FlatClientProperties.STYLE, "arc:8; margin:6,8,6,8; borderColor:$proto.surface;"
                 + " background:$proto.surface; focusedBorderColor:$proto.accent");

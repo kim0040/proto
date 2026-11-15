@@ -14,7 +14,8 @@ import java.util.Map;
  * @param completed           완료한 수
  * @param delayed             지금 시각 기준 지연 상태인 수
  * @param completionRate      완료율 0.0~1.0 (total이 0이면 0.0)
- * @param minutesByCategory   카테고리 id → 계획된 시간(분) 합. 일정이 있는 카테고리만 들어감
+ * @param minutesByCategory   카테고리 id → 계획된 시간(분) 합. 시간이 있는 일정이 있는 카테고리만 들어감
+ *                            (하루 종일 일정은 시간이 없으므로 여기서 빠지고, total·completed·delayed·countByDay에는 들어감)
  * @param countByDay          요일 → 일정 수. 월~일 7개 키가 모두 들어감 (0 포함)
  */
 public record WeeklyStatistics(

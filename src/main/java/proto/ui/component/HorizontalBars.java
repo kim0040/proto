@@ -80,9 +80,8 @@ public class HorizontalBars extends JComponent {
         int cy = y + rowH / 2;
         g2.setFont(Fonts.medium(Fonts.BODY));
         FontMetrics fm = g2.getFontMetrics();
-        int d = Ui.px(8);
-        g2.setColor(CategoryColors.of(r.categoryId()));
-        g2.fillOval(0, cy - d / 2, d, d);
+        int d = Ui.px(10);
+        CategoryDot.paint(g2, 0, cy - d / 2, d, CategoryColors.of(r.categoryId()));
         g2.setColor(Tokens.get(Tokens.TEXT));
         g2.drawString(TextUtil.ellipsize(r.name(), fm, labelW - d - Ui.px(10)), d + Ui.px(10),
                 cy - fm.getHeight() / 2 + fm.getAscent());

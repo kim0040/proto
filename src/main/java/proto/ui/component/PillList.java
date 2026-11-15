@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * [경계 boundary] 사이드바의 선택 목록. 선택된 항목 뒤의 둥근 알약이 새 항목으로 미끄러져 간다 (옆 막대 없음).
+ * [경계 boundary] 사이드바의 선택 목록. 선택된 항목 뒤의 둥근 알약이 새 항목으로 스프링으로 미끄러져 가며 살짝 튄다 (옆 막대 없음).
  * Sidebar와 SidebarRail의 선택 목록이다 (보기 이동, 카테고리 필터 F7). 항목마다 따로 선택 배경을 그리지 않고, 목록 뒤에 알약 하나를 그려서 선택이 바뀌면 그 알약을 새 위치로
  * 움직인다.
  */
@@ -39,6 +39,8 @@ public class PillList extends JPanel {
     private String selectedKey;
     private boolean pillPlaced;
     private boolean glide;
+    /** 방금 선택이 바뀌었으면 다음 syncPill 한 번은 스프링으로 움직인다 (창 크기 변화로 다시 배치될 때는 부드러운 ease-out) */
+    private boolean springNext;
     private boolean iconOnly;
 
     public PillList() {
@@ -46,7 +48,7 @@ public class PillList extends JPanel {
         setOpaque(false);
     }
 
-    /** 항목 하나를 맨 끝에 더한다. 아이콘 이름 또는 카테고리 점 중 하나로 앞 표시를 정한다 */
+    /** 항목 하나를 맨 끝에 더한다. 아이콘 이름 또는 카테고리 색 칩 중 하나로 앞 표시를 정한다 */
     public void addItem(String key, String iconName, String dotCategoryId, String text, Runnable onClick) {
         Item item = new Item(key, iconName, dotCategoryId, text, onClick);
         items.add(item);
@@ -72,6 +74,7 @@ public class PillList extends JPanel {
     public void setSelected(String key, boolean animate) {
         selectedKey = key;
         glide = animate;
+        springNext = animate;
         for (Item i : items) {
             i.setSelectedState(i.key.equals(key), animate);
         }
@@ -90,7 +93,7 @@ public class PillList extends JPanel {
     }
 
     /**
-     * 알약을 선택된 항목의 위치·높이에 맞춘다. 처음 놓을 때나 애니메이션이 필요 없을 때는 바로 놓고, 그 뒤로는 260ms 동안 미끄러진다. 선택된 항목이 아직 배치되지 않았으면(높이 0) 알약을
+     * 알약을 선택된 항목의 위치·높이에 맞춘다. 처음 놓을 때나 애니메이션이 필요 없을 때는 바로 놓고, 그 뒤로는 미끄러진다 (선택이 바뀐 때는 스프링 340ms, 그 밖에는 ease-out 260ms). 선택된 항목이 아직 배치되지 않았으면(높이 0) 알약을
      * 숨긴다.
      */
     private void syncPill() {
@@ -110,10 +113,14 @@ public class PillList extends JPanel {
             pillH.set(target.getHeight());
             pillA.set(1f);
             pillPlaced = true;
+        } else if (springNext) {
+            pillY.springTo(target.getY(), 340);
+            pillH.springTo(target.getHeight(), 340);
         } else {
             pillY.to(target.getY(), 260);
             pillH.to(target.getHeight(), 260);
         }
+        springNext = false;
         glide = true;
     }
 
@@ -124,7 +131,10 @@ public class PillList extends JPanel {
             Ui.smooth(g2);
             g2.setColor(Tokens.alpha(Tokens.get(Tokens.ACCENT_SOFT), pillA.value()));
             int arc = Ui.px(10);
-            g2.fillRoundRect(0, Math.round(pillY.value()), getWidth(), Math.round(pillH.value()), arc, arc);
+            // 스프링이 목록 위·아래로 넘쳐 잘려 보이지 않게, 알약을 목록 안으로 가둔다. 높이는 0 밑으로 내려가지 않는다.
+            int h = Math.max(0, Math.round(pillH.value()));
+            int y = Math.max(0, Math.min(Math.round(pillY.value()), getHeight() - h));
+            g2.fillRoundRect(0, y, getWidth(), h, arc, arc);
             g2.dispose();
         }
     }
@@ -260,8 +270,8 @@ public class PillList extends JPanel {
                         (getHeight() - icon.getIconHeight()) / 2);
             } else if (dotCategory != null) {
                 int d = Ui.px(10);
-                g2.setColor(proto.ui.theme.CategoryColors.of(dotCategory));
-                g2.fillOval((getWidth() - d) / 2, (getHeight() - d) / 2, d, d);
+                CategoryDot.paint(g2, (getWidth() - d) / 2, (getHeight() - d) / 2, d,
+                        proto.ui.theme.CategoryColors.of(dotCategory));
             }
         }
 
@@ -271,10 +281,9 @@ public class PillList extends JPanel {
                 return x + icon.getIconWidth() + Ui.px(10);
             }
             if (dotCategory != null) {
-                int d = Ui.px(8);
-                g2.setColor(proto.ui.theme.CategoryColors.of(dotCategory));
-                g2.fillOval(x + Ui.px(3), (getHeight() - d) / 2, d, d);
-                return x + Ui.px(3) + d + Ui.px(12);
+                int d = Ui.px(10);
+                CategoryDot.paint(g2, x + Ui.px(2), (getHeight() - d) / 2, d, proto.ui.theme.CategoryColors.of(dotCategory));
+                return x + Ui.px(2) + d + Ui.px(11);
             }
             return x;
         }

@@ -2,6 +2,7 @@ package proto.ui.dialog;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import proto.entity.Category;
+import proto.ui.component.CategoryDot;
 import proto.ui.component.TokenLabel;
 import proto.ui.theme.CategoryColors;
 import proto.ui.theme.Fonts;
@@ -25,7 +26,7 @@ import java.awt.Insets;
 import java.util.function.Function;
 
 /**
- * [경계 boundary] 대화상자 입력 폼을 만드는 도우미: 라벨+입력+오류 묶음, 점이 있는 카테고리 콤보 등.
+ * [경계 boundary] 대화상자 입력 폼을 만드는 도우미: 라벨+입력+오류 묶음, 색 칩이 있는 카테고리 콤보 등.
  * ScheduleDialog와 FreeSlotDialog가 입력 폼을 만들 때 쓴다 (F1, F12). 이름/입력/오류를 세로로 묶는 모양을 한곳에 두어 모든 입력칸이 같은 간격을 갖게 한다.
  */
 final class FormKit {
@@ -58,11 +59,11 @@ final class FormKit {
     /** 가로 폭이 넉넉한 기본 입력칸 스타일 */
     static void styleField(JTextField f) {
         f.setFont(Fonts.regular(Fonts.BODY));
-        f.putClientProperty(FlatClientProperties.STYLE, "arc:10; margin:6,12,6,12;"
+        f.putClientProperty(FlatClientProperties.STYLE, "arc:8; margin:6,12,6,12;"
                 + " borderColor:$proto.borderStrong; background:$proto.surface");
     }
 
-    /** 카테고리를 점 + 이름으로 보여 주는 콤보 */
+    /** 카테고리를 색 칩 + 이름으로 보여 주는 콤보 */
     static JComboBox<Category> categoryCombo(java.util.List<Category> categories) {
         JComboBox<Category> combo = new JComboBox<>(categories.toArray(new Category[0]));
         combo.setFont(Fonts.regular(Fonts.BODY));
@@ -99,7 +100,7 @@ final class FormKit {
         return combo;
     }
 
-    /** 카테고리 색 점 아이콘 */
+    /** 카테고리 색 칩(둥근 네모) 아이콘 */
     static final class DotIcon implements Icon {
         private final String categoryId;
 
@@ -111,8 +112,7 @@ final class FormKit {
         public void paintIcon(Component c, Graphics g, int x, int y) {
             Graphics2D g2 = (Graphics2D) g.create();
             Ui.smooth(g2);
-            g2.setColor(CategoryColors.of(categoryId));
-            g2.fillOval(x, y + (getIconHeight() - Ui.px(10)) / 2, Ui.px(10), Ui.px(10));
+            CategoryDot.paint(g2, x, y + (getIconHeight() - Ui.px(10)) / 2, Ui.px(10), CategoryColors.of(categoryId));
             g2.dispose();
         }
 

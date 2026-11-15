@@ -15,6 +15,7 @@ import java.util.function.Predicate;
  * 일정 객체를 직접 고치고 "저장소에 더하고/뺄 일정"을 Change로 돌려주므로, 저장과 화면 알림은 호출한 쪽이 이어서 한다.
  * 넘겨받은 Schedule을 직접 고치고, 저장소에 새로 넣거나 빼야 할 일정만 {@link Change}로 알려 준다.
  * 저장·알림은 하지 않는다 (control의 몫).
+ * 고친 값을 옮길 때 하루 종일 여부도 같이 옮기므로, "이 일정만"·"앞으로 전부" 어느 쪽이든 입력값의 하루 종일 여부를 따른다.
  */
 public final class SeriesEditor {
 
@@ -134,6 +135,8 @@ public final class SeriesEditor {
         target.setRepeatRule(from.getRepeatRule());
         target.setRepeatEndDate(from.getRepeatEndDate());
         target.setReminder(from.getReminder());
+        target.setAllDay(from.isAllDay());
+        target.setColorKey(from.getColorKey());
     }
 
     /** 바뀐 규칙에서도 여전히 일정 날짜인 완료/제외 기록만 남긴다 */

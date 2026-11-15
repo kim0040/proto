@@ -7,6 +7,8 @@ import java.util.Objects;
  * F7(카테고리 관리)에서 쓴다. 일정은 이 카테고리의 id만 들고 있고(Schedule#categoryId), 이름은 여기서 찾는다.
  * CategoryController가 만들고 고치며, CategoryRepository가 CSV로 저장한다. 화면은 이름만 보여 준다.
  * "개인" 카테고리는 id가 PERSONAL_ID로 고정이며 삭제할 수 없다.
+ * 색은 CategoryPalette의 키 하나(blue, orange …)로 들고 있다. 비어 있거나 모르는 키는 받지 않고 그 id의 기본 색으로 바꿔 넣으므로
+ * getColorKey()는 언제나 팔레트에 있는 키를 돌려준다. 실제 색(RGB)은 화면이 키마다 정한다.
  */
 public class Category {
 
@@ -18,14 +20,24 @@ public class Category {
 
     private final String id;
     private String name;
+    private String colorKey;
 
     /**
-     * id와 이름으로 카테고리를 만든다. 둘 중 하나라도 null이면 NullPointerException이다.
+     * id와 이름으로 카테고리를 만든다. 둘 중 하나라도 null이면 NullPointerException이다. 색은 그 id의 기본 색이다.
      * (이름이 비었는지, 길이가 20자 이내인지는 여기서 보지 않고 CategoryController가 검사한다.)
      */
     public Category(String id, String name) {
+        this(id, name, null);
+    }
+
+    /**
+     * id·이름·색 키로 카테고리를 만든다. 색 키가 null이거나 팔레트에 없으면 그 id의 기본 색으로 바꿔 넣는다.
+     * id나 이름이 null이면 NullPointerException이다.
+     */
+    public Category(String id, String name, String colorKey) {
         this.id = Objects.requireNonNull(id);
         this.name = Objects.requireNonNull(name);
+        this.colorKey = CategoryPalette.normalize(colorKey, id);
     }
 
     public String getId() {
@@ -39,6 +51,16 @@ public class Category {
     /** 이름만 바꾼다. id는 final이라 바뀌지 않는다. null이면 NullPointerException이다. */
     public void setName(String name) {
         this.name = Objects.requireNonNull(name);
+    }
+
+    /** 색 키 (CategoryPalette.KEYS 중 하나, null 아님) */
+    public String getColorKey() {
+        return colorKey;
+    }
+
+    /** 색을 바꾼다. null이거나 팔레트에 없는 키면 그 id의 기본 색으로 바꾼다 (검사해서 거절하는 일은 CategoryController가 한다). */
+    public void setColorKey(String colorKey) {
+        this.colorKey = CategoryPalette.normalize(colorKey, id);
     }
 
     /** "개인" 카테고리인지 (삭제 불가) */

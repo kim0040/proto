@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import proto.entity.Occurrence;
 import proto.entity.ReminderOption;
+import proto.entity.RepeatRule;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -282,6 +283,37 @@ class ReminderTimerTest {
         OperationResult deleted = timer.snooze(meeting, 5);
         assertFalse(deleted.success());
         assertEquals("이미 지워졌거나 완료한 일정이에요", deleted.message());
+    }
+
+    /** "회의"를 같은 날짜의 하루 종일 일정으로 바꾼다 */
+    private void convertMeetingToAllDay() {
+        Occurrence o = f.occurrenceOn("회의", "2026-11-09");
+        ScheduleDraft allDay = new ScheduleDraft("회의", o.date(), null, null, "class", "", RepeatRule.NONE, null,
+                ReminderOption.NONE, true);
+        assertTrue(f.schedules.update(o, allDay, EditScope.THIS_ONLY).success());
+    }
+
+    @Test
+    void snoozedReminderIsDroppedWhenTheOccurrenceBecomesAllDay() {
+        checkAt("09:50");
+        Occurrence o = f.occurrenceOn("회의", "2026-11-09");
+        f.clock.set("2026-11-09T09:52");
+        assertTrue(timer.snooze(o, 5).success());
+        convertMeetingToAllDay();
+        checkAt("09:57");
+        checkAt("10:30");
+        assertEquals(List.of("회의"), events);
+    }
+
+    @Test
+    void snoozeIsRejectedForAnOccurrenceThatBecameAllDay() {
+        checkAt("09:50");
+        Occurrence stale = f.occurrenceOn("회의", "2026-11-09");
+        convertMeetingToAllDay();
+        OperationResult r = timer.snooze(stale, 5);
+        assertFalse(r.success());
+        checkAt("10:30");
+        assertEquals(List.of("회의"), events);
     }
 
     @Test

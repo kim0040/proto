@@ -44,7 +44,7 @@ public final class SidebarRail extends TokenPanel {
         nav.addItem(Mode.STATS.name(), "chart", null, "주간 통계", () -> onNav.accept(Mode.STATS));
         tools.addItem("free", "hourglass", null, "빈 시간 찾기", () -> ctx.actions().openFreeSlots());
         tools.addItem("tag", "tag", null, "카테고리", onExpand);
-        settings.addItem(Mode.SETTINGS.name(), "settings", null, "설정", () -> onNav.accept(Mode.SETTINGS));
+        settings.addItem("settings", "settings", null, "설정", () -> ctx.actions().openSettings());
         nav.setSelected(Mode.TODAY.name(), false);
         tools.setSelected("", false);
         settings.setSelected("", false);
@@ -88,16 +88,13 @@ public final class SidebarRail extends TokenPanel {
         b.setMinimumSize(d);
         b.setToolTipText("새 일정 (" + Ui.shortcut("N") + ")");
         b.getAccessibleContext().setAccessibleName("새 일정");
-        b.addActionListener(e -> ctx.actions().newSchedule(ctx.state().mode() == Mode.MONTH
-                ? ctx.state().selectedDay() : ctx.schedules().today()));
+        b.addActionListener(e -> ctx.actions().newScheduleHere());
         return b;
     }
 
     /** 보기 선택 표시를 맞춘다 */
     public void setMode(Mode mode, boolean animate) {
-        boolean inSettings = mode == Mode.SETTINGS;
-        nav.setSelected(inSettings ? "" : mode.name(), animate);
-        settings.setSelected(inSettings ? mode.name() : "", animate);
+        nav.setSelected(mode.name(), animate);
     }
 
     /** 메뉴 버튼으로 포커스를 돌려준다 (서랍이 닫힌 뒤) */

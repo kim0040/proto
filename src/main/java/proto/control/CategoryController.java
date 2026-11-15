@@ -1,24 +1,29 @@
 package proto.control;
 
 import proto.entity.Category;
+import proto.entity.CategoryPalette;
 import proto.entity.Schedule;
 import proto.repository.CategoryStore;
 import proto.repository.ScheduleStore;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
 /**
- * [제어 control] 카테고리 추가·이름 변경·삭제를 처리한다 (F7).
+ * [제어 control] 카테고리 추가·이름 변경·색 변경·삭제를 처리한다 (F7).
  * F7(카테고리 관리)의 창구이다. CategoryDialog가 부르고, CategoryStore에 저장하며, 결과를 CategoryListener와 ScheduleController를 거쳐 화면에 알린다.
  * 카테고리를 지우면 일정이 "카테고리 없음" 상태가 되지 않도록 그 일정들을 "개인"으로 옮기는 규칙을 이 클래스가 지킨다.
- * 삭제하면 그 카테고리의 일정은 "개인"으로 옮기고, 카테고리와 일정 리스너 양쪽에 알린다.
+ * 삭제하면 그 카테고리의 일정은 "개인"으로 옮기고, 일정 되돌리기 기록을 지운 뒤 카테고리와 일정 리스너 양쪽에 알린다.
+ * 색은 팔레트 12색(CategoryPalette의 키) 중 하나이다. 새 카테고리는 아직 아무도 쓰지 않은 첫 색을 받고,
+ * 색을 바꾸면 일정 블록도 다시 그려야 하므로 카테고리와 일정 리스너 양쪽에 알린다. 색 변경은 일정 되돌리기 기록과 상관없다.
  *
  * <p>모든 public 메소드는 Swing 이벤트 스레드(EDT)에서 불러야 한다 (화면이 이미 EDT에서 부른다).</p>
  */
@@ -69,6 +74,45 @@ public class CategoryController {
                 .orElse(PERSONAL_NAME);
     }
 
+    /**
+     * id의 색 키 (CategoryPalette.KEYS 중 하나). 없는 id면 nameOf처럼 "개인"의 색, "개인"도 없으면 그 id의 기본 색.
+     * 화면은 이 키를 테마 색으로 바꿔 일정 블록·점을 칠한다.
+     */
+    public String colorOf(String categoryId) {
+        return categories.findById(categoryId)
+                .or(() -> categories.findById(Category.PERSONAL_ID))
+                .map(Category::getColorKey)
+                .orElse(CategoryPalette.legacyDefault(categoryId));
+    }
+
+    /** 고를 수 있는 색 키 12개 (팔레트 순서). 바꿀 수 없는 목록이다 */
+    public List<String> palette() {
+        return CategoryPalette.KEYS;
+    }
+
+    /**
+     * 카테고리 색을 바꾼다. 저장한 뒤(F11) 카테고리 리스너와 일정 리스너 모두에 알린다 (일정 블록 색도 바뀌므로).
+     * 이미 그 색이면 저장·알림 없이 ok()이다. 저장에 실패하면 storageFailed로 알리고 메모리의 새 색은 유지한다 (이름 변경과 같다).
+     *
+     * @return 성공이면 ok(), 카테고리가 없거나 팔레트에 없는 색 키면 이유가 든 실패 (아무것도 바꾸지 않음)
+     */
+    public OperationResult setColor(String categoryId, String colorKey) {
+        Optional<Category> category = categories.findById(categoryId);
+        if (category.isEmpty()) {
+            return OperationResult.fail("없는 카테고리예요");
+        }
+        if (!CategoryPalette.isKnown(colorKey)) {
+            return OperationResult.fail("고를 수 없는 색이에요");
+        }
+        if (colorKey.equals(category.get().getColorKey())) {
+            return OperationResult.ok();
+        }
+        category.get().setColorKey(colorKey);
+        saveCategoriesAndNotify();
+        scheduleController.notifySchedulesChanged();
+        return OperationResult.ok();
+    }
+
     /** 삭제할 수 있는지 ("개인"은 불가) */
     public boolean canDelete(String categoryId) {
         return !Category.PERSONAL_ID.equals(categoryId) && categories.findById(categoryId).isPresent();
@@ -81,6 +125,7 @@ public class CategoryController {
 
     /**
      * 카테고리 추가. 이름은 앞뒤 공백을 지운 뒤 1~20자여야 하고, 대소문자를 구별하지 않고 이미 있는 이름이면 안 된다.
+     * 색은 팔레트 순서대로 보아 다른 카테고리가 아직 쓰지 않은 첫 색이다. 12색을 모두 쓰고 있으면 새 id의 기본 색이다.
      *
      * @return 성공이면 ok(), 규칙을 어기면 이유가 든 실패 (저장하지 않음)
      */
@@ -89,7 +134,8 @@ public class CategoryController {
         if (error != null) {
             return OperationResult.fail(error);
         }
-        categories.add(new Category(UUID.randomUUID().toString(), name.trim()));
+        String id = UUID.randomUUID().toString();
+        categories.add(new Category(id, name.trim(), unusedColor(id)));
         saveCategoriesAndNotify();
         return OperationResult.ok();
     }
@@ -136,6 +182,7 @@ public class CategoryController {
         }
         categories.remove(category.get());
         trySave(categories::save, categories::getWarnings);
+        scheduleController.clearHistory();
         scheduleController.notifySchedulesChanged();
         notifyCategoriesChanged();
         return OperationResult.ok();
@@ -158,6 +205,16 @@ public class CategoryController {
         boolean duplicate = categories.getAll().stream()
                 .anyMatch(c -> !c.getId().equals(selfId) && c.getName().toLowerCase(Locale.ROOT).equals(lower));
         return duplicate ? "이미 있는 이름이에요" : null;
+    }
+
+    /** 팔레트 순서대로 아직 아무 카테고리도 쓰지 않은 첫 색. 모두 쓰고 있으면 newId의 기본 색 */
+    private String unusedColor(String newId) {
+        Set<String> used = new HashSet<>();
+        categories.getAll().forEach(c -> used.add(c.getColorKey()));
+        return CategoryPalette.KEYS.stream()
+                .filter(key -> !used.contains(key))
+                .findFirst()
+                .orElse(CategoryPalette.legacyDefault(newId));
     }
 
     private void saveCategoriesAndNotify() {

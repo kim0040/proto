@@ -126,9 +126,57 @@ jobs:
         run: |
           VERSION="${TAG#v}"
           NOTES="docs/릴리즈-노트/${VERSION}.md"
+          # 파일 이름에서 버전을 뺀다 (ScheduleApp-1.1.0-macos-arm64.dmg → ScheduleApp-macos-arm64.dmg).
+          # 그래야 releases/latest/download/<이름> 주소가 늘 최신 버전을 가리켜서, 설치 안내의 바로 받기 링크와 설치 스크립트가 버전마다 바뀌지 않는다
+          for f in dist/*; do
+            mv "$f" "dist/$(basename "$f" | sed "s/-${VERSION}-/-/")"
+          done
           find dist -type f -print
           ARGS=(--generate-notes --title "일정 관리 ${TAG}")
           if [ -f "$NOTES" ]; then
             ARGS+=(--notes-file "$NOTES")
           fi
           gh release create "$TAG" "${ARGS[@]}" dist/*
+
+  install-check:
+    name: 설치 스크립트로 설치해 보기 (${{ matrix.os }})
+    needs: release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      # 이번 태그로 만든 파일을 받아 실제 사용자와 같은 스크립트로 설치한다 (앱은 열지 않는다).
+      # latest 주소 대신 태그 주소를 써서, 다른 릴리즈가 아니라 방금 만든 파일을 확인한다
+      - name: Mac 설치 스크립트
+        if: runner.os == 'macOS'
+        env:
+          INSTALL_DIR: ${{ runner.temp }}/apps
+          NO_OPEN: '1'
+          ZIP_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/ScheduleApp-macos-arm64.zip
+        run: |
+          mkdir -p "$INSTALL_DIR"
+          bash scripts/install-mac.sh < /dev/null
+          # 두 번째 실행은 업데이트(예전 앱과 바꿔치기) 경로를 확인한다
+          bash scripts/install-mac.sh < /dev/null
+          codesign --verify --deep --strict "$INSTALL_DIR/ScheduleApp.app"
+
+      # 사용자는 irm ... | iex 로 실행하므로, 파일 내용을 문자열로 읽어 iex에 넘기는 방식 그대로 확인한다
+      - name: Windows 설치·지우기 스크립트
+        if: runner.os == 'Windows'
+        shell: powershell
+        env:
+          SCHEDULEAPP_INSTALL_DIR: ${{ runner.temp }}\apps\ScheduleApp
+          SCHEDULEAPP_NO_OPEN: '1'
+          SCHEDULEAPP_ZIP_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/ScheduleApp-windows-x64.zip
+        run: |
+          Get-Content -Raw -Encoding UTF8 scripts/install-windows.ps1 | Invoke-Expression
+          # 두 번째 실행은 업데이트(예전 앱과 바꿔치기) 경로를 확인한다
+          Get-Content -Raw -Encoding UTF8 scripts/install-windows.ps1 | Invoke-Expression
+          if (-not (Test-Path "$env:SCHEDULEAPP_INSTALL_DIR\ScheduleApp.exe")) { throw '설치된 exe가 없어요' }
+          $env:SCHEDULEAPP_UNINSTALL = '1'
+          Get-Content -Raw -Encoding UTF8 scripts/install-windows.ps1 | Invoke-Expression
+          if (Test-Path $env:SCHEDULEAPP_INSTALL_DIR) { throw '지우기가 되지 않았어요' }

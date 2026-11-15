@@ -14,12 +14,14 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * [저장소 repository] 카테고리 목록을 메모리에 들고 있고, CSV 파일(data/categories.csv: id,name)로 저장·불러온다 (F7, F11).
+ * [저장소 repository] 카테고리 목록을 메모리에 들고 있고, CSV 파일(data/categories.csv: id,name,color)로 저장·불러온다 (F7, F11).
  * F7(카테고리 관리)의 저장을 맡는다. CategoryController가 CategoryStore 인터페이스로만 이 클래스를 쓰고, StoreFactory가 만들어 준다.
  * 메모리 목록이 "진짜 데이터"이고, 파일은 save()를 부를 때마다 통째로 새로 쓴다. 파일 쓰기는 CsvFileStore, 글자 변환은 CsvCodec이 맡는다.
  * 파일이 없으면 기본 4개(수업, 과제, 팀플, 개인)로 시작한다.
  * 불러오면서 문제가 생기면 원본을 같은 폴더에 백업한 뒤에야 덮어쓴다 (백업 실패 시 저장하지 않음).
  * "개인"(id personal)을 먼저 확보하고, 그 이름과 같은 다른 행은 경고와 함께 건너뛴다.
+ * color 열은 나중에 더한 것이라 그 열이 없는 예전 파일(id,name 두 칸)도 읽는다. 색 칸이 없거나 비었거나 모르는 키면
+ * 경고 없이 그 id의 기본 색(CategoryPalette#legacyDefault)으로 읽고, 다음 저장 때 color 열을 붙여 세 칸으로 쓴다.
  */
 public class CategoryRepository implements CategoryStore {
 
@@ -90,9 +92,9 @@ public class CategoryRepository implements CategoryStore {
             throw LoadProblems.saveBlocked(file);
         }
         List<List<String>> rows = new ArrayList<>();
-        rows.add(List.of("id", "name"));
+        rows.add(List.of("id", "name", "color"));
         for (Category c : categories) {
-            rows.add(List.of(c.getId(), c.getName()));
+            rows.add(List.of(c.getId(), c.getName(), c.getColorKey()));
         }
         CsvFileStore.writeAtomically(file, CsvCodec.encode(rows));
     }
@@ -169,7 +171,7 @@ public class CategoryRepository implements CategoryStore {
 
     /** id가 personal이고 이름 규칙을 통과하는 행인지 */
     private static boolean isUsablePersonalRow(List<String> row) {
-        if (row.size() != 2 || !Category.PERSONAL_ID.equals(row.get(0)) || row.get(1).isBlank()) {
+        if (!hasUsableSize(row) || !Category.PERSONAL_ID.equals(row.get(0)) || row.get(1).isBlank()) {
             return false;
         }
         return row.get(1).trim().length() <= Category.MAX_NAME_LENGTH;
@@ -185,7 +187,13 @@ public class CategoryRepository implements CategoryStore {
             problems.add("카테고리 파일 " + lineNo + "번째 줄을 읽지 못해 건너뛰었어요 (" + reason + ")");
             return;
         }
-        loaded.add(new Category(row.get(0), row.get(1).trim()));
+        String color = row.size() > 2 ? row.get(2).strip() : null;
+        loaded.add(new Category(row.get(0), row.get(1).trim(), color));
+    }
+
+    /** id,name 두 칸(예전 파일) 또는 id,name,color 세 칸인지 */
+    private static boolean hasUsableSize(List<String> row) {
+        return row.size() == 2 || row.size() == 3;
     }
 
     /**
@@ -193,8 +201,8 @@ public class CategoryRepository implements CategoryStore {
      * personal이 아직 목록에 없어도 그 이름과 같은 다른 행은 중복이다.
      */
     private static String rowProblem(List<String> row, List<Category> loaded, String personalName) {
-        if (row.size() != 2 || row.get(0).isBlank() || row.get(1).isBlank()) {
-            return "id와 이름 두 칸이 필요해요";
+        if (!hasUsableSize(row) || row.get(0).isBlank() || row.get(1).isBlank()) {
+            return "id와 이름(과 색) 칸이 필요해요";
         }
         String name = row.get(1).trim().toLowerCase(Locale.ROOT);
         if (name.length() > Category.MAX_NAME_LENGTH) {

@@ -4,7 +4,7 @@ plugins {
 
 group = 'proto'
 // 앱 버전의 유일한 출처. 묶음 파일 이름·설치 파일·설정 화면의 버전 표시가 모두 이 값을 따른다 (macOS는 첫 숫자가 1 이상이어야 함)
-version = '1.0.0'
+version = '1.1.0'
 
 repositories {
     mavenCentral()

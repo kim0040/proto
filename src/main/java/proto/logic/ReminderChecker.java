@@ -14,6 +14,7 @@ import java.util.Set;
  * "이미 알렸는지"를 notifiedKeys로 건네받는다. 이 클래스는 아무것도 기억하지 않으므로 같은 입력이면 항상 같은 결과다.
  * 알림 시각은 시작 시각 − N분이다. 앱을 켠 뒤 ~ 지금 사이에 지났고, 완료하지 않았고,
  * 아직 알리지 않은 일정만 알린다. 앱이 꺼져 있던 동안 지난 알림은 보내지 않는다.
+ * 하루 종일 일정은 시작 시각이 없으므로 알리지 않는다.
  */
 public final class ReminderChecker {
 
@@ -21,7 +22,7 @@ public final class ReminderChecker {
     }
 
     /**
-     * 지금 알려야 할 일정만 골라 돌려준다. 조건: 알림이 켜져 있고, 완료하지 않았고, 아직 알린 적이 없고,
+     * 지금 알려야 할 일정만 골라 돌려준다. 조건: 하루 종일이 아니고, 알림이 켜져 있고, 완료하지 않았고, 아직 알린 적이 없고,
      * 알림 시각(시작 − N분)이 "앱을 켠 시각 이상, 지금 이하"이다. 하나도 없으면 빈 목록이다.
      * 앱을 켜기 전에 지나간 알림은 일부러 보내지 않는다. 오래전 일정의 알림이 앱을 켜자마자 한꺼번에 뜨면 곤란하기 때문이다.
      *
@@ -39,7 +40,7 @@ public final class ReminderChecker {
 
     private static boolean isDue(Occurrence o, LocalDateTime now, LocalDateTime appStartedAt,
                                  Set<String> notifiedKeys) {
-        if (o.reminder() == ReminderOption.NONE || o.completed() || notifiedKeys.contains(o.key())) {
+        if (o.allDay() || o.reminder() == ReminderOption.NONE || o.completed() || notifiedKeys.contains(o.key())) {
             return false;
         }
         LocalDateTime remindAt = o.startDateTime().minusMinutes(o.reminder().minutesBefore());

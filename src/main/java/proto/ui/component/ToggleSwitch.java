@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * [경계 boundary] 켜기/끄기 스위치. 동그란 손잡이가 150ms 동안 미끄러지고 색이 섞인다 (애니메이션이 꺼져 있으면 바로 바뀐다).
+ * [경계 boundary] 켜기/끄기 스위치. 동그란 손잡이가 눌렀을 때 스프링으로 미끄러지며 살짝 튀고 색이 섞인다 (애니메이션이 꺼져 있으면 바로 바뀐다). 코드로 값을 바꿀 때는 튀지 않는다.
  * SettingsView의 켜기/끄기 설정(알림 소리 등)에 쓴다. 접근성 도구가 켜짐 상태를 읽도록 AccessibleState.CHECKED를 직접 알려 준다.
  */
 public class ToggleSwitch extends JComponent {
@@ -30,6 +30,7 @@ public class ToggleSwitch extends JComponent {
     private static final int W = 42;
     private static final int H = 24;
     private static final int PAD = 3;
+    private static final int SPRING_MS = 320;
 
     private final List<Consumer<Boolean>> listeners = new ArrayList<>();
     private final Tween position = new Tween(0f, this::repaint);
@@ -67,12 +68,18 @@ public class ToggleSwitch extends JComponent {
         position.to(value ? 1f : 0f, 150);
     }
 
+    /** 사용자가 눌러서 바꿀 때: 스프링으로 살짝 넘었다 돌아온다 */
+    private void flip(boolean value) {
+        on = value;
+        position.springTo(value ? 1f : 0f, SPRING_MS);
+    }
+
     public void addChangeListener(Consumer<Boolean> listener) {
         listeners.add(listener);
     }
 
     private void toggle() {
-        setOn(!on);
+        flip(!on);
         listeners.forEach(l -> l.accept(on));
     }
 
@@ -92,11 +99,12 @@ public class ToggleSwitch extends JComponent {
         Ui.smooth(g2);
         int w = Ui.px(W);
         int h = Ui.px(H);
-        float t = position.value();
+        float pos = position.value();
+        float t = Math.max(0f, Math.min(1f, pos));
         g2.setColor(Tokens.blend(Tokens.get(Tokens.BORDER_STRONG), Tokens.get(Tokens.ACCENT), t));
         g2.fillRoundRect(0, 0, w, h, h, h);
         int knob = h - Ui.px(PAD) * 2;
-        int x = Math.round(Ui.px(PAD) + (w - knob - Ui.px(PAD) * 2) * t);
+        int x = Math.round(Ui.px(PAD) + (w - knob - Ui.px(PAD) * 2) * pos);
         g2.setColor(new Color(0, 0, 0, 40));
         g2.fillOval(x, Ui.px(PAD) + 1, knob, knob);
         g2.setColor(Color.WHITE);

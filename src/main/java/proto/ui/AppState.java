@@ -9,8 +9,8 @@ import java.time.LocalDate;
  */
 public final class AppState {
 
-    /** 메인 보기 (설정 포함 5가지) */
-    public enum Mode { TODAY, WEEK, MONTH, STATS, SETTINGS }
+    /** 메인 보기 4가지. 설정은 보기가 아니라 지금 보기 위에 뜨는 시트(SettingsSheet)이다 */
+    public enum Mode { TODAY, WEEK, MONTH, STATS }
 
     private Mode mode = Mode.TODAY;
     private LocalDate anchor;
@@ -70,6 +70,23 @@ public final class AppState {
     /** 검색어나 카테고리 필터가 걸려 있는지 */
     public boolean isFiltered() {
         return categoryId != null || !keyword.isEmpty();
+    }
+
+    /**
+     * 새 일정(N, C, 새 일정 버튼)을 처음 놓을 날짜. 지금 화면에 보이는 날이어야 하므로: 달력은 고른 날, 이번 주(주 보기)는 고른 날이 그 주 안에 있으면 그 날
+     * (아니면 오늘이 그 주 안이면 오늘, 아니면 그 주의 월요일), 오늘 보기는 오늘, 통계는 오늘이 그 주 안이면 오늘, 아니면 그 주의 월요일이다.
+     */
+    public LocalDate newScheduleDay(LocalDate today) {
+        LocalDate start = weekStart();
+        LocalDate end = start.plusDays(6);
+        boolean todayInWeek = !today.isBefore(start) && !today.isAfter(end);
+        return switch (mode) {
+            case MONTH -> selectedDay;
+            case TODAY -> today;
+            case WEEK -> !selectedDay.isBefore(start) && !selectedDay.isAfter(end) ? selectedDay
+                    : todayInWeek ? today : start;
+            case STATS -> todayInWeek ? today : start;
+        };
     }
 
     /** anchor가 들어 있는 주의 월요일 */

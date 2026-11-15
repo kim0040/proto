@@ -17,8 +17,11 @@ import java.util.TreeSet;
 /**
  * [서버 대비 — 현재 사용 안 함] 일정 목록과 JSON 스냅샷을 서로 바꾼다.
  * [저장소 repository] 루트는 {"schedules":[...]}이고, 한 건은 CSV와 같은 필드
- * (id, title, date, start, end, categoryId, memo, repeat, repeatEnd, reminder, completedDates, excludedDates)다.
- * SyncingScheduleStore가 서버와 주고받을 때만 쓴다. CSV 쪽 변환은 ScheduleCsvMapper가 맡고, 이 클래스는 같은 12개 필드를 JSON으로 옮긴다.
+ * (id, title, date, start, end, categoryId, memo, repeat, repeatEnd, reminder, completedDates, excludedDates, allDay, color)다.
+ * allDay는 나중에 더한 선택 필드(true/false)다. 없거나 null이면 false로 읽고, 참·거짓 값이 아니면 거절한다. 보낼 때는 언제나 넣는다.
+ * color도 나중에 더한 선택 필드(일정만의 색 키 문자열)다. 없거나 null이면 "카테고리 색"이고, 문자열이 아니면 거절하며, 모르는 키는 "카테고리 색"으로 읽는다.
+ * 보낼 때는 언제나 넣는다(따로 고른 색이 없으면 null).
+ * SyncingScheduleStore가 서버와 주고받을 때만 쓴다. CSV 쪽 변환은 ScheduleCsvMapper가 맡고, 이 클래스는 같은 13개 필드를 JSON으로 옮긴다.
  * 서버에서 받은 값도 ScheduleValidator를 통과해야 하므로, 이상한 일정이 로컬로 들어오지 않는다.
  * 날짜·시간은 ISO 문자열, repeatEnd가 없으면 null, 날짜 모음은 배열이다.
  */
@@ -76,6 +79,8 @@ public final class ScheduleJsonMapper {
         map.put("reminder", schedule.getReminder().name());
         map.put("completedDates", dateTexts(schedule.getCompletedDates()));
         map.put("excludedDates", dateTexts(schedule.getExcludedDates()));
+        map.put("allDay", schedule.isAllDay());
+        map.put("color", schedule.getColorKey());
         return map;
     }
 
@@ -91,8 +96,10 @@ public final class ScheduleJsonMapper {
         Schedule schedule = new Schedule(text(map, "id", false), text(map, "title", false),
                 date(map, "date"), time(map, "start"), time(map, "end"), text(map, "categoryId", false),
                 text(map, "memo", true), RepeatRule.valueOf(text(map, "repeat", false)),
-                optionalDate(map, "repeatEnd"), ReminderOption.valueOf(text(map, "reminder", false)));
+                optionalDate(map, "repeatEnd"), ReminderOption.valueOf(text(map, "reminder", false)),
+                optionalFlag(map, "allDay"));
         schedule.replaceDateSets(dateSet(map, "completedDates"), dateSet(map, "excludedDates"));
+        schedule.setColorKey(optionalText(map, "color"));
         List<String> errors = ScheduleValidator.validate(schedule);
         if (!errors.isEmpty()) {
             throw new IllegalArgumentException(String.join(", ", errors));
@@ -111,6 +118,18 @@ public final class ScheduleJsonMapper {
             throw new IllegalArgumentException(key + " 값이 비어 있어요");
         }
         return value;
+    }
+
+    /** 없어도 되는 문자열 필드: 없거나 null이면 null, 문자열이 아니면 거절 */
+    private static String optionalText(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            return null;
+        }
+        if (!(value instanceof String text)) {
+            throw new IllegalArgumentException(key + " 값이 문자열이 아니에요");
+        }
+        return text;
     }
 
     private static LocalDate date(Map<String, Object> map, String key) {
@@ -133,6 +152,18 @@ public final class ScheduleJsonMapper {
             throw new IllegalArgumentException(key + " 값이 날짜가 아니에요");
         }
         return LocalDate.parse(value);
+    }
+
+    /** 없거나 JSON null이면 false, 참·거짓이면 그 값, 그 밖의 모양이면 예외 */
+    private static boolean optionalFlag(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            return false;
+        }
+        if (!(value instanceof Boolean flag)) {
+            throw new IllegalArgumentException(key + " 값이 true나 false가 아니에요");
+        }
+        return flag;
     }
 
     private static Set<LocalDate> dateSet(Map<String, Object> map, String key) {

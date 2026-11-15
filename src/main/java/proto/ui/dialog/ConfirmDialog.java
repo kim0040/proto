@@ -13,17 +13,18 @@ import javax.swing.JComponent;
 import javax.swing.JPanel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
-import java.awt.Window;
+import java.awt.Component;
 import java.util.List;
 
 /**
- * [경계 boundary] 질문 하나에 버튼 몇 개로 답하는 확인 대화상자 (삭제 확인, 반복 범위 선택, 겹침 경고에 쓴다).
- * Dialogs의 모든 질문 창이 이 클래스로 만들어진다. 버튼은 Choice 목록으로 받고, ask가 누른 버튼의 번호를 돌려준다 (Esc나 창 닫기는 -1).
+ * [경계 boundary] 질문 하나에 버튼 몇 개로 답하는 확인 시트 (반복 범위 선택, 겹침 경고, 카테고리 삭제, 변경 버리기에 쓴다).
+ * Dialogs의 모든 질문 시트가 이 클래스로 만들어진다. 버튼은 Choice 목록으로 받고, ask가 누른 버튼의 번호를 돌려준다.
+ * Esc와 바깥(스크림) 클릭은 언제나 취소(-1)이다: 취소는 늘 안전한 답이기 때문이다. 열릴 때 포커스는 기본 버튼에 있다.
  */
 public class ConfirmDialog extends BaseDialog {
 
     /** 버튼 모양 */
-    public enum Kind { PRIMARY, DANGER, SECONDARY, GHOST }
+    public enum Kind { PRIMARY, DANGER, DANGER_OUTLINE, SECONDARY, GHOST }
 
     /** 버튼 한 개: 이름과 모양 */
     public record Choice(String label, Kind kind) {
@@ -31,7 +32,7 @@ public class ConfirmDialog extends BaseDialog {
 
     private int result = -1;
 
-    public ConfirmDialog(Window owner, String title, String message, String detail, JComponent extra,
+    public ConfirmDialog(Component owner, String title, String message, String detail, JComponent extra,
                          List<Choice> choices) {
         super(owner, title);
         JPanel body = new proto.ui.component.WidthPanel(new BorderLayout(), 400);
@@ -39,7 +40,7 @@ public class ConfirmDialog extends BaseDialog {
         setBody(body, buttons(choices), 24);
     }
 
-    /** 대화상자를 열고 누른 버튼의 번호를 돌려준다. Esc나 닫기는 -1 */
+    /** 시트를 열고 누른 버튼의 번호를 돌려준다. Esc나 바깥 클릭은 -1 */
     public int ask() {
         showDialog();
         return result;
@@ -76,6 +77,7 @@ public class ConfirmDialog extends BaseDialog {
             JButton b = switch (c.kind()) {
                 case PRIMARY -> Buttons.primary(c.label());
                 case DANGER -> Buttons.dangerFill(c.label());
+                case DANGER_OUTLINE -> Buttons.danger(c.label());
                 case SECONDARY -> Buttons.secondary(c.label());
                 case GHOST -> Buttons.ghost(c.label());
             };
@@ -86,7 +88,7 @@ public class ConfirmDialog extends BaseDialog {
             });
             p.add(b);
             if (c.kind() == Kind.PRIMARY || c.kind() == Kind.DANGER) {
-                getRootPane().setDefaultButton(b);
+                setDefaultButton(b);
             }
         }
         return p;

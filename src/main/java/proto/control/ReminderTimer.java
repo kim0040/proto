@@ -112,17 +112,17 @@ public class ReminderTimer {
     /**
      * 없거나 완료된 일정은 알리지 않는다.
      * 처음 알림은 최신 알림 시각이 앱을 켠 뒤부터 지금까지일 때만 보내고, 그때만 키를 찍는다.
-     * 다시 알림은 예약 시각에 보내고, 완료·삭제만 조용히 버린다.
+     * 다시 알림은 예약 시각에 보내고, 완료·삭제와 "하루 종일"로 바뀐 일정(알림 제외 대상)은 조용히 버린다.
      */
     private void fireFresh(Occurrence snapshot, boolean snoozed, LocalDateTime now) {
         controller.findOccurrence(snapshot.scheduleId(), snapshot.date())
-                .filter(o -> snoozed ? !o.completed() : stillDue(o, now))
+                .filter(o -> snoozed ? !o.completed() && !o.allDay() : stillDue(o, now))
                 .ifPresent(o -> deliver(o, snoozed));
     }
 
     /** 최신 일정의 알림 시각이 앱을 켠 뒤부터 지금까지인지 */
     private boolean stillDue(Occurrence occurrence, LocalDateTime now) {
-        if (occurrence.reminder() == ReminderOption.NONE || occurrence.completed()) {
+        if (occurrence.allDay() || occurrence.reminder() == ReminderOption.NONE || occurrence.completed()) {
             return false;
         }
         int minutes = occurrence.reminder().minutesBefore();
@@ -139,7 +139,7 @@ public class ReminderTimer {
     }
 
     /**
-     * F15: minutes분 뒤에 이 일정을 한 번 더 알린다 (메모리에만 보관). 없거나 완료됐으면 거절한다.
+     * F15: minutes분 뒤에 이 일정을 한 번 더 알린다 (메모리에만 보관). 없거나 완료됐거나 하루 종일(알림 제외 대상)이면 거절한다.
      * 예약은 key(일정id@날짜)별로 하나뿐이라 같은 일정을 다시 누르면 시각이 덮어써진다.
      *
      * @return 성공이면 ok(), 분이 1~60 밖이거나 일정이 이미 없거나 완료됐으면 실패
@@ -152,6 +152,9 @@ public class ReminderTimer {
         if (alreadyGone(occurrence)) {
             return OperationResult.fail("이미 지워졌거나 완료한 일정이에요");
         }
+        if (isAllDay(occurrence)) {
+            return OperationResult.fail("하루 종일 일정은 알림 대상이 아니에요");
+        }
         LocalDateTime due = LocalDateTime.now(clock).plusMinutes(minutes);
         snoozes.put(occurrence.key(), new Snooze(occurrence, due));
         return OperationResult.ok();
@@ -162,6 +165,13 @@ public class ReminderTimer {
         return controller.findOccurrence(occurrence.scheduleId(), occurrence.date())
                 .filter(o -> !o.completed())
                 .isEmpty();
+    }
+
+    /** 지금 그 날짜의 일정이 하루 종일이면 true (하루 종일 일정은 알림 대상이 아니다. 시간 일정이 하루 종일로 바뀐 경우) */
+    private boolean isAllDay(Occurrence occurrence) {
+        return controller.findOccurrence(occurrence.scheduleId(), occurrence.date())
+                .filter(Occurrence::allDay)
+                .isPresent();
     }
 
     /**

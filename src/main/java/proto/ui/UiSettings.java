@@ -1,13 +1,14 @@
 package proto.ui;
 
 import proto.ui.AppState.Mode;
+import proto.ui.theme.Accent;
 
 import java.time.LocalTime;
 import java.util.prefs.Preferences;
 
 /**
- * [경계 boundary] 설정 화면에서 바꾸는 작은 환경설정(시작 화면, 알림 소리, 빈 시간 기본 시간대)을 기억한다.
- * SettingsView(설정 화면)가 값을 바꾸고, MainFrame(시작 화면, 알림 소리)과 FreeSlotDialog(F12 기본 시간대)가 읽는다.
+ * [경계 boundary] 설정 시트에서 바꾸는 작은 환경설정(시작 화면, 알림 소리, 빈 시간 기본 시간대, 강조색)을 기억한다.
+ * SettingsView(설정 시트의 내용)가 값을 바꾸고, MainFrame(시작 화면, 알림 소리), ThemeManager(강조색)와 FreeSlotDialog(F12 기본 시간대)가 읽는다.
  * 데이터 파일(CSV)이 아니라 운영체제의 환경설정 저장소(java.util.prefs)에 저장하므로, 일정 데이터와 섞이지 않는다.
  * 테마는 ThemeManager, 애니메이션은 Motion이 각각 저장한다.
  */
@@ -18,16 +19,25 @@ public final class UiSettings {
     private static final String SOUND = "reminderSound";
     private static final String FREE_FROM = "freeFrom";
     private static final String FREE_TO = "freeTo";
+    private static final String ACCENT = "accent";
 
     private UiSettings() {
     }
 
     /** 앱을 열 때 처음 보여 줄 화면 (오늘, 이번 주, 달력 중 하나) */
     public static Mode startMode() {
+        return startModeOf(PREFS.get(START, Mode.TODAY.name()));
+    }
+
+    /**
+     * 저장된 글자를 시작 화면으로 바꾼다. 오늘·이번 주·달력이 아니면 오늘이다.
+     * 예전 판에서 "SETTINGS"(설정 화면)를 저장해 두었어도, 설정은 이제 화면이 아니라 시트이므로 오늘로 연다.
+     */
+    static Mode startModeOf(String stored) {
         try {
-            Mode m = Mode.valueOf(PREFS.get(START, Mode.TODAY.name()));
+            Mode m = Mode.valueOf(stored);
             return m == Mode.TODAY || m == Mode.WEEK || m == Mode.MONTH ? m : Mode.TODAY;
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | NullPointerException e) {
             return Mode.TODAY;
         }
     }
@@ -43,6 +53,15 @@ public final class UiSettings {
 
     public static void setReminderSound(boolean on) {
         PREFS.putBoolean(SOUND, on);
+    }
+
+    /** 앱 강조색 (처음에는 파랑, 저장된 이름이 이상하면 파랑) */
+    public static Accent accent() {
+        return Accent.of(PREFS.get(ACCENT, Accent.BLUE.key()));
+    }
+
+    public static void setAccent(Accent accent) {
+        PREFS.put(ACCENT, accent.key());
     }
 
     /** 빈 시간 찾기에서 기본으로 찾는 시작 시각 (기본 09:00) */

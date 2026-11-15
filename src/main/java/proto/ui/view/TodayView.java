@@ -5,6 +5,7 @@ import proto.entity.ScheduleState;
 import proto.ui.AppState;
 import proto.ui.Fmt;
 import proto.ui.UiContext;
+import proto.ui.component.AllDayStrip;
 import proto.ui.component.OccurrenceList;
 import proto.ui.component.TokenLabel;
 import proto.ui.layout.SizeClass;
@@ -22,7 +23,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * [경계 boundary] 오늘 보기 (F2): 한 줄 요약과 시간순 일정 목록. 일정이 없으면 안내 문구를 보여 준다.
+ * [경계 boundary] 오늘 보기 (F2): 한 줄 요약, 맨 위의 하루 종일 구역(AllDayStrip), 시간순 일정 목록. 일정이 없으면 안내 문구를 보여 준다.
  * MainFrame이 만들고, refresh 때 오늘 하루치 일정을 ScheduleController#getOccurrences로 읽는다. 오늘 날짜의 기준은 controller의 시계(today())이다.
  */
 public class TodayView implements ContentView {
@@ -34,12 +35,14 @@ public class TodayView implements ContentView {
     private final JPanel root = new JPanel(new CardLayout());
     private final TokenLabel summary = new TokenLabel("", Fonts.medium(Fonts.BODY), Tokens.MUTED);
     private final OccurrenceList list;
+    private final AllDayStrip strip;
     private final EmptyState empty;
     private final JScrollPane scroll;
 
     public TodayView(UiContext ctx) {
         this.ctx = ctx;
         this.list = new OccurrenceList(ctx.actions(), false);
+        this.strip = new AllDayStrip(ctx.actions());
         this.empty = new EmptyState("새 일정", () -> ctx.actions().newSchedule(ctx.schedules().today()));
         this.scroll = new JScrollPane(list);
         root.setOpaque(false);
@@ -53,7 +56,11 @@ public class TodayView implements ContentView {
         applyPadding(ctx.size());
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
-        p.add(summary, BorderLayout.NORTH);
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
+        top.add(summary, BorderLayout.NORTH);
+        top.add(strip, BorderLayout.CENTER);
+        p.add(top, BorderLayout.NORTH);
         p.add(scroll, BorderLayout.CENTER);
         return p;
     }
@@ -62,6 +69,7 @@ public class TodayView implements ContentView {
         int g = sc.gutter();
         int trim = sc.verticalTrim();
         summary.setBorder(BorderFactory.createEmptyBorder(Ui.px(4 - trim / 2), Ui.px(g), Ui.px(12 - trim), Ui.px(g)));
+        strip.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(g), Ui.px(10), Ui.px(g)));
         scroll.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(g - 4), Ui.px(24 - trim), Ui.px(g - 4)));
     }
 
@@ -109,10 +117,12 @@ public class TodayView implements ContentView {
                     !s.isFiltered());
             cards.show(root, EMPTY);
             list.setItems(items, false);
+            strip.setItems(items);
             return;
         }
         summary.setText(summaryText(items));
-        list.setItems(items, animate);
+        strip.setItems(items.stream().filter(Occurrence::allDay).toList());
+        list.setItems(items.stream().filter(o -> !o.allDay()).toList(), animate);
         cards.show(root, LIST);
     }
 

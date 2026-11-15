@@ -6,11 +6,16 @@ import proto.control.ScheduleListener;
 import proto.entity.Category;
 import proto.entity.Occurrence;
 import proto.ui.AppState.Mode;
+import proto.ui.command.CommandCatalog;
+import proto.ui.command.PaletteLayer;
+import proto.ui.command.PlainKey;
+import proto.ui.command.PlainKeys;
 import proto.ui.component.Overlay;
 import proto.ui.component.ReminderCard;
 import proto.ui.component.TokenPanel;
 import proto.ui.layout.SizeClass;
 import proto.ui.layout.WindowState;
+import proto.ui.sheet.SheetHost;
 import proto.ui.component.TransitionHost;
 import proto.ui.component.TransitionHost.Dir;
 import proto.ui.theme.AppIcon;
@@ -18,7 +23,6 @@ import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 import proto.ui.view.ContentView;
 import proto.ui.view.MonthView;
-import proto.ui.view.SettingsView;
 import proto.ui.view.StatsView;
 import proto.ui.view.TodayView;
 import proto.ui.view.WeekView;
@@ -64,6 +68,11 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
     private final SidebarDrawer drawer;
     private final HeaderBar header;
     private final Overlay overlay = new Overlay();
+    private SheetHost sheets;
+    private PaletteLayer palette;
+    private FrameCommandHost commandHost;
+    private PlainKeys plainKeys;
+    private final CommandCatalog commands;
     private final WindowState windowState = new WindowState();
     private final Timer saveBounds = new Timer(600, e -> windowState.save(this));
     private final PropertyChangeListener lafListener = e -> {
@@ -71,7 +80,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
             refreshHiddenViews();
         }
     };
-    // 지금 보이는 보기. 보기 5개는 처음에 다 만들어 두고 전환할 때 current만 바꾼다.
+    // 지금 보이는 보기. 보기 4개는 처음에 다 만들어 두고 전환할 때 current만 바꾼다.
     private ContentView current;
     private LocalDate knownToday;
     private boolean disposed;
@@ -86,15 +95,16 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         views.put(Mode.WEEK, new WeekView(ctx));
         views.put(Mode.MONTH, new MonthView(ctx));
         views.put(Mode.STATS, new StatsView(ctx));
-        views.put(Mode.SETTINGS, new SettingsView(ctx));
         configureWindow();
         // 창 크기 등급(SizeClass)은 사이드바·헤더·보기를 만들기 전에 정해 두어야 처음부터 알맞은 모양으로 그려진다.
         ctx.breakpoints().prime(getWidth(), getHeight());
         drawer = new SidebarDrawer(() -> rail().focusMenu());
-        sidebar = new Sidebar(ctx, this::navigateFromSidebar, this::selectCategory, drawer::closeNow);
+        sidebar = new Sidebar(ctx, this::navigateFromSidebar, this::selectCategory, this::goToDate, drawer::closeNow);
         rail = new SidebarRail(ctx, this::navigate, this::openDrawer);
         sidebarHost = new SidebarHost(sidebar, rail, ctx.size());
-        header = new HeaderBar(() -> shift(-1), this::goToday, () -> shift(1), this::search);
+        header = new HeaderBar(() -> shift(-1), this::goToday, () -> shift(1), this::search, this::openCommandMenu);
+        commandHost = new FrameCommandHost(ctx, this::navigate, this::goToday, this::goToDate, this::selectCategory);
+        commands = new CommandCatalog(commandHost);
         buildLayout();
         installShortcuts();
         knownToday = ctx.schedules().today();
@@ -174,6 +184,9 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         setContentPane(root);
         JLayeredPane layers = getLayeredPane();
         layers.add(drawer, JLayeredPane.PALETTE_LAYER);
+        // 시트(대화상자·설정)는 서랍 위, 토스트·알림 카드 아래에 뜬다. 그래서 시트가 열려 있어도 알림 카드는 보이고 누를 수 있다
+        sheets = SheetHost.install(layers);
+        palette = PaletteLayer.install(layers);
         layers.add(overlay, JLayeredPane.POPUP_LAYER);
         layers.addComponentListener(new ComponentAdapter() {
             @Override
@@ -246,6 +259,9 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
             ctx.categories().removeListener(this);
             ctx.reminders().removeListener(this);
             javax.swing.UIManager.removePropertyChangeListener(lafListener);
+            if (plainKeys != null) {
+                plainKeys.uninstall();
+            }
             saveBounds.stop();
             header.dispose();
             drawer.closeNow();
@@ -286,7 +302,8 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         LocalDate today = ctx.schedules().today();
         ctx.state().setAnchor(today);
         ctx.state().setSelectedDay(today);
-        host.transition(Dir.UP, () -> switchTo(mode, true), () -> current.shown());
+        host.transition(Dir.toward(ctx.state().mode().ordinal(), mode.ordinal()), () -> switchTo(mode, true),
+                () -> current.shown());
     }
 
     private void switchTo(Mode mode, boolean animateSidebar) {
@@ -299,7 +316,9 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         updateHeader();
     }
 
+    /** 위쪽 줄(제목·버튼)과 사이드바 달력(오늘·고른 날·주 띠)을 지금 보기에 맞춘다 */
     private void updateHeader() {
+        sidebar.syncMonth();
         header.setTitles(current.title(), current.subtitle());
         header.setNavigatorVisible(current.hasNavigator());
         header.setSearchVisible(current.hasSearch());
@@ -315,6 +334,9 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
     private void goToday() {
         AppState s = ctx.state();
         LocalDate today = ctx.schedules().today();
+        if (today.equals(s.anchor()) && today.equals(s.selectedDay())) {
+            return;
+        }
         s.setSelectedDay(today);
         moveAnchor(today, today.isAfter(s.anchor()) ? Dir.FROM_RIGHT : Dir.FROM_LEFT);
     }
@@ -331,6 +353,43 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
             current.refresh(false);
             updateHeader();
         }, () -> current.shown());
+    }
+
+    /**
+     * 그 날짜로 이동한다 (사이드바 달력, 명령 메뉴의 "날짜로 이동"). 오늘 보기는 하루만 보여 주므로 이번 주(주 보기)로 바꿔서 그 날을 고르고,
+     * 주·달력·통계 보기는 보기를 바꾸지 않고 그 날이 든 주/달로 옮긴다(통계는 그 주의 통계). 같은 주/달 안이면 미끄러지지 않고 고른 날만 바뀐다.
+     */
+    private void goToDate(LocalDate day) {
+        checkDate();
+        AppState s = ctx.state();
+        Mode from = s.mode();
+        Mode target = from == Mode.TODAY ? Mode.WEEK : from;
+        if (from == Mode.TODAY && day.equals(ctx.schedules().today())) {
+            return;
+        }
+        LocalDate old = s.anchor();
+        boolean samePeriod = target == from && samePeriod(target, old, day);
+        s.setAnchor(day);
+        s.setSelectedDay(day);
+        if (target != from) {
+            host.transition(Dir.toward(from.ordinal(), target.ordinal()), () -> switchTo(target, true),
+                    () -> current.shown());
+        } else if (samePeriod) {
+            refreshCurrent(false);
+        } else {
+            host.transition(day.isAfter(old) ? Dir.FROM_RIGHT : Dir.FROM_LEFT, () -> {
+                current.refresh(false);
+                updateHeader();
+            }, () -> current.shown());
+        }
+    }
+
+    /** 두 날짜가 같은 달(달력) 또는 같은 주(주·통계)에 드는지 */
+    private static boolean samePeriod(Mode mode, LocalDate a, LocalDate b) {
+        if (mode == Mode.MONTH) {
+            return YearMonth.from(a).equals(YearMonth.from(b));
+        }
+        return a.minusDays(a.getDayOfWeek().getValue() - 1L).equals(b.minusDays(b.getDayOfWeek().getValue() - 1L));
     }
 
     private void selectCategory(String id) {
@@ -354,21 +413,70 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
 
     private void installShortcuts() {
         int mask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
-        bind(KeyEvent.VK_N, mask, () -> ctx.actions().newSchedule(ctx.state().mode() == Mode.MONTH
-                ? ctx.state().selectedDay() : ctx.schedules().today()));
+        bind(KeyEvent.VK_N, mask, () -> ctx.actions().newScheduleHere());
+        bind(KeyEvent.VK_K, mask, this::openCommandMenu);
         bind(KeyEvent.VK_F, mask, header::focusSearch);
         bind(KeyEvent.VK_1, mask, () -> navigate(Mode.TODAY));
         bind(KeyEvent.VK_2, mask, () -> navigate(Mode.WEEK));
         bind(KeyEvent.VK_3, mask, () -> navigate(Mode.MONTH));
         bind(KeyEvent.VK_4, mask, () -> navigate(Mode.STATS));
-        bind(KeyEvent.VK_COMMA, mask, () -> navigate(Mode.SETTINGS));
+        bind(KeyEvent.VK_COMMA, mask, () -> ctx.actions().openSettings());
+        new EditShortcuts(ctx, getRootPane(), this::keysFree).install();
+        installPlainKeys();
     }
 
+    /** 한 글자 단축키 (C 새 일정, T 오늘, W/M/D 보기, ←/→ 이전·다음, ? 단축키 안내). 시트·명령 메뉴가 열려 있거나 글을 입력하는 중에는 꺼진다 */
+    private void installPlainKeys() {
+        Map<PlainKey, Runnable> actions = new EnumMap<>(PlainKey.class);
+        actions.put(PlainKey.NEW, () -> ctx.actions().newScheduleHere());
+        actions.put(PlainKey.TODAY, () -> {
+            if (current.hasNavigator()) {
+                goToday();
+            }
+        });
+        actions.put(PlainKey.WEEK, () -> navigate(Mode.WEEK));
+        actions.put(PlainKey.MONTH, () -> navigate(Mode.MONTH));
+        actions.put(PlainKey.DAY, () -> navigate(Mode.TODAY));
+        actions.put(PlainKey.PREVIOUS, () -> shiftIfPossible(-1));
+        actions.put(PlainKey.NEXT, () -> shiftIfPossible(1));
+        actions.put(PlainKey.HELP, () -> ctx.actions().openShortcutHelp());
+        plainKeys = new PlainKeys(this, () -> isActive() && keysFree(), actions);
+        plainKeys.install();
+    }
+
+    private void shiftIfPossible(int direction) {
+        if (current.hasNavigator()) {
+            shift(direction);
+        }
+    }
+
+    /** 시트도 명령 메뉴도 열려 있지 않아 창 단축키가 동작해도 되는지 */
+    private boolean keysFree() {
+        return !sheets.isOpen() && !palette.isOpen();
+    }
+
+    /** 명령 메뉴(⌘K)를 열거나 닫는다. 시트가 열려 있으면 열지 않는다 */
+    private void openCommandMenu() {
+        if (palette.isOpen()) {
+            palette.close();
+        } else if (!sheets.isOpen()) {
+            drawer.closeNow();
+            commandHost.captureTarget();
+            palette.open(commands);
+        }
+    }
+
+    /** 창 단축키를 단다. 시트가 열려 있는 동안에는 꺼져서(isEnabled) 뒤 화면에 닿지 않고 키는 시트 안의 칸이 그대로 받는다 */
     private void bind(int key, int modifiers, Runnable action) {
         String name = "proto-" + key;
         JComponent root = getRootPane();
         root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(key, modifiers), name);
         root.getActionMap().put(name, new javax.swing.AbstractAction() {
+            @Override
+            public boolean isEnabled() {
+                return keysFree();
+            }
+
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
                 action.run();
@@ -385,6 +493,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         }
         checkDate();
         pruneReminders();
+        sidebar.refreshMonth();
         refreshCurrent(true);
     }
 
@@ -402,10 +511,9 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         ctx.actions().storageError(message);
     }
 
-    /** 일정이 바뀐 뒤, 지워졌거나 완료된 일정의 알림 카드는 치운다 */
+    /** 일정이 바뀐 뒤, 지워졌거나 완료됐거나 하루 종일로 바뀐(알림 제외 대상) 일정의 알림 카드는 치운다 */
     private void pruneReminders() {
-        overlay.pruneReminders(o -> ctx.schedules().findOccurrence(o.scheduleId(), o.date())
-                .filter(f -> !f.completed()).isPresent());
+        overlay.pruneReminders(ctx.actions()::reminderStillActive);
     }
 
     @Override
@@ -417,6 +525,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
             ctx.state().setCategoryId(null);
         }
         sidebar.refreshCategories();
+        sidebar.refreshMonth();
         refreshCurrent(false);
     }
 

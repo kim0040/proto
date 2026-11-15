@@ -19,8 +19,17 @@ import java.util.TreeSet;
  *   <li>excludedDates: 반복 중 빠진 날짜들. "이 일정만" 수정/삭제(F3, F4)하면 그 날짜가 여기에 들어간다</li>
  * </ul>
  * 상태(예정/진행 중/지연/완료)는 필드로 두지 않는다. StateCalculator가 계산한다 (F6).
+ *
+ * <p>하루 종일(allDay) 일정은 시간이 없는 일정이다. 그래도 "끝이 시작보다 늦다" 같은 기존 규칙이 그대로 통하도록
+ * 시작·끝은 언제나 {@link #ALL_DAY_START}~{@link #ALL_DAY_END}(00:00~23:59)로, 알림은 언제나 NONE으로 읽힌다
+ * (getStartTime, getEndTime, getReminder가 그렇게 돌려주므로 CSV·서버에도 그 값이 저장된다).</p>
  */
 public class Schedule {
+
+    /** 하루 종일 일정의 시작 시간 (00:00) */
+    public static final LocalTime ALL_DAY_START = LocalTime.MIDNIGHT;
+    /** 하루 종일 일정의 끝 시간 (23:59). 상태 계산은 Occurrence#endDateTime이 다음 날 0시로 본다 */
+    public static final LocalTime ALL_DAY_END = LocalTime.of(23, 59);
 
     private final String id;
     private String title;
@@ -32,6 +41,9 @@ public class Schedule {
     private RepeatRule repeatRule;
     private LocalDate repeatEndDate;
     private ReminderOption reminder;
+    private boolean allDay;
+    /** 이 일정만의 색 키 (CategoryPalette.KEYS 중 하나). null이면 카테고리 색을 따른다 */
+    private String colorKey;
     private final Set<LocalDate> completedDates = new TreeSet<>();
     private final Set<LocalDate> excludedDates = new TreeSet<>();
 
@@ -42,6 +54,16 @@ public class Schedule {
     public Schedule(String id, String title, LocalDate date, LocalTime startTime, LocalTime endTime,
                     String categoryId, String memo, RepeatRule repeatRule, LocalDate repeatEndDate,
                     ReminderOption reminder) {
+        this(id, title, date, startTime, endTime, categoryId, memo, repeatRule, repeatEndDate, reminder, false);
+    }
+
+    /**
+     * 하루 종일 여부까지 받아 일정을 만든다. allDay가 true면 시작·끝·알림 값은 무시되고 00:00~23:59, NONE으로 읽힌다.
+     * 나머지 규칙은 위 생성자와 같다.
+     */
+    public Schedule(String id, String title, LocalDate date, LocalTime startTime, LocalTime endTime,
+                    String categoryId, String memo, RepeatRule repeatRule, LocalDate repeatEndDate,
+                    ReminderOption reminder, boolean allDay) {
         this.id = Objects.requireNonNull(id);
         this.title = title;
         this.date = date;
@@ -52,11 +74,12 @@ public class Schedule {
         this.repeatRule = repeatRule == null ? RepeatRule.NONE : repeatRule;
         this.repeatEndDate = repeatEndDate;
         this.reminder = reminder == null ? ReminderOption.NONE : reminder;
+        setAllDay(allDay);
     }
 
     /**
      * 같은 값을 가진 복사본 (id도 같음). 수정 전 값을 보관하거나 테스트할 때 쓴다.
-     * 완료·제외 날짜도 같이 복사한다(내용을 바꿔도 원본에 영향이 없다).
+     * 완료·제외 날짜와 하루 종일 여부도 같이 복사한다(내용을 바꿔도 원본에 영향이 없다).
      */
     public Schedule copy() {
         return copyWithId(id);
@@ -68,7 +91,8 @@ public class Schedule {
      */
     public Schedule copyWithId(String newId) {
         Schedule s = new Schedule(newId, title, date, startTime, endTime, categoryId, memo,
-                repeatRule, repeatEndDate, reminder);
+                repeatRule, repeatEndDate, reminder, allDay);
+        s.colorKey = colorKey;
         s.completedDates.addAll(completedDates);
         s.excludedDates.addAll(excludedDates);
         return s;
@@ -126,9 +150,11 @@ public class Schedule {
     public void setTitle(String title) { this.title = title; }
     public LocalDate getDate() { return date; }
     public void setDate(LocalDate date) { this.date = date; }
-    public LocalTime getStartTime() { return startTime; }
+    /** 시작 시간. 하루 종일 일정이면 언제나 00:00 */
+    public LocalTime getStartTime() { return allDay ? ALL_DAY_START : startTime; }
     public void setStartTime(LocalTime startTime) { this.startTime = startTime; }
-    public LocalTime getEndTime() { return endTime; }
+    /** 끝 시간. 하루 종일 일정이면 언제나 23:59 */
+    public LocalTime getEndTime() { return allDay ? ALL_DAY_END : endTime; }
     public void setEndTime(LocalTime endTime) { this.endTime = endTime; }
     public String getCategoryId() { return categoryId; }
     public void setCategoryId(String categoryId) { this.categoryId = categoryId; }
@@ -138,8 +164,31 @@ public class Schedule {
     public void setRepeatRule(RepeatRule rule) { this.repeatRule = rule == null ? RepeatRule.NONE : rule; }
     public LocalDate getRepeatEndDate() { return repeatEndDate; }
     public void setRepeatEndDate(LocalDate repeatEndDate) { this.repeatEndDate = repeatEndDate; }
-    public ReminderOption getReminder() { return reminder; }
+    /** 알림. 하루 종일 일정이면 언제나 NONE (시작 시각이 없어 알릴 때를 정할 수 없다) */
+    public ReminderOption getReminder() { return allDay ? ReminderOption.NONE : reminder; }
     public void setReminder(ReminderOption r) { this.reminder = r == null ? ReminderOption.NONE : r; }
+
+    /** 하루 종일 일정인지 */
+    public boolean isAllDay() { return allDay; }
+
+    /** 이 일정만의 색 키. 따로 고르지 않았으면 null (카테고리 색을 쓴다) */
+    public String getColorKey() { return colorKey; }
+
+    /** 이 일정만의 색을 정한다. null이나 팔레트에 없는 키면 "따로 고르지 않음"(null)이 된다 */
+    public void setColorKey(String key) { this.colorKey = CategoryPalette.isKnown(key) ? key : null; }
+
+    /**
+     * 하루 종일 여부를 바꾼다. true로 바꾸면 들고 있던 시간도 00:00~23:59, 알림도 NONE으로 덮어쓴다.
+     * 그래서 나중에 false로 되돌려도 예전 시간이 아니라 00:00~23:59가 남는다(화면은 입력값으로 새 시간을 넣는다).
+     */
+    public void setAllDay(boolean allDay) {
+        this.allDay = allDay;
+        if (allDay) {
+            this.startTime = ALL_DAY_START;
+            this.endTime = ALL_DAY_END;
+            this.reminder = ReminderOption.NONE;
+        }
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -153,6 +202,7 @@ public class Schedule {
 
     @Override
     public String toString() {
-        return "Schedule[" + id + ", " + title + ", " + date + " " + startTime + "-" + endTime + "]";
+        String time = allDay ? "하루 종일" : startTime + "-" + endTime;
+        return "Schedule[" + id + ", " + title + ", " + date + " " + time + "]";
     }
 }

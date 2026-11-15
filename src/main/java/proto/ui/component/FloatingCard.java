@@ -15,12 +15,14 @@ import java.awt.LayoutManager;
 /**
  * [경계 boundary] 토스트·알림 카드의 공통 바탕: 둥근 면 + 얇은 테두리 + 옅은 그림자.
  * ToastCard, ReminderCard, MoreCard의 부모 클래스이다. Overlay가 이 카드들을 창 위에 쌓는다. 카드 둘레에 투명 여백(MARGIN)을 두어 그림자가 잘리지 않게 한다.
- * 나타날 때 위로 16px 올라오며 서서히 보이고, 사라질 때 서서히 흐려진다.
+ * 나타날 때 아래에서 22px 올라오며 스프링으로 살짝 넘었다 자리 잡고, 사라질 때는 튀지 않고 서서히 흐려진다.
  */
 public abstract class FloatingCard extends JPanel {
 
     /** 그림자와 미끄러짐이 들어갈 투명 여백 */
     public static final int MARGIN = 20;
+    /** 등장할 때 올라오는 거리 (논리 px) */
+    private static final int SLIDE = 22;
 
     private final Tween appear = new Tween(0f, this::repaint);
     private boolean closing;
@@ -34,7 +36,7 @@ public abstract class FloatingCard extends JPanel {
     /** 나타나는 모션을 시작한다 */
     public void playIn() {
         appear.set(0f);
-        appear.to(1f, 240);
+        appear.springTo(1f, 380);
     }
 
     /** 사라지는 모션 뒤에 after를 부른다 (한 번만) */
@@ -58,8 +60,8 @@ public abstract class FloatingCard extends JPanel {
             return;
         }
         Graphics2D g2 = (Graphics2D) g.create();
-        g2.translate(0, Math.round((1f - a) * Ui.px(16)));
-        g2.setComposite(AlphaComposite.SrcOver.derive(Math.min(1f, a)));
+        g2.translate(0, Math.round((1f - a) * Ui.px(SLIDE)));
+        g2.setComposite(AlphaComposite.SrcOver.derive(Math.max(0f, Math.min(1f, a))));
         super.paint(g2);
         g2.dispose();
     }

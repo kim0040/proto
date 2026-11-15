@@ -11,19 +11,22 @@ import proto.ui.AppState.Mode;
 import proto.ui.MainFrame;
 import proto.ui.UiContext;
 import proto.ui.UiLauncher;
+import proto.ui.component.AllDayRow;
 import proto.ui.component.ReminderCard;
 import proto.ui.component.TimeCombo;
+import proto.ui.dialog.BaseDialog;
 import proto.ui.dialog.CategoryDialog;
 import proto.ui.dialog.ConfirmDialog;
+import proto.ui.dialog.Dialogs;
 import proto.ui.dialog.FreeSlotDialog;
 import proto.ui.dialog.ScheduleDialog;
+import proto.ui.dialog.SettingsSheet;
 import proto.ui.motion.Motion;
 import proto.ui.theme.ThemeManager;
 
 import javax.imageio.ImageIO;
 import javax.swing.AbstractButton;
 import javax.swing.JComponent;
-import javax.swing.JDialog;
 import javax.swing.SwingUtilities;
 import java.awt.Component;
 import java.awt.Container;
@@ -46,8 +49,8 @@ import java.util.function.Supplier;
  * 개발할 때만 proto.app.dev.ScreenshotMain이 부른다 (앱 실행에는 쓰이지 않는다). 가짜 데이터가 든 controller로 진짜 MainFrame을 띄우고 화면을 PNG로 그려
  * 저장한다.
  * Motion을 임시로 꺼서 캡처 중에 애니메이션이 섞이지 않게 하고, 설정 파일에는 저장하지 않는다.
- * 여러 창 크기(1440×900, 1100×720, 900×640, 760×540, 세로 800×1000)로 메인 보기 5개를 밝은/어두운 테마로 찍고,
- * 서랍·주간 아젠다·긴 글/이모지·시간 입력 오류·알림 더미 같은 경계 장면과 대화상자도 찍는다.
+ * 여러 창 크기(1440×900, 1100×720, 900×640, 760×540, 세로 800×1000)로 메인 보기 4개를 밝은/어두운 테마로 찍고,
+ * 서랍·주간 아젠다·긴 글/이모지·시간 입력 오류·알림 더미 같은 경계 장면과, 메인 창 위에 뜬 시트(일정·빈 시간·카테고리·확인·설정)도 찍는다.
  */
 public final class ScreenshotTool {
 
@@ -72,6 +75,7 @@ public final class ScreenshotTool {
                 holder[0].attachListeners();
                 holder[0].setVisible(true);
             });
+            seedAllDay(holder[0]);
             shootAll(holder[0], outDir);
         } finally {
             Motion.setEnabledTransient(motionBefore);
@@ -89,8 +93,9 @@ public final class ScreenshotTool {
             for (int i = 0; i < SIZES.length; i++) {
                 captureMain(frame, out, theme, SIZES[i][0], SIZES[i][1], SIZE_NAMES[i]);
             }
-            captureSettingsBottom(frame, out, theme);
-            captureDialogs(frame, out, theme);
+            captureAllDayScenes(frame, out, theme);
+            captureSheets(frame, out, theme);
+            captureSettingsSheets(frame, out, theme);
             captureEdgeScenes(frame, out, theme);
         }
         seedLongText(frame);
@@ -134,40 +139,59 @@ public final class ScreenshotTool {
         run(() -> frame.showMode(Mode.TODAY));
     }
 
-    /** 설정 보기는 길어서 맨 아래(데이터·정보)로 스크롤한 장면을 한 장 더 찍는다 */
-    private static void captureSettingsBottom(MainFrame frame, Path out, String theme)
+    /** 설정 시트: 위쪽, 맨 아래(데이터·정보)로 내린 모습, 좁은 창(760×540) */
+    private static void captureSettingsSheets(MainFrame frame, Path out, String theme)
             throws InterruptedException, InvocationTargetException, IOException {
+        UiContext ctx = frame.context();
         resize(frame, 1200, 780);
-        run(() -> frame.showMode(Mode.SETTINGS));
-        run(() -> {
-            javax.swing.JScrollBar bar = ((javax.swing.JScrollPane) frame.currentView().component())
-                    .getVerticalScrollBar();
-            bar.setValue(bar.getMaximum());
-        });
-        run(() -> { });
-        save(frame.getRootPane(), out.resolve(theme + "-settings-bottom.png"));
+        run(() -> frame.showMode(Mode.WEEK));
+        shoot(frame, () -> new SettingsSheet(ctx), out, theme + "-sheet-settings");
+        shoot(frame, () -> scrolledToBottom(new SettingsSheet(ctx)), out, theme + "-sheet-settings-bottom");
+        resize(frame, 760, 540);
+        shoot(frame, () -> new SettingsSheet(ctx), out, theme + "-sheet-settings-760");
         run(() -> frame.showMode(Mode.TODAY));
     }
 
-    private static void captureDialogs(MainFrame frame, Path out, String theme)
+    private static BaseDialog scrolledToBottom(BaseDialog d) {
+        d.open();
+        d.getParent().validate();
+        javax.swing.JScrollBar bar = d.scrollPane().getVerticalScrollBar();
+        bar.setValue(bar.getMaximum());
+        return d;
+    }
+
+    /** 일정·빈 시간·카테고리 시트를 메인 창(오늘 보기) 위에 띄워 찍는다. 확인 시트는 일정 시트 위에 겹쳐 뜬 모습으로 찍는다 */
+    private static void captureSheets(MainFrame frame, Path out, String theme)
             throws InterruptedException, InvocationTargetException, IOException {
         resize(frame, 1200, 780);
+        run(() -> frame.showMode(Mode.TODAY));
         UiContext ctx = frame.context();
         LocalDate today = ctx.schedules().today();
         Occurrence any = firstOccurrence(ctx, today);
-        shoot(() -> new ScheduleDialog(ctx, null, ctx.schedules().newDraft(today)), out, theme + "-dialog-new");
+        shoot(frame, () -> new ScheduleDialog(ctx, null, ctx.schedules().newDraft(today)), out, theme + "-sheet-new");
         if (any != null) {
-            shoot(() -> new ScheduleDialog(ctx, any, ctx.schedules().draftOf(any)), out, theme + "-dialog-edit");
+            shoot(frame, () -> new ScheduleDialog(ctx, any, ctx.schedules().draftOf(any)), out, theme + "-sheet-edit");
+            shootStacked(frame, () -> new ScheduleDialog(ctx, any, ctx.schedules().draftOf(any)),
+                    ScreenshotTool::scopeDialog, out, theme + "-sheet-scope");
         }
-        shoot(() -> invalidDialog(ctx, today, null), out, theme + "-dialog-errors");
-        shoot(() -> invalidDialog(ctx, today, "25:00"), out, theme + "-dialog-time-error");
-        shoot(() -> new FreeSlotDialog(ctx), out, theme + "-dialog-freeslots");
-        shoot(() -> new CategoryDialog(ctx), out, theme + "-dialog-categories");
-        shoot(() -> scopeDialog(frame), out, theme + "-dialog-scope");
+        shootStacked(frame, () -> dirtyNew(ctx, today), Dialogs::discardPrompt, out, theme + "-sheet-discard");
+        shoot(frame, () -> invalidDialog(ctx, today, null), out, theme + "-sheet-errors");
+        shoot(frame, () -> invalidDialog(ctx, today, "25:00"), out, theme + "-sheet-time-error");
+        shoot(frame, () -> new FreeSlotDialog(ctx), out, theme + "-sheet-freeslots");
+        shoot(frame, () -> new CategoryDialog(ctx), out, theme + "-sheet-categories");
+        resize(frame, 760, 540);
+        shoot(frame, () -> new ScheduleDialog(ctx, null, ctx.schedules().newDraft(today)), out, theme + "-sheet-new-760");
     }
 
-    private static JDialog scopeDialog(MainFrame frame) {
-        return new ConfirmDialog(frame, "반복 일정 삭제", "반복 일정을 삭제할까요?",
+    /** 제목을 써서 "바꾼 것이 있는" 새 일정 시트 */
+    private static ScheduleDialog dirtyNew(UiContext ctx, LocalDate today) {
+        ScheduleDialog d = new ScheduleDialog(ctx, null, ctx.schedules().newDraft(today));
+        find(d, javax.swing.JTextField.class).setText("팀 회의 준비");
+        return d;
+    }
+
+    private static ConfirmDialog scopeDialog(java.awt.Component owner) {
+        return new ConfirmDialog(owner, "반복 일정 삭제", "반복 일정을 삭제할까요?",
                 "‘이 일정만’은 이 날짜 하나만, ‘앞으로 전부’는 이 날짜부터 뒤의 모든 반복에 적용돼요.", null,
                 List.of(new ConfirmDialog.Choice("취소", ConfirmDialog.Kind.GHOST),
                         new ConfirmDialog.Choice("이 일정만", ConfirmDialog.Kind.SECONDARY),
@@ -175,22 +199,23 @@ public final class ScreenshotTool {
     }
 
     /** 저장을 눌러 오류가 보이는 새 일정 창. startText가 있으면 시작 시간 칸에 그 글을 먼저 넣는다 */
-    private static JDialog invalidDialog(UiContext ctx, LocalDate today, String startText) {
+    private static BaseDialog invalidDialog(UiContext ctx, LocalDate today, String startText) {
         ScheduleDialog d = new ScheduleDialog(ctx, null, ctx.schedules().newDraft(today));
         if (startText != null) {
-            findCombo(d).setSelectedItem(startText);
+            find(d, TimeCombo.class).setSelectedItem(startText);
         }
         clickButton(d, "저장");
         return d;
     }
 
-    private static TimeCombo findCombo(Container root) {
+    /** root 안에서 type인 첫 컴포넌트 (화면 순서대로) */
+    private static <T extends Component> T find(Container root, Class<T> type) {
         for (Component c : root.getComponents()) {
-            if (c instanceof TimeCombo t) {
-                return t;
+            if (type.isInstance(c)) {
+                return type.cast(c);
             }
             if (c instanceof Container inner) {
-                TimeCombo found = findCombo(inner);
+                T found = find(inner, type);
                 if (found != null) {
                     return found;
                 }
@@ -257,6 +282,47 @@ public final class ScreenshotTool {
         };
     }
 
+    // ---- 하루 종일 ----
+
+    /** 하루 종일 예시: 오늘 1개, 금요일 4개(펼침·"+N" 확인), 반복(매주 월요일) 1개, 다음 주 월요일 1개 */
+    private static void seedAllDay(MainFrame frame) throws InterruptedException, InvocationTargetException {
+        UiContext ctx = frame.context();
+        run(() -> {
+            LocalDate today = ctx.schedules().today();
+            allDay(ctx, "팀플 중간 발표", today, "team", RepeatRule.NONE);
+            allDay(ctx, "학과 행사", today.plusDays(1), "class", RepeatRule.NONE);
+            allDay(ctx, "🎂 동생 생일", today.plusDays(1), "personal", RepeatRule.NONE);
+            allDay(ctx, "공모전 마감", today.plusDays(1), "assignment", RepeatRule.NONE);
+            allDay(ctx, "도서관 휴관", today.plusDays(1), "personal", RepeatRule.NONE);
+            allDay(ctx, "근로 장학 신청", today.minusDays(3), "assignment", RepeatRule.WEEKLY);
+            allDay(ctx, "동아리 MT", today.plusDays(4), "team", RepeatRule.NONE);
+        });
+    }
+
+    /** 하루 종일 줄을 펼친 주 보기(1440, 900), 달력과 오늘 보기의 하루 종일 표시(1100) */
+    private static void captureAllDayScenes(MainFrame frame, Path out, String theme)
+            throws InterruptedException, InvocationTargetException, IOException {
+        resize(frame, 1440, 900);
+        run(() -> frame.showMode(Mode.WEEK));
+        AllDayRow row = find(frame.getRootPane(), AllDayRow.class);
+        run(() -> row.setExpanded(true));
+        run(() -> frame.getRootPane().validate());
+        save(frame.getRootPane(), out.resolve(theme + "-week-allday-expanded-1440.png"));
+        run(() -> row.setExpanded(false));
+        resize(frame, 1100, 720);
+        run(() -> frame.showMode(Mode.TODAY));
+        run(() -> frame.showMode(Mode.TODAY));
+        save(frame.getRootPane(), out.resolve(theme + "-today-allday-1100.png"));
+    }
+
+    private static void allDay(UiContext ctx, String title, LocalDate d, String cat, RepeatRule repeat) {
+        var r = ctx.schedules().create(new ScheduleDraft(title, d, LocalTime.of(0, 0), LocalTime.of(23, 59), cat, "",
+                repeat, null, ReminderOption.NONE, true));
+        if (!r.success()) {
+            throw new IllegalStateException("하루 종일 예시 일정을 만들 수 없어요: " + r.message());
+        }
+    }
+
     // ---- 긴 글·이모지 ----
 
     /** 매우 긴 제목·메모·카테고리 이름, 이모지, 앞뒤 공백, 한/영/숫자 섞인 제목, 한 날 30개 일정을 controller로 만든다 */
@@ -308,17 +374,39 @@ public final class ScreenshotTool {
 
     // ---- 그리기 도우미 ----
 
-    private static void shoot(Supplier<JDialog> factory, Path out, String name)
+    /** 시트를 메인 창 위에 (기다리지 않고) 띄워 창 전체를 찍고 닫는다. 애니메이션은 꺼져 있어 바로 제자리에 보인다 */
+    private static void shoot(MainFrame frame, Supplier<BaseDialog> factory, Path out, String name)
             throws InterruptedException, InvocationTargetException, IOException {
-        JDialog[] d = new JDialog[1];
+        BaseDialog[] d = new BaseDialog[1];
         run(() -> {
             d[0] = factory.get();
-            d[0].pack();
+            d[0].open();
         });
         try {
-            save(d[0].getRootPane(), out.resolve(name + ".png"));
+            save(frame.getRootPane(), out.resolve(name + ".png"));
         } finally {
-            run(d[0]::dispose);
+            run(d[0]::cancel);
+        }
+    }
+
+    /** 아래 시트 위에 확인 시트를 하나 더 쌓아 찍는다 (시트에서 연 확인 창의 모습) */
+    private static void shootStacked(MainFrame frame, Supplier<BaseDialog> below,
+                                     java.util.function.Function<java.awt.Component, BaseDialog> above, Path out,
+                                     String name) throws InterruptedException, InvocationTargetException, IOException {
+        BaseDialog[] d = new BaseDialog[2];
+        run(() -> {
+            d[0] = below.get();
+            d[0].open();
+            d[1] = above.apply(d[0]);
+            d[1].open();
+        });
+        try {
+            save(frame.getRootPane(), out.resolve(name + ".png"));
+        } finally {
+            run(() -> {
+                d[1].cancel();
+                d[0].cancel();
+            });
         }
     }
 

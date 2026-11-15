@@ -16,6 +16,7 @@ import java.util.List;
  * F12(빈 시간 찾기)에서 쓴다. ScheduleController가 그날의 하루치 일정과 함께 부르고, 결과(TimeSlot 목록)를 FreeSlotDialog가 보여 준다.
  * 찾는 구간 안에서 "일정이 하나도 없는 시간"만 돌려준다. 일정이 끝나는 시각부터 다음 일정이 시작하는 시각까지가 빈 시간이다.
  * 겹치거나 포개진 일정은 하나로 합쳐서 계산하고, 오늘이면 지금 시각을 5분 단위로 올림한 이후만 본다.
+ * 하루 종일 일정은 시간을 차지하지 않는 것으로 본다 (있어도 그날 빈 시간은 그대로다).
  */
 public final class FreeSlotFinder {
 
@@ -29,7 +30,7 @@ public final class FreeSlotFinder {
      * "지금까지 일정이 끝난 가장 늦은 시각(cursor)"을 기억하고, 다음 일정이 cursor 뒤에서 시작하면 그 사이가 빈 시간이다.
      * 일정이 서로 겹치거나 한 일정이 다른 일정 안에 들어 있어도 cursor는 뒤로 가지 않으므로 따로 합치지 않아도 된다.
      *
-     * @param dayOccurrences date 하루의 모든 일정 (완료한 것 포함. 끝낸 일정도 그 시간에는 일을 했으니 빈 시간이 아니다)
+     * @param dayOccurrences date 하루의 모든 일정 (완료한 것 포함. 끝낸 일정도 그 시간에는 일을 했으니 빈 시간이 아니다. 하루 종일 일정은 무시)
      * @param date           찾을 날짜 (다른 날짜의 일정은 무시한다)
      * @param minutes        필요한 최소 길이(분). 이 길이와 같은 구간도 포함
      * @param from           찾는 구간의 시작 (예: 09:00)
@@ -44,7 +45,7 @@ public final class FreeSlotFinder {
             return List.of();
         }
         List<Occurrence> busy = dayOccurrences.stream()
-                .filter(o -> o.date().equals(date))
+                .filter(o -> o.date().equals(date) && !o.allDay())
                 .sorted(Comparator.comparing(Occurrence::startTime))
                 .toList();
         List<TimeSlot> slots = new ArrayList<>();

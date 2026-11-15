@@ -71,6 +71,7 @@ public final class UiLauncher {
             JDialog.setDefaultLookAndFeelDecorated(true);
         }
         UiContext ctx = new UiContext(schedules, categories, reminders, dataDir);
+        proto.ui.theme.CategoryColors.setResolver(categories::colorOf);
         return new MainFrame(ctx);
     }
 }

@@ -26,6 +26,7 @@ public class Overlay extends JComponent {
     private static final int GAP = 4;
     private static final int EDGE = 16;
     private static final int TOAST_MS = 2500;
+    private static final int ACTION_TOAST_MS = 6000;
     private static final int TOAST_MAX_WIDTH = 560;
 
     private final List<ToastCard> toasts = new ArrayList<>();
@@ -55,27 +56,45 @@ public class Overlay extends JComponent {
     /** 확인 토스트를 띄운다. 일반 토스트는 2.5초 뒤 사라지고, 오류 토스트는 닫을 때까지 남는다 */
     public void showToast(String message, boolean error) {
         if (!error) {
-            new ArrayList<>(toasts).stream().filter(t -> !t.isError()).forEach(this::removeNow);
+            clearPlainToasts();
         }
         ToastCard[] holder = new ToastCard[1];
         holder[0] = new ToastCard(message, error, () -> dismissToast(holder[0]));
-        addToast(holder[0], !error);
+        addToast(holder[0], error ? 0 : TOAST_MS);
     }
 
     /** 닫을 때까지 남는 오류 토스트에 버튼 하나("자세히")를 붙여 띄운다 */
     public void showDetailToast(String message, String actionLabel, Runnable onAction) {
         ToastCard[] holder = new ToastCard[1];
         holder[0] = new ToastCard(message, true, () -> dismissToast(holder[0]), actionLabel, onAction);
-        addToast(holder[0], false);
+        addToast(holder[0], 0);
     }
 
-    private void addToast(ToastCard card, boolean autoHide) {
+    /** 버튼이 달린 확인 토스트 ("되돌리기" 등). 눌러 볼 시간을 주려고 일반 토스트보다 오래 남는다. 같은 모양의 앞선 확인 토스트는 치운다 */
+    public ActionToastCard showActionToast(String message, String actionLabel, Runnable onAction) {
+        clearPlainToasts();
+        ActionToastCard card = ActionToastCard.withAction(message, actionLabel, onAction);
+        addToast(card, ACTION_TOAST_MS);
+        return card;
+    }
+
+    /** 회색 아이콘의 짧은 안내 토스트 ("되돌릴 작업이 없어요" 등) */
+    public void showNotice(String message) {
+        clearPlainToasts();
+        addToast(ActionToastCard.notice(message), TOAST_MS);
+    }
+
+    private void clearPlainToasts() {
+        new ArrayList<>(toasts).stream().filter(t -> !t.isError()).forEach(this::removeNow);
+    }
+
+    private void addToast(ToastCard card, int hideMs) {
         toasts.add(card);
         add(card);
         revalidate();
         card.playIn();
-        if (autoHide) {
-            Timer t = new Timer(TOAST_MS, e -> dismissToast(card));
+        if (hideMs > 0) {
+            Timer t = new Timer(hideMs, e -> dismissToast(card));
             t.setRepeats(false);
             t.start();
         }

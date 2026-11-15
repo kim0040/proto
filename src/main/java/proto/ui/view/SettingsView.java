@@ -6,13 +6,13 @@ import proto.ui.UiSettings;
 import proto.ui.component.Buttons;
 import proto.ui.component.Listeners;
 import proto.ui.component.PathLabel;
-import proto.ui.layout.SizeClass;
-import proto.ui.component.ScrollPanel;
 import proto.ui.component.Segmented;
+import proto.ui.component.SwatchGrid;
 import proto.ui.component.TimeCombo;
 import proto.ui.component.ToggleSwitch;
 import proto.ui.component.TokenLabel;
 import proto.ui.motion.Motion;
+import proto.ui.theme.Accent;
 import proto.ui.theme.AppIcon;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.ThemeManager;
@@ -27,7 +27,6 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import java.awt.BorderLayout;
 import java.awt.Desktop;
 import java.awt.Dimension;
@@ -39,24 +38,27 @@ import java.time.LocalTime;
 import java.util.List;
 
 /**
- * [경계 boundary] 설정 보기: 화면(테마·애니메이션·시작 화면), 알림, 빈 시간 찾기, 데이터 폴더, 앱 정보를 묶음별로 보여 주고 바꾸는 즉시 적용·저장한다.
+ * [경계 boundary] 설정 내용: 화면(테마·강조색·애니메이션·시작 화면), 알림, 빈 시간 찾기, 데이터 폴더, 앱 정보를 묶음별로 보여 주고 바꾸는 즉시 적용·저장한다.
+ * 설정 시트(SettingsSheet)가 열릴 때마다 하나 만들어 담는다. 테마·강조색·애니메이션을 바꾸면 시트 뒤의 화면에 바로 반영된다.
+ * 예전에는 보기(ContentView) 하나였지만 지금은 지금 보던 화면 위에 뜨는 시트의 내용이라 스크롤은 시트가 맡는다.
  */
-public class SettingsView implements ContentView {
+public class SettingsView {
 
     private static final int MAX_WIDTH = 720;
     /** 묶여 나온 jar의 매니페스트(Implementation-Version)에서 읽는다. gradle run·테스트처럼 jar가 아니면 "개발판" */
     private static final String VERSION = versionText();
 
     private final UiContext ctx;
-    private final JScrollPane root;
+    private final JPanel root;
     private final Segmented<Choice> theme = new Segmented<>(List.of(Choice.values()), SettingsView::themeLabel);
+    private final SwatchGrid accent = new SwatchGrid(accentSwatches(), Accent.values().length, true,
+            ThemeManager.accent().key());
     private final ToggleSwitch animation = new ToggleSwitch(Motion.enabled(), "애니메이션");
     private final Segmented<Mode> start = new Segmented<>(List.of(Mode.TODAY, Mode.WEEK, Mode.MONTH),
             SettingsView::modeLabel);
     private final ToggleSwitch sound = new ToggleSwitch(UiSettings.reminderSound(), "알림 소리");
     private final TimeCombo from = new TimeCombo(UiSettings.freeFrom()).named("활동 시작 시각");
     private final TimeCombo to = new TimeCombo(UiSettings.freeTo()).named("활동 끝 시각");
-    private ScrollPanel body;
     private final TokenLabel hoursHint = new TokenLabel("빈 시간 찾기를 열면 이 시간대가 먼저 채워져요",
             Fonts.regular(Fonts.SMALL), Tokens.MUTED);
 
@@ -64,7 +66,14 @@ public class SettingsView implements ContentView {
         this.ctx = ctx;
         this.root = build();
         wire();
-        refresh(false);
+        refresh();
+    }
+
+    /** 강조색 7가지를 지금 테마에 맞는 색으로 보여 주는 견본 목록 */
+    private static List<SwatchGrid.Swatch> accentSwatches() {
+        return java.util.Arrays.stream(Accent.values())
+                .map(a -> new SwatchGrid.Swatch(a.key(), a.label(), () -> a.color(ThemeManager.isDark())))
+                .toList();
     }
 
     private static String themeLabel(Choice c) {
@@ -85,12 +94,13 @@ public class SettingsView implements ContentView {
 
     // ---- 조립 ----
 
-    private JScrollPane build() {
-        body = new ScrollPanel(null);
+    private JPanel build() {
+        JPanel body = new JPanel();
+        body.setOpaque(false);
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-        applySize(ctx.size());
         body.add(section("화면", List.of(
                 row("테마", "시스템을 고르면 컴퓨터의 밝기 설정을 따라가요", theme),
+                row("강조색", "버튼, 선택 표시, 오늘 표시에 쓰는 색이에요", accent),
                 row("애니메이션", "화면 전환과 효과를 부드럽게 보여 줘요", animation),
                 row("시작 화면", "앱을 열 때 가장 먼저 보여 줄 화면이에요", start))));
         body.add(section("알림", List.of(
@@ -100,20 +110,7 @@ public class SettingsView implements ContentView {
         body.add(section("빈 시간 찾기", List.of(row("기본 활동 시간대", hoursHint, hours()))));
         body.add(section("데이터", List.of(dataRow())));
         body.add(section("정보", List.of(about())));
-        JScrollPane scroll = new JScrollPane(body);
-        scroll.setBorder(BorderFactory.createEmptyBorder());
-        scroll.setOpaque(false);
-        scroll.getViewport().setOpaque(false);
-        return scroll;
-    }
-
-    /** 좁은 화면에서는 가로 여백을 줄인다 */
-    @Override
-    public void applySize(SizeClass sc) {
-        if (body != null) {
-            int g = Ui.px(sc.gutter());
-            body.setBorder(BorderFactory.createEmptyBorder(Ui.px(4), g, Ui.px(40 - sc.verticalTrim()), g));
-        }
+        return body;
     }
 
     private JPanel section(String heading, List<JComponent> rows) {
@@ -233,6 +230,7 @@ public class SettingsView implements ContentView {
 
     private void wire() {
         theme.addChangeListener(ThemeManager::setChoice);
+        accent.addChangeListener(key -> ThemeManager.setAccent(Accent.of(key), true));
         animation.addChangeListener(Motion::setEnabled);
         start.addChangeListener(UiSettings::setStartMode);
         sound.addChangeListener(UiSettings::setReminderSound);
@@ -261,41 +259,17 @@ public class SettingsView implements ContentView {
         hoursHint.setColorToken(Tokens.MUTED);
     }
 
-    // ---- ContentView ----
+    // ---- 바깥에서 쓰는 것 ----
 
-    @Override
+    /** 시트에 담을 내용 (스크롤은 시트가 한다) */
     public JComponent component() {
         return root;
     }
 
-    @Override
-    public String title() {
-        return "설정";
-    }
-
-    @Override
-    public String subtitle() {
-        return "화면과 알림을 내 방식대로 맞춰요";
-    }
-
-    @Override
-    public boolean hasNavigator() {
-        return false;
-    }
-
-    @Override
-    public boolean usesFilters() {
-        return false;
-    }
-
-    @Override
-    public boolean hasSearch() {
-        return false;
-    }
-
-    @Override
-    public void refresh(boolean animate) {
+    /** 저장된 값으로 스위치·선택을 다시 맞춘다 */
+    public void refresh() {
         theme.setValue(ThemeManager.choice(), false);
+        accent.setSelected(ThemeManager.accent().key());
         start.setValue(UiSettings.startMode(), false);
         animation.setOn(Motion.enabled());
         sound.setOn(UiSettings.reminderSound());

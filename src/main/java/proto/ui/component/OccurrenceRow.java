@@ -32,10 +32,10 @@ import java.awt.event.MouseEvent;
 /**
  * [경계 boundary] 일정 한 줄(시간·체크·제목·카테고리·상태). 오늘 목록과 달력 옆 목록이 함께 쓴다.
  * OccurrenceList가 일정마다 하나씩 만든다. 사용자의 동작(클릭, 완료 체크, Delete 키, 오른쪽 클릭)은 RowHandler(실제로는 UiActions)에 넘기고,
- * 상태(F6)는 RowHandler#stateOf로 묻는다. 줄은 자기 모양만 책임진다.
- * 마우스를 올리면 배경이 서서히 켜지고, 완료하면 체크와 제목이 부드럽게 바뀐다.
+ * 상태(F6)는 RowHandler#stateOf로 묻는다. 줄은 자기 모양만 책임진다. Alt+방향키는 일정을 옮기고, 포커스가 있을 때 Ctrl/⌘+C로 복사한다(OccurrenceHolder).
+ * 마우스를 올리면 배경이 서서히 켜지고, 완료하면 체크와 제목이 부드럽게 바뀐다. 하루 종일 일정은 시간 범위 대신 색 네모 + "하루 종일"(AllDayTag)을 보여 준다.
  */
-public class OccurrenceRow extends JPanel {
+public class OccurrenceRow extends JPanel implements OccurrenceHolder {
 
     private final RowHandler handler;
     private final boolean compact;
@@ -46,12 +46,17 @@ public class OccurrenceRow extends JPanel {
     private final StrikeLabel title = new StrikeLabel(Fonts.medium(Fonts.BODY));
     private final StrikeLabel memo = new StrikeLabel(Fonts.regular(Fonts.SMALL));
     private final TokenLabel metaTime = new TokenLabel("", Fonts.regular(Fonts.CAPTION), Tokens.MUTED);
+    private final AllDayTag tag = new AllDayTag(Fonts.medium(Fonts.SMALL), Tokens.MUTED);
+    private final AllDayTag metaTag = new AllDayTag(Fonts.regular(Fonts.CAPTION), Tokens.MUTED);
+    private final JPanel timeCell = new JPanel(new BorderLayout());
+    private final JPanel metaCell = new JPanel(new BorderLayout());
     private final CategoryDot dot = new CategoryDot(null, 8);
     private final TokenLabel category = new TokenLabel("", Fonts.regular(Fonts.SMALL), Tokens.MUTED);
     private final StatePill pill = new StatePill(ScheduleState.SCHEDULED);
     private final JLabel repeatIcon = new JLabel(Icons.of("repeat", 14, Tokens.FAINT));
     private final JLabel bellIcon = new JLabel(Icons.of("bell", 14, Tokens.FAINT));
     private final Tween hover = new Tween(0f, this::repaint);
+    private final RowMotion motion = new RowMotion(this::motionChanged);
     private final JPanel chip = new Chip();
     private boolean hideCategory;
 
@@ -68,8 +73,37 @@ public class OccurrenceRow extends JPanel {
     }
 
     /** 이 행이 보여 주는 하루치 일정 */
+    @Override
     public Occurrence occurrence() {
         return occurrence;
+    }
+
+    /** 목록이 바뀔 때의 미끄러짐·나타남 모션 (OccurrenceList가 시키고 FlipLayout이 읽는다) */
+    RowMotion motion() {
+        return motion;
+    }
+
+    /** 모션 값이 바뀌었다: 어긋난 자리를 목록이 다시 배치하고, 투명도가 바뀐 모습을 다시 그린다 */
+    private void motionChanged() {
+        java.awt.Container parent = getParent();
+        if (parent != null) {
+            parent.doLayout();
+        }
+        repaint();
+    }
+
+    /** 나타나는 중이면 투명도를 곁들여 그린다 */
+    @Override
+    public void paint(Graphics g) {
+        float a = motion.alpha();
+        if (a >= 0.999f) {
+            super.paint(g);
+            return;
+        }
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setComposite(java.awt.AlphaComposite.SrcOver.derive(a));
+        super.paint(g2);
+        g2.dispose();
     }
 
     /** 새 값을 반영한다. 같은 일정이면 animate에 따라 체크·색이 부드럽게 바뀐다 */
@@ -77,6 +111,7 @@ public class OccurrenceRow extends JPanel {
         this.occurrence = o;
         time.setText(Fmt.range(o));
         metaTime.setText(Fmt.range(o));
+        showWhen(o);
         title.setText(o.title());
         title.setDone(o.completed(), animate);
         memo.setText(TextUtil.firstLine(o.memo()));
@@ -84,13 +119,30 @@ public class OccurrenceRow extends JPanel {
         memo.setVisible(!compact && !memo.isEmpty());
         check.setChecked(o.completed(), animate);
         pill.setState(state, animate);
-        dot.setCategoryId(o.categoryId());
+        dot.setOccurrence(o);
         category.setText(TextUtil.plain(handler.categoryName(o.categoryId())));
         repeatIcon.setVisible(o.isRepeating());
         bellIcon.setVisible(o.reminder() != ReminderOption.NONE);
         time.setColorToken(o.completed() ? Tokens.FAINT : Tokens.MUTED);
-        getAccessibleContext().setAccessibleName(o.title() + ", " + Fmt.range(o) + ", " + state.label());
+        getAccessibleContext().setAccessibleName(o.title() + ", " + AllDayTag.when(o) + ", " + state.label());
         revalidate();
+    }
+
+    /** 시간 자리: 하루 종일이면 색 네모 + "하루 종일", 아니면 시간 범위 */
+    private void showWhen(Occurrence o) {
+        tag.setOccurrence(o);
+        metaTag.setOccurrence(o);
+        swap(timeCell, o.allDay() ? tag : time);
+        swap(metaCell, o.allDay() ? metaTag : metaTime);
+    }
+
+    private static void swap(JPanel cell, JComponent content) {
+        if (content.getParent() != cell) {
+            cell.removeAll();
+            cell.add(content, BorderLayout.WEST);
+            cell.revalidate();
+            cell.repaint();
+        }
     }
 
     private void buildLayout() {
@@ -103,10 +155,13 @@ public class OccurrenceRow extends JPanel {
 
     /** 오늘 목록의 넓은 줄: 시간·체크·제목(+메모)·카테고리·상태·아이콘. 줄어들 때는 제목 칸만 줄고 나머지는 크기를 지킨다 */
     private void buildWide() {
+        timeCell.setOpaque(false);
+        timeCell.setPreferredSize(new Dimension(Ui.px(116), Ui.px(20)));
+        timeCell.setMinimumSize(timeCell.getPreferredSize());
         time.setPreferredSize(new Dimension(Ui.px(116), Ui.px(20)));
         time.setMinimumSize(time.getPreferredSize());
         JPanel texts = textColumn(title, memo);
-        add(time, cell(0, 0, 0, new Insets(0, 4, 0, 4)));
+        add(timeCell, cell(0, 0, 0, new Insets(0, 4, 0, 4)));
         add(check, cell(1, 0, 0, new Insets(0, 4, 0, 12)));
         add(texts, cell(2, 1, 1, new Insets(0, 0, 0, 12)));
         add(chip, cell(3, 0, 0, new Insets(0, 0, 0, 12)));
@@ -124,7 +179,8 @@ public class OccurrenceRow extends JPanel {
     private void buildCompact() {
         JPanel meta = new JPanel(new BorderLayout(Ui.px(8), 0));
         meta.setOpaque(false);
-        meta.add(metaTime, BorderLayout.WEST);
+        metaCell.setOpaque(false);
+        meta.add(metaCell, BorderLayout.WEST);
         meta.add(chip, BorderLayout.CENTER);
         JPanel texts = textColumn(title, meta);
         add(check, cell(0, 0, 0, new Insets(0, 8, 0, 12)));
@@ -196,6 +252,7 @@ public class OccurrenceRow extends JPanel {
                 handler.delete(occurrence);
             }
         });
+        NudgeKeys.install(this, handler, this::occurrence);
         Listeners.repaintOnFocus(this);
     }
 

@@ -33,6 +33,7 @@ import javax.swing.KeyStroke;
  * [경계 boundary] 본문 위쪽 줄: 보기 제목과 날짜, 이전/오늘/다음 버튼, 검색창(입력 후 150ms 뒤 적용).
  * MainFrame이 만들어 본문 위쪽에 붙인다. 이전/오늘/다음 버튼은 MainFrame의 shift·goToday로, 검색어는 MainFrame#search로 전달된다 (F2 조회 이동, F8 검색).
  * 좁은 화면(SizeClass.compact)에서는 검색창을 아이콘 하나로 접었다가 눌렀을 때 펼쳐서 자리를 아낀다.
+ * 검색창 오른쪽의 "⌘K" 작은 버튼은 명령 메뉴를 연다 (넓은 화면에서만 보인다. 좁은 화면에서도 ⌘K 키는 그대로 된다).
  */
 public final class HeaderBar extends JPanel {
 
@@ -45,12 +46,14 @@ public final class HeaderBar extends JPanel {
     private final JButton searchIcon = Buttons.icon("search", "검색 (" + Ui.shortcut("F") + ")", Tokens.TEXT);
     private final Timer debounce;
     private final Consumer<String> onSearch;
+    private final JButton commandButton = Buttons.compact(Buttons.secondary(Ui.shortcut("K")));
     private boolean compact;
     private boolean searchAllowed = true;
     private boolean expanded;
     private Motion.Handle expandMotion;
 
-    public HeaderBar(Runnable onPrev, Runnable onToday, Runnable onNext, Consumer<String> onSearch) {
+    public HeaderBar(Runnable onPrev, Runnable onToday, Runnable onNext, Consumer<String> onSearch,
+                     Runnable onCommand) {
         super(new BorderLayout(Ui.px(16), 0));
         setOpaque(false);
         setBorder(BorderFactory.createEmptyBorder(Ui.px(Ui.isMac() ? 34 : 22), Ui.px(32), Ui.px(16), Ui.px(32)));
@@ -58,6 +61,9 @@ public final class HeaderBar extends JPanel {
         debounce = new Timer(DEBOUNCE_MS, e -> onSearch.accept(search.getText()));
         debounce.setRepeats(false);
         this.onSearch = onSearch;
+        commandButton.setToolTipText("명령 메뉴 (" + Ui.shortcut("K") + ")");
+        commandButton.getAccessibleContext().setAccessibleName("명령 메뉴 열기");
+        commandButton.addActionListener(e -> onCommand.run());
         add(titles(), BorderLayout.CENTER);
         add(right(onPrev, onToday, onNext), BorderLayout.EAST);
     }
@@ -78,6 +84,7 @@ public final class HeaderBar extends JPanel {
         p.add(navigator);
         p.add(searchIcon);
         p.add(search);
+        p.add(commandButton);
         searchIcon.setVisible(false);
         searchIcon.addActionListener(e -> expandSearch());
         return p;
@@ -152,6 +159,7 @@ public final class HeaderBar extends JPanel {
         title.setFont(Fonts.semibold(sc.dense() ? Fonts.TITLE + 2 : Fonts.DISPLAY));
         search.setPreferredSize(new Dimension(Ui.px(compact ? 200 : 260), Ui.px(36)));
         expanded = !compact || !search.getText().isEmpty();
+        commandButton.setVisible(!compact);
         updateSearchMode();
         revalidate();
     }

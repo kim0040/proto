@@ -39,3 +39,21 @@ jobs:
       - name: 테스트
         run: ./gradlew test --no-daemon
         shell: bash
+
+  install-scripts:
+    name: 설치 스크립트 문법 확인
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # ubuntu 러너에는 shellcheck와 PowerShell(pwsh)이 깔려 있다
+      - name: Mac 설치 스크립트 (shellcheck)
+        run: shellcheck scripts/install-mac.sh
+
+      - name: Windows 설치 스크립트 (PowerShell 문법)
+        shell: pwsh
+        run: |
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile("$PWD/scripts/install-windows.ps1", [ref]$null, [ref]$errors)
+          if ($errors) { $errors | Format-List; exit 1 }
+          Write-Host '문법 오류 없음'

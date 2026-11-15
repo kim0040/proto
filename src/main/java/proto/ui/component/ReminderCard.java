@@ -70,7 +70,7 @@ public class ReminderCard extends FloatingCard {
         title.setAlignmentX(LEFT_ALIGNMENT);
         JPanel category = new JPanel(new BorderLayout(Ui.px(6), 0));
         category.setOpaque(false);
-        category.add(new CategoryDot(o.categoryId(), 8), BorderLayout.WEST);
+        category.add(CategoryDot.of(o, 8), BorderLayout.WEST);
         category.add(new TokenLabel(TextUtil.plain(categoryName), Fonts.regular(Fonts.SMALL), Tokens.MUTED),
                 BorderLayout.CENTER);
         JPanel meta = new JPanel(new BorderLayout(Ui.px(8), 0));

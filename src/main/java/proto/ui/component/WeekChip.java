@@ -4,7 +4,6 @@ import proto.entity.Occurrence;
 import proto.entity.ScheduleState;
 import proto.ui.Fmt;
 import proto.ui.motion.Tween;
-import proto.ui.theme.CategoryColors;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.Glyphs;
 import proto.ui.theme.Tokens;
@@ -23,10 +22,10 @@ import java.awt.event.MouseEvent;
 import java.util.List;
 
 /**
- * [경계 boundary] 이번 주 보기의 작은 일정 칩: 카테고리 점 + 시간(상태는 글자색과 짧은 말), 아래에 제목 최대 2줄.
- * WeekView가 하루 칸마다 일정 수만큼 만든다 (F2, F6). 상태는 RowHandler#stateOf로 받아 글자색과 짧은 말("지연", "진행", "완료")로만 나타낸다.
+ * [경계 boundary] 이번 주 보기의 작은 일정 칩(칸이 좁을 때의 아젠다): 카테고리 색 둥근 네모 + 시간 또는 "하루 종일"(상태는 글자색과 짧은 말), 아래에 제목 최대 2줄.
+ * WeekView가 하루 칸마다 일정 수만큼 만든다 (F2, F6). Alt+방향키로 옮기고 Ctrl/⌘+C로 복사한다. 상태는 RowHandler#stateOf로 받아 글자색과 짧은 말("지연", "진행", "완료")로만 나타낸다.
  */
-public class WeekChip extends JComponent {
+public class WeekChip extends JComponent implements OccurrenceHolder {
 
     private final RowHandler handler;
     private final Occurrence occurrence;
@@ -39,7 +38,7 @@ public class WeekChip extends JComponent {
         this.occurrence = occurrence;
         this.state = handler.stateOf(occurrence);
         setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        setToolTipText(TextUtil.tip(occurrence.title(), Fmt.range(occurrence) + " · "
+        setToolTipText(TextUtil.tip(occurrence.title(), AllDayTag.when(occurrence) + " · "
                 + handler.categoryName(occurrence.categoryId()) + " · " + state.label()));
         setFocusable(true);
         Listeners.onKey(this, code -> {
@@ -49,20 +48,27 @@ public class WeekChip extends JComponent {
                 handler.delete(occurrence);
             }
         });
-        getAccessibleContext().setAccessibleName(TextUtil.clean(occurrence.title()) + ", " + Fmt.range(occurrence) + ", " + state.label());
+        getAccessibleContext().setAccessibleName(TextUtil.clean(occurrence.title()) + ", " + AllDayTag.when(occurrence) + ", " + state.label());
+        NudgeKeys.install(this, handler, this::occurrence);
         addMouseListener(new ChipMouse());
+    }
+
+    /** 이 칩이 보여 주는 하루치 일정 */
+    @Override
+    public Occurrence occurrence() {
+        return occurrence;
     }
 
     /** 칩 위의 마우스 동작 */
     private final class ChipMouse extends MouseAdapter {
         @Override
         public void mouseEntered(MouseEvent e) {
-            hover.to(1f, 120);
+            hover.to(1f, 50);
         }
 
         @Override
         public void mouseExited(MouseEvent e) {
-            hover.to(0f, 160);
+            hover.to(0f, 110);
         }
 
         @Override
@@ -136,16 +142,16 @@ public class WeekChip extends JComponent {
         int x = Ui.px(10);
         int y = Ui.px(10);
         boolean done = state == ScheduleState.DONE;
-        int d = Ui.px(7);
-        g2.setColor(CategoryColors.of(occurrence.categoryId()));
-        g2.fillOval(x, y + (Ui.px(16) - d) / 2, d, d);
+        int d = Ui.px(9);
+        g2.setColor(EventPaint.base(occurrence));
+        g2.fillRoundRect(x, y + (Ui.px(16) - d) / 2, d, d, Ui.px(3), Ui.px(3));
         g2.setFont(Fonts.medium(Fonts.CAPTION));
         FontMetrics fm = g2.getFontMetrics();
         g2.setColor(timeColor());
-        String head = Fmt.time(occurrence.startTime()) + suffix();
+        String head = (occurrence.allDay() ? AllDayTag.LABEL : Fmt.time(occurrence.startTime())) + suffix();
         int room = getWidth() - x * 2 - d - Ui.px(6);
         if (fm.stringWidth(head) > room) {
-            head = Fmt.time(occurrence.startTime());
+            head = occurrence.allDay() ? AllDayTag.LABEL : Fmt.time(occurrence.startTime());
         }
         g2.drawString(head, x + d + Ui.px(6),
                 y + (Ui.px(16) - fm.getHeight()) / 2 + fm.getAscent());

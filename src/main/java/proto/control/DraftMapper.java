@@ -13,6 +13,8 @@ import java.time.LocalTime;
  * [제어 control] 화면 입력값(ScheduleDraft)과 엔티티(Schedule, Occurrence) 사이를 바꿔 주는 도우미.
  * F1, F3, F12에서 쓴다. ScheduleController만 부르며(같은 패키지에서만 보인다), 입력값 ↔ 엔티티 변환을 여기 모아 두어
  * controller 안에서 필드를 하나하나 옮기는 코드가 퍼지지 않게 한다.
+ * 하루 종일 입력값은 여기서 시간을 00:00~23:59로, 알림을 NONE으로 바꾼다. 하루 종일 일정에 알림을 고르면
+ * 검증에서 막지 않고 조용히 "알림 없음"으로 저장한다 (알릴 시작 시각이 없어서이다).
  */
 final class DraftMapper {
 
@@ -25,6 +27,7 @@ final class DraftMapper {
     /**
      * 검증과 저장에 쓸 Schedule을 만든다. 제목의 앞뒤 공백은 지우고, 반복이 없으면 반복 종료일은 비운다.
      * 왜 반복 종료일을 비우나: "반복 안 함"으로 바꿨는데 예전에 입력한 종료일이 남아 있으면 검증에서 엉뚱한 오류가 나기 때문이다.
+     * 하루 종일이면 화면이 넣은 시간·알림을 버리고 00:00~23:59, 알림 없음으로 만든다.
      *
      * @param id 새 일정의 id. 검증만 할 때는 아무 글이나 넣는다 ("draft" 등).
      */
@@ -32,8 +35,13 @@ final class DraftMapper {
         String title = d.title() == null ? null : d.title().trim();
         RepeatRule repeat = d.repeatRule() == null ? RepeatRule.NONE : d.repeatRule();
         LocalDate repeatEnd = repeat == RepeatRule.NONE ? null : d.repeatEndDate();
-        return new Schedule(id, title, d.date(), d.startTime(), d.endTime(), d.categoryId(), d.memo(),
-                repeat, repeatEnd, d.reminder());
+        LocalTime start = d.allDay() ? Schedule.ALL_DAY_START : d.startTime();
+        LocalTime end = d.allDay() ? Schedule.ALL_DAY_END : d.endTime();
+        ReminderOption reminder = d.allDay() ? ReminderOption.NONE : d.reminder();
+        Schedule s = new Schedule(id, title, d.date(), start, end, d.categoryId(), d.memo(),
+                repeat, repeatEnd, reminder, d.allDay());
+        s.setColorKey(d.colorKey());
+        return s;
     }
 
     /**
@@ -43,10 +51,10 @@ final class DraftMapper {
      */
     static ScheduleDraft toDraft(Occurrence o, LocalDate repeatEndDate) {
         return new ScheduleDraft(o.title(), o.date(), o.startTime(), o.endTime(), o.categoryId(),
-                o.memo(), o.repeatRule(), repeatEndDate, o.reminder());
+                o.memo(), o.repeatRule(), repeatEndDate, o.reminder(), o.allDay(), o.colorKey());
     }
 
-    /** 새 일정의 기본값: 제목 없음, 카테고리 "개인", 반복·알림 없음, 주어진 날짜와 시간. */
+    /** 새 일정의 기본값: 제목 없음, 카테고리 "개인", 반복·알림 없음, 하루 종일 아님, 주어진 날짜와 시간. */
     static ScheduleDraft emptyDraft(LocalDate date, LocalTime start, LocalTime end) {
         return new ScheduleDraft("", date, start, end, Category.PERSONAL_ID, "", RepeatRule.NONE, null,
                 ReminderOption.NONE);

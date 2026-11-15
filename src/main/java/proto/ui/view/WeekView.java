@@ -2,12 +2,23 @@ package proto.ui.view;
 
 import com.formdev.flatlaf.util.UIScale;
 import proto.entity.Occurrence;
+import proto.entity.ScheduleState;
+import proto.entity.TimeSlot;
 import proto.ui.AppState;
 import proto.ui.Fmt;
+import proto.ui.ScheduleMover;
 import proto.ui.UiContext;
+import proto.ui.UiSettings;
+import proto.ui.component.AllDayPane;
+import proto.ui.component.AllDayRow;
 import proto.ui.component.DayHeader;
 import proto.ui.component.Hairline;
+import proto.ui.component.ScrollGlide;
 import proto.ui.component.ScrollPanel;
+import proto.ui.component.TimeSnap;
+import proto.ui.component.TimelineGrid;
+import proto.ui.component.TimelineHandler;
+import proto.ui.component.TimelineHeader;
 import proto.ui.component.TokenLabel;
 import proto.ui.component.WeekChip;
 import proto.ui.layout.SizeClass;
@@ -21,24 +32,32 @@ import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JViewport;
+import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
+import java.awt.Component;
 import java.awt.FlowLayout;
-import java.awt.GridLayout;
+import java.awt.Point;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.event.HierarchyEvent;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * [경계 boundary] 이번 주 보기 (F2): 월~일 7칸에 하루치 일정을 작은 칩으로 보여 준다. 오늘은 숫자 뒤에 강조 동그라미.
- * MainFrame이 만들고, refresh 때 ScheduleController#getOccurrences로 월~일 7일치를 읽는다. 날짜별로 WeekChip을 칸에 놓는다.
- * 하루 칸이 너무 좁아지면(약 110px 미만) 7칸 대신 날짜별로 묶은 세로 목록(아젠다)으로 바꿔 같은 칩을 보여 준다.
+ * [경계 boundary] 이번 주 보기 (F2): 월~일 7칸의 시간표. 요일 머리글 아래의 하루 종일 줄(AllDayRow)과 시각 눈금 위에 일정을 시작~끝 길이로 놓고, 끌어서 옮기거나 크기를 바꾸고, 빈 곳을 끌어 새 일정을 만든다.
+ * MainFrame이 만들고, refresh 때 ScheduleController#getOccurrences로 월~일 7일치를 읽어 TimelineGrid(본문)와 TimelineHeader(요일 줄)에 채운다.
+ * 옮기기는 ScheduleMover, 새 일정은 UiActions#openNew로 요청한다. 하루 칸이 너무 좁아지면(약 110px 미만) 날짜별로 묶은 세로 목록(아젠다)으로 바꿔 WeekChip을 보여 준다.
+ * 처음 보일 때와 주가 바뀔 때는 기본 활동 시작 시각(UiSettings#freeFrom) 30분 전이 맨 위에 오게 스크롤한다 (그 주 가장 이른 일정이 더 이르면 그 일정부터).
+ * 하루 종일 줄은 시간표 스크롤 영역 높이의 40%(적어도 한 줄)까지만 차지하고, 더 길면 그 안에서 따로 스크롤된다(AllDayPane). 시간 본문이 늘 보이게 하려는 것이다.
  */
 public class WeekView implements ContentView {
 
-    private static final int GAP = 10;
+    /** 펼친 하루 종일 줄이 차지할 수 있는 시간표 스크롤 영역 높이의 비율 (나머지는 시간 본문이 쓴다) */
+    private static final double ALL_DAY_SHARE = 0.4;
     /** 하루 칸이 이보다 좁으면 아젠다로 바꾼다 (논리 px) */
     private static final int MIN_COLUMN = 110;
     /** 아젠다에서 다시 칸 보기로 돌아가는 폭 — 경계에서 깜박이지 않게 조금 더 넉넉하게 */
@@ -49,29 +68,72 @@ public class WeekView implements ContentView {
 
     private final UiContext ctx;
     private final JPanel root = new JPanel(new CardLayout());
-    private final JPanel columns = new JPanel(new GridLayout(1, 7, Ui.px(GAP), 0));
     private final ScrollPanel agenda = new ScrollPanel(null);
+    private final ScheduleMover mover;
+    private final TimelineGrid grid;
+    private final TimelineHeader header;
+    private final AllDayRow allDay;
     private final JScrollPane columnsScroll;
     private final JScrollPane agendaScroll;
-    private final List<WeekChip> chips = new ArrayList<>();
+    private final ScrollGlide glide;
     private final List<WeekChip> agendaChips = new ArrayList<>();
     private List<Occurrence> data = List.of();
+    private boolean pendingScroll = true;
+    private boolean glideNext;
+    private boolean arrived;
     private boolean agendaMode;
     private SizeClass size;
 
     public WeekView(UiContext ctx) {
         this.ctx = ctx;
         this.size = ctx.size();
+        this.mover = new ScheduleMover(ctx);
         root.setOpaque(false);
-        columns.setOpaque(false);
         agenda.setLayout(new BoxLayout(agenda, BoxLayout.Y_AXIS));
-        ScrollPanel holder = new ScrollPanel(new BorderLayout());
-        holder.add(columns, BorderLayout.NORTH);
-        columnsScroll = scroll(holder);
+        TimelineHandler handler = new Handler();
+        grid = new TimelineGrid(handler, ctx.schedules()::now);
+        header = new TimelineHeader(TimelineGrid.gutterWidth(), handler::selectDay);
+        allDay = new AllDayRow(handler, TimelineGrid.gutterWidth());
+        columnsScroll = scroll(grid);
+        allDay.setHeightCap(this::allDayCap);
+        columnsScroll.setColumnHeaderView(topBar());
+        columnsScroll.getColumnHeader().setOpaque(false);
+        glide = new ScrollGlide(columnsScroll.getViewport());
         agendaScroll = scroll(agenda);
         root.add(columnsScroll, COLUMNS);
         root.add(agendaScroll, AGENDA);
         applyPadding();
+        listenResize();
+        listenArrival();
+    }
+
+    /** 스크롤해도 남는 위쪽 줄: 요일 머리글 아래에 하루 종일 줄을 붙인다 */
+    private JPanel topBar() {
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
+        top.add(header, BorderLayout.NORTH);
+        top.add(new AllDayPane(allDay), BorderLayout.CENTER);
+        return top;
+    }
+
+    /** 하루 종일 줄이 보일 수 있는 높이의 한도. 아직 크기가 정해지지 않았으면 한도 없음 */
+    private int allDayCap() {
+        int h = columnsScroll.getHeight();
+        return h <= 0 ? Integer.MAX_VALUE : (int) Math.round(h * ALL_DAY_SHARE);
+    }
+
+    /** 이 보기가 본문에 새로 붙을 때(다른 보기에서 이동해 올 때)만 표시해 둔다. 주를 넘기거나 새로 고칠 때는 붙는 일이 없다 */
+    private void listenArrival() {
+        root.addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & HierarchyEvent.PARENT_CHANGED) != 0 && e.getChanged() == root
+                    && root.getParent() != null) {
+                arrived = true;
+            }
+        });
+    }
+
+    /** 보기 폭이 바뀌면 칸/아젠다를 다시 고르고, 시간표 보이는 영역이 정해지면 처음 스크롤 위치를 잡는다 */
+    private void listenResize() {
         root.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
@@ -82,6 +144,72 @@ public class WeekView implements ContentView {
                 }
             }
         });
+        columnsScroll.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                allDay.capChanged();
+            }
+        });
+        columnsScroll.getViewport().addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                SwingUtilities.invokeLater(WeekView.this::scrollToWork);
+            }
+        });
+    }
+
+    /** 시간표가 화면 요청(옮기기·새 일정·날짜 고르기)을 UiActions·ScheduleMover로 이어 주는 연결 */
+    private final class Handler implements TimelineHandler {
+        @Override
+        public void open(Occurrence o) {
+            ctx.actions().open(o);
+        }
+
+        @Override
+        public boolean delete(Occurrence o) {
+            return ctx.actions().delete(o);
+        }
+
+        @Override
+        public void toggleDone(Occurrence o) {
+            ctx.actions().toggleDone(o);
+        }
+
+        @Override
+        public void showMenu(Component source, Point p, Occurrence o) {
+            ctx.actions().showMenu(source, p, o);
+        }
+
+        @Override
+        public ScheduleState stateOf(Occurrence o) {
+            return ctx.actions().stateOf(o);
+        }
+
+        @Override
+        public String categoryName(String categoryId) {
+            return ctx.actions().categoryName(categoryId);
+        }
+
+        @Override
+        public boolean move(Occurrence o, LocalDate date, LocalTime start, LocalTime end) {
+            return mover.move(o, date, start, end);
+        }
+
+        @Override
+        public boolean nudge(Occurrence o, int days, int minutes) {
+            return mover.nudge(o, days, minutes);
+        }
+
+        @Override
+        public void create(LocalDate date, LocalTime start, LocalTime end) {
+            ctx.actions().openNew(ctx.schedules().draftForSlot(new TimeSlot(date, start, end)));
+        }
+
+        @Override
+        public void selectDay(LocalDate day) {
+            ctx.state().setSelectedDay(day);
+            header.setSelected(day);
+        }
     }
 
     private static JScrollPane scroll(JComponent view) {
@@ -114,7 +242,7 @@ public class WeekView implements ContentView {
         if (root.getWidth() <= 0) {
             return false;
         }
-        int colWidth = UIScale.unscale((viewport - Ui.px(GAP) * 6) / 7);
+        int colWidth = UIScale.unscale((viewport - TimelineGrid.gutterWidth()) / 7);
         boolean next = agendaMode ? colWidth < BACK_TO_COLUMNS : colWidth < MIN_COLUMN;
         boolean changed = next != agendaMode;
         agendaMode = next;
@@ -162,9 +290,52 @@ public class WeekView implements ContentView {
     public void refresh(boolean animate) {
         AppState s = ctx.state();
         LocalDate start = s.weekStart();
+        if (grid.isDragging(start) || allDay.isDragging(start)) {
+            // 같은 주를 그대로 보는 중에 일정을 끌고 있으면 새로 그리지 않는다 (1분 상태 새로 고침이 끌기를 끊지 않게).
+            // 놓으면 controller가 바뀐 일정을 알려 와 그때 다시 그린다
+            return;
+        }
         data = ctx.schedules().getOccurrences(start, start.plusDays(6), s.categoryId(), s.keyword());
         chooseMode();
         render();
+    }
+
+    /** 이 보기가 화면에 다시 나타났을 때(사용자가 이동해 왔을 때만) 처음 위치로 부드럽게 스크롤한다. 주를 넘길 때는 보던 위치를 그대로 둔다 */
+    @Override
+    public void shown() {
+        if (!arrived) {
+            return;
+        }
+        arrived = false;
+        pendingScroll = true;
+        glideNext = true;
+        SwingUtilities.invokeLater(this::scrollToWork);
+    }
+
+    /**
+     * 기본 활동 시작 시각 30분 전이 맨 위에 오게 스크롤한다. 그 주에 더 이른 일정이 있으면 그 일정(15분 전)부터 보인다.
+     * 아직 화면 크기가 정해지지 않았으면 pendingScroll을 남겨 두었다가 크기가 정해진 뒤 한 번 한다.
+     */
+    private void scrollToWork() {
+        JViewport vp = columnsScroll.getViewport();
+        if (!pendingScroll || agendaMode || vp.getHeight() <= 0) {
+            return;
+        }
+        int minute = Math.max(0, TimeSnap.minuteOf(UiSettings.freeFrom()) - 30);
+        for (Occurrence o : data) {
+            if (!o.allDay()) {
+                minute = Math.min(minute, Math.max(0, TimeSnap.minuteOf(o.startTime()) - 15));
+            }
+        }
+        int maxY = Math.max(0, grid.getPreferredSize().height - vp.getHeight());
+        int y = Math.min(maxY, grid.yOfMinute(minute) - Ui.px(8));
+        pendingScroll = false;
+        if (glideNext) {
+            glideNext = false;
+            glide.to(y, 260);
+        } else {
+            vp.setViewPosition(new Point(0, y));
+        }
     }
 
     /** 지금 고른 모양(칸/아젠다)으로 데이터를 다시 그린다 */
@@ -177,17 +348,13 @@ public class WeekView implements ContentView {
         }
         ((CardLayout) root.getLayout()).show(root, agendaMode ? AGENDA : COLUMNS);
         applyChipWidth();
+        SwingUtilities.invokeLater(this::scrollToWork);
     }
 
     private void renderColumns(LocalDate start) {
-        columns.removeAll();
-        chips.clear();
-        for (int i = 0; i < 7; i++) {
-            LocalDate day = start.plusDays(i);
-            columns.add(column(day, itemsOf(day)));
-        }
-        columns.revalidate();
-        columns.repaint();
+        grid.setWeek(start, data);
+        allDay.setWeek(start, ctx.schedules().today(), data);
+        header.setWeek(start, ctx.schedules().today(), ctx.state().selectedDay());
     }
 
     private List<Occurrence> itemsOf(LocalDate day) {
@@ -195,27 +362,8 @@ public class WeekView implements ContentView {
     }
 
     private void applyChipWidth() {
-        int w = Math.max(Ui.px(60), (columns.getWidth() - Ui.px(GAP) * 6) / 7);
-        chips.forEach(c -> c.setWrapWidth(w));
         int aw = Math.max(Ui.px(120), root.getWidth() - Ui.px(size.gutter() - 8) * 2 - Ui.px(16));
         agendaChips.forEach(c -> c.setWrapWidth(aw));
-    }
-
-    private JPanel column(LocalDate day, List<Occurrence> items) {
-        JPanel col = new JPanel();
-        col.setOpaque(false);
-        col.setLayout(new BoxLayout(col, BoxLayout.Y_AXIS));
-        col.add(new DayHeader(day, day.equals(ctx.schedules().today())));
-        col.add(Box.createVerticalStrut(Ui.px(8)));
-        for (Occurrence o : items) {
-            WeekChip chip = new WeekChip(ctx.actions(), o);
-            chip.setAlignmentX(0f);
-            chips.add(chip);
-            col.add(chip);
-            col.add(Box.createVerticalStrut(Ui.px(6)));
-        }
-        col.add(Box.createVerticalGlue());
-        return col;
     }
 
     // ---- 아젠다 (칸이 좁을 때) ----
