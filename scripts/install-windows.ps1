@@ -38,13 +38,18 @@
         Fail '앱이 닫히지 않았어요. 앱을 직접 끈 다음 다시 실행해 주세요.'
     }
 
+    # 바로 가기를 만든다. 예전 COM(WScript.Shell)은 영어 Windows에서 한글 파일 이름을 "??"로 바꿔 저장에 실패하므로,
+    # 영어 임시 이름으로 저장한 뒤 PowerShell(유니코드)로 한글 이름으로 옮긴다
     function New-Shortcut([string]$Path, [string]$Target) {
+        $temp = Join-Path ([IO.Path]::GetTempPath()) ("$AppName-" + [Guid]::NewGuid().ToString('N') + '.lnk')
         $shell = New-Object -ComObject WScript.Shell
-        $link = $shell.CreateShortcut($Path)
+        $link = $shell.CreateShortcut($temp)
         $link.TargetPath = $Target
         $link.WorkingDirectory = Split-Path $Target
         $link.IconLocation = "$Target,0"
         $link.Save()
+        New-Item -ItemType Directory -Path (Split-Path $Path) -Force | Out-Null
+        Move-Item -Path $temp -Destination $Path -Force
     }
 
     # 새 앱을 먼저 설치 폴더 옆에 다 옮겨 둔 뒤 예전 폴더와 바꿔치기한다. 중간에 실패하면 예전 앱을 그대로 되살린다

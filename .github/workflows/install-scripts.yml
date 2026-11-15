@@ -1,0 +1,53 @@
+# 설치 스크립트(scripts/)를 고치면, 지금 나와 있는 최신 릴리즈로 실제 Windows·Mac에 설치·업데이트·지우기를 해 본다.
+# (사용자는 main의 스크립트를 바로 받아 쓰므로, 릴리즈를 새로 내지 않고 스크립트만 고쳐도 여기서 확인된다)
+name: Install scripts
+
+on:
+  push:
+    branches: [main]
+    paths: ['scripts/**', '.github/workflows/install-scripts.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows 설치·업데이트·지우기
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # 사용자는 irm ... | iex 로 실행하므로, 파일 내용을 문자열로 읽어 iex에 넘기는 방식 그대로 확인한다
+      - name: 설치, 업데이트, 지우기
+        shell: powershell
+        env:
+          SCHEDULEAPP_INSTALL_DIR: ${{ runner.temp }}\apps\ScheduleApp
+          SCHEDULEAPP_NO_OPEN: '1'
+        run: |
+          Get-Content -Raw -Encoding UTF8 scripts/install-windows.ps1 | Invoke-Expression
+          Get-Content -Raw -Encoding UTF8 scripts/install-windows.ps1 | Invoke-Expression
+          if (-not (Test-Path "$env:SCHEDULEAPP_INSTALL_DIR\ScheduleApp.exe")) { throw '설치된 exe가 없어요' }
+          $link = Join-Path ([Environment]::GetFolderPath('Programs')) '일정 관리.lnk'
+          if (-not (Test-Path -LiteralPath $link)) { throw '시작 메뉴 바로 가기가 없어요' }
+          $env:SCHEDULEAPP_UNINSTALL = '1'
+          Get-Content -Raw -Encoding UTF8 scripts/install-windows.ps1 | Invoke-Expression
+          if (Test-Path $env:SCHEDULEAPP_INSTALL_DIR) { throw '지우기가 되지 않았어요' }
+          if (Test-Path -LiteralPath $link) { throw '바로 가기가 지워지지 않았어요' }
+
+  mac:
+    name: Mac 설치·업데이트
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: 설치, 업데이트
+        env:
+          INSTALL_DIR: ${{ runner.temp }}/apps
+          NO_OPEN: '1'
+        run: |
+          mkdir -p "$INSTALL_DIR"
+          bash scripts/install-mac.sh < /dev/null
+          bash scripts/install-mac.sh < /dev/null
+          codesign --verify --deep --strict "$INSTALL_DIR/ScheduleApp.app"
+          test -z "$(ls -A "$INSTALL_DIR" | grep -v '^ScheduleApp.app$')"
