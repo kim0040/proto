@@ -10,6 +10,7 @@ import javax.swing.SwingUtilities;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -18,8 +19,9 @@ import java.time.LocalDateTime;
 
 /**
  * [애플리케이션 시작점] 저장소·controller·타이머를 만들어 연결하고 화면(UiLauncher)을 띄운다.
- * 데이터 폴더는 AppPaths가 정한다(개발 실행은 ./data, 설치된 앱은 사용자별 폴더). 안에 schedules.csv, categories.csv, server.properties가 놓인다.
- * 같은 데이터를 두 프로세스가 동시에 쓰지 않도록 폴더 안의 app.lock을 잡고(프로세스가 끝날 때까지 유지), 이미 잡혀 있으면 안내만 하고 끝낸다.
+ * 데이터 폴더는 AppPaths가 정한다 (개발 실행은 ./data, 설치된 앱은 사용자별 폴더).
+ * 같은 데이터를 두 프로세스가 동시에 쓰지 않도록 폴더 안의 app.lock을 프로세스가 끝날 때까지 잡고,
+ * 이미 잡혀 있으면 안내만 하고 끝낸다.
  */
 public final class Main {
 
@@ -32,20 +34,7 @@ public final class Main {
     private Main() {
     }
 
-    /** 데이터 폴더의 app.lock을 잡는다. 다른 프로세스가 이미 잡았으면 false. 폴더를 못 만들 때처럼 잠금 자체를 쓸 수 없으면 막지 않고 true */
-    private static boolean acquireSingleInstanceLock() {
-        try {
-            Files.createDirectories(DATA_DIR);
-            lockChannel = FileChannel.open(DATA_DIR.resolve("app.lock"), StandardOpenOption.CREATE,
-                    StandardOpenOption.WRITE);
-            lock = lockChannel.tryLock();
-            return lock != null;
-        } catch (IOException | RuntimeException e) {
-            // OverlappingFileLockException(같은 JVM 안에서 이미 잡음)도 "이미 실행 중"이다
-            return !(e instanceof java.nio.channels.OverlappingFileLockException);
-        }
-    }
-
+    /** 프로그램을 시작한다. 이미 실행 중이면 안내만 하고 끝낸다 */
     public static void main(String[] args) {
         UiLauncher.prepare();
         if (!acquireSingleInstanceLock()) {
@@ -69,5 +58,19 @@ public final class Main {
             // 화면이 리스너를 등록한 뒤, 불러오기 경고(건너뛴 줄 등)를 알린다
             SwingUtilities.invokeLater(schedules::reportLoadWarnings);
         });
+    }
+
+    /** 데이터 폴더의 app.lock을 잡는다. 다른 프로세스가 이미 잡았으면 false. 폴더를 못 만들 때처럼 잠금 자체를 쓸 수 없으면 막지 않고 true */
+    private static boolean acquireSingleInstanceLock() {
+        try {
+            Files.createDirectories(DATA_DIR);
+            lockChannel = FileChannel.open(DATA_DIR.resolve("app.lock"), StandardOpenOption.CREATE,
+                    StandardOpenOption.WRITE);
+            lock = lockChannel.tryLock();
+            return lock != null;
+        } catch (IOException | RuntimeException e) {
+            // OverlappingFileLockException(같은 JVM 안에서 이미 잡음)도 "이미 실행 중"이다
+            return !(e instanceof OverlappingFileLockException);
+        }
     }
 }

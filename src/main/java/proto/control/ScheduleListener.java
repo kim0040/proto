@@ -2,8 +2,8 @@ package proto.control;
 
 /**
  * [제어 control] 일정 쪽 변화를 화면(boundary)에 알려 주는 리스너. 화면이 구현한다.
- * F1~F6, F11에서 쓴다. ScheduleController(와 StateRefreshTimer)가 알리고 MainFrame이 구현한다.
- * control이 화면을 직접 알지 못하게 하려고 만든 "되돌아가는 길"이다. ui → controller로 요청하고, 결과는 이 리스너로 돌아온다.
+ * ScheduleController(와 StateRefreshTimer)가 알리고 MainFrame이 구현한다.
+ * control이 화면을 직접 알지 못하게 하려는 "되돌아가는 길"이다. 화면이 controller에 요청하면 결과는 이 리스너로 돌아온다.
  * 모든 알림은 Swing 이벤트 스레드(EDT)에서 호출된다.
  */
 public interface ScheduleListener {

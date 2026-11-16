@@ -10,7 +10,7 @@ import proto.repository.CategoryRepository;
 import proto.repository.ScheduleRepository;
 import proto.ui.dev.ScreenshotTool;
 
-import java.io.IOException;
+import javax.swing.SwingUtilities;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -34,14 +34,14 @@ public final class ScreenshotMain {
         Path data = Files.createTempDirectory("proto-shots");
         Clock clock = Clock.fixed(LocalDateTime.of(2026, 11, 12, 14, 20).atZone(ZoneId.systemDefault()).toInstant(),
                 ZoneId.systemDefault());
-        ScheduleRepository sr = new ScheduleRepository(data.resolve("schedules.csv"));
-        CategoryRepository cr = new CategoryRepository(data.resolve("categories.csv"));
-        cr.loadOrSeed();
-        sr.loadOrSeed(LocalDate.now(clock));
-        ScheduleController schedules = new ScheduleController(sr, cr, clock);
-        CategoryController categories = new CategoryController(cr, sr, schedules);
+        ScheduleRepository scheduleRepo = new ScheduleRepository(data.resolve("schedules.csv"));
+        CategoryRepository categoryRepo = new CategoryRepository(data.resolve("categories.csv"));
+        categoryRepo.loadOrSeed();
+        scheduleRepo.loadOrSeed(LocalDate.now(clock));
+        ScheduleController schedules = new ScheduleController(scheduleRepo, categoryRepo, clock);
+        CategoryController categories = new CategoryController(categoryRepo, scheduleRepo, schedules);
         ReminderTimer reminders = new ReminderTimer(schedules, clock);
-        javax.swing.SwingUtilities.invokeAndWait(() -> seed(schedules, LocalDate.now(clock)));
+        SwingUtilities.invokeAndWait(() -> seed(schedules, LocalDate.now(clock)));
         ScreenshotTool.capture(schedules, categories, reminders, out);
         System.out.println("저장했어요: " + out.toAbsolutePath());
         System.exit(0);
@@ -53,12 +53,12 @@ public final class ScreenshotMain {
         add(c, "스터디 모임", today, 14, 0, 15, 30, "team", "발표 자료 최종 점검, 역할 나누기", RepeatRule.NONE);
         add(c, "소프트웨어 설계 과제 제출 준비", today, 16, 0, 17, 30, "assignment", "UML 클래스 다이어그램 작성", RepeatRule.NONE);
         for (int i = -3; i <= 10; i += 1) {
-            LocalDate d = today.plusDays(i);
-            if (i % 3 == 0 && !d.equals(today)) {
-                add(c, "자료구조 수업", d, 9, 0, 10, 30, "class", "", RepeatRule.NONE);
+            LocalDate day = today.plusDays(i);
+            if (i % 3 == 0 && !day.equals(today)) {
+                add(c, "자료구조 수업", day, 9, 0, 10, 30, "class", "", RepeatRule.NONE);
             }
             if (i % 4 == 1) {
-                add(c, "과제 마감", d, 23, 0, 23, 30, "assignment", "", RepeatRule.NONE);
+                add(c, "과제 마감", day, 23, 0, 23, 30, "assignment", "", RepeatRule.NONE);
             }
         }
         for (int k = 0; k < 4; k++) {
@@ -66,9 +66,9 @@ public final class ScreenshotMain {
         }
     }
 
-    private static void add(ScheduleController c, String title, LocalDate d, int sh, int sm, int eh, int em,
-                            String cat, String memo, RepeatRule repeat) {
-        c.create(new ScheduleDraft(title, d, LocalTime.of(sh, sm), LocalTime.of(eh, em), cat, memo, repeat, null,
-                ReminderOption.NONE));
+    private static void add(ScheduleController c, String title, LocalDate date, int startHour, int startMinute,
+                            int endHour, int endMinute, String categoryId, String memo, RepeatRule repeat) {
+        c.create(new ScheduleDraft(title, date, LocalTime.of(startHour, startMinute), LocalTime.of(endHour, endMinute),
+                categoryId, memo, repeat, null, ReminderOption.NONE));
     }
 }

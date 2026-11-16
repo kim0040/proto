@@ -6,11 +6,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * [서버 대비 — 현재 사용 안 함] JSON 문자열과 자바 값(Map, List, String, Number, Boolean, null)을 서로 바꾼다.
- * [저장소 repository] 객체·배열·문자열·숫자·참/거짓·null만 다룬다. 외부 라이브러리는 쓰지 않는다.
- * ScheduleJsonMapper와 CategoryJsonMapper가 서버로 보낼 스냅샷을 만들 때 write, 받은 스냅샷을 읽을 때 parse를 쓴다.
- * 서버가 보낸 값은 믿을 수 없으므로 깊이·형식을 엄격하게 검사한다.
- * 문자열의 따옴표, 역슬래시, 줄바꿈, 유니코드 이스케이프를 지키고, 형식이 깨지면 {@link JsonSyntaxException}을 던진다.
+ * [저장소 repository] JSON 문자열과 자바 값(Map, List, String, Number, Boolean, null)을 서로 바꾼다. 서버 대비 코드(현재 사용 안 함).
+ * ScheduleJsonMapper와 CategoryJsonMapper가 스냅샷을 만들 때 write, 서버에서 받은 스냅샷을 읽을 때 parse를 쓴다. 외부 라이브러리는 쓰지 않는다.
+ * 서버가 보낸 값은 믿을 수 없으므로 깊이·형식을 엄격하게 검사하고, 형식이 깨지면 {@link JsonSyntaxException}을 던진다.
  */
 public final class JsonCodec {
 
@@ -20,14 +18,14 @@ public final class JsonCodec {
     private JsonCodec() {
     }
 
-    /** 객체의 키 순서는 넘긴 Map의 순서를 따른다 */
+    /** 값을 JSON 문자열로 쓴다. 객체의 키 순서는 넘긴 Map의 순서를 따른다 */
     public static String write(Object value) {
         StringBuilder out = new StringBuilder();
         writeValue(value, out);
         return out.toString();
     }
 
-    /** 앞뒤 공백은 허용한다. 값이 끝난 뒤에 글자가 더 있으면 예외 */
+    /** JSON 문자열을 자바 값으로 읽는다. 앞뒤 공백은 허용하고, 값이 끝난 뒤에 글자가 더 있으면 예외이다 */
     public static Object parse(String json) {
         if (json == null) {
             throw new JsonSyntaxException("내용이 비어 있어요");

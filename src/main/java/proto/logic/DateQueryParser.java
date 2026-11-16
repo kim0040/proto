@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 
 /**
  * [애플리케이션 로직 application logic] 사람이 친 글("내일", "11월 20일", "3일 뒤", "다음 주 금요일", "2026-11-20")을 날짜 하나로 읽는다.
- * 명령 메뉴(⌘K)의 "날짜로 이동"이 쓴다 (F2 조회 이동). 화면 상태를 모르고, 기준이 되는 "오늘"만 받아서 계산하는 순수 계산이다.
+ * 명령 메뉴(⌘K)의 "날짜로 이동"이 쓴다 (F2). 화면 상태를 모르고 기준이 되는 "오늘"만 받아 계산한다.
  * 읽는 규칙(띄어쓰기는 무시): 오늘·내일·모레·글피·어제·그저께 / N일·N주·N개월 뒤(후)·전 / 다음 주·지난 주·다음 달·지난 달 /
  * (다음 주|이번 주|지난 주) X요일, X요일(오늘 포함 앞으로 처음 오는 그 요일) / 2026-11-20, 2026.11.20, 2026년 11월 20일 /
  * 11월 20일, 11/20, 11-20 (올해) / 20일 (이번 달). 없는 날짜(2월 30일)나 읽을 수 없는 글은 빈 값이다.
@@ -37,35 +37,35 @@ public final class DateQueryParser {
         if (text == null || today == null) {
             return Optional.empty();
         }
-        String q = text.strip().replaceAll("\\s+", "");
-        if (q.isEmpty()) {
+        String query = text.strip().replaceAll("\\s+", "");
+        if (query.isEmpty()) {
             return Optional.empty();
         }
         try {
-            return read(q, today);
+            return read(query, today);
         } catch (DateTimeException | NumberFormatException e) {
             return Optional.empty();
         }
     }
 
-    private static Optional<LocalDate> read(String q, LocalDate today) {
-        Optional<LocalDate> relative = relative(q, today);
+    private static Optional<LocalDate> read(String query, LocalDate today) {
+        Optional<LocalDate> relative = relative(query, today);
         if (relative.isPresent()) {
             return relative;
         }
-        Optional<LocalDate> weekday = weekday(q, today);
+        Optional<LocalDate> weekday = weekday(query, today);
         if (weekday.isPresent()) {
             return weekday;
         }
-        return written(q, today);
+        return written(query, today);
     }
 
     /** 오늘·내일, N일 뒤, 다음 주처럼 오늘에서 얼마나 떨어졌는지로 말한 날짜 */
-    private static Optional<LocalDate> relative(String q, LocalDate today) {
-        if (WORDS.containsKey(q)) {
-            return Optional.of(today.plusDays(WORDS.get(q)));
+    private static Optional<LocalDate> relative(String query, LocalDate today) {
+        if (WORDS.containsKey(query)) {
+            return Optional.of(today.plusDays(WORDS.get(query)));
         }
-        switch (q) {
+        switch (query) {
             case "다음주":
                 return Optional.of(today.plusWeeks(1));
             case "지난주":
@@ -80,21 +80,22 @@ public final class DateQueryParser {
             case "일주일전":
                 return Optional.of(today.minusWeeks(1));
             default:
-                return amount(q, today);
+                return amount(query, today);
         }
     }
 
-    private static Optional<LocalDate> amount(String q, LocalDate today) {
-        Matcher m = RELATIVE.matcher(q);
-        if (!m.matches()) {
+    /** "3일 뒤", "2주 전", "1개월 후"처럼 숫자와 단위로 말한 날짜 */
+    private static Optional<LocalDate> amount(String query, LocalDate today) {
+        Matcher matcher = RELATIVE.matcher(query);
+        if (!matcher.matches()) {
             return Optional.empty();
         }
-        int n = Integer.parseInt(m.group(1));
-        if (n > MAX_AMOUNT) {
+        int count = Integer.parseInt(matcher.group(1));
+        if (count > MAX_AMOUNT) {
             return Optional.empty();
         }
-        int signed = "전".equals(m.group(3)) ? -n : n;
-        return Optional.of(switch (m.group(2)) {
+        int signed = "전".equals(matcher.group(3)) ? -count : count;
+        return Optional.of(switch (matcher.group(2)) {
             case "일" -> today.plusDays(signed);
             case "개월", "달" -> today.plusMonths(signed);
             default -> today.plusWeeks(signed);
@@ -102,13 +103,13 @@ public final class DateQueryParser {
     }
 
     /** "금요일"은 오늘 포함 앞으로 처음 오는 금요일, "다음 주 금요일"처럼 주를 붙이면 그 주(월~일)의 금요일 */
-    private static Optional<LocalDate> weekday(String q, LocalDate today) {
-        Matcher m = WEEKDAY.matcher(q);
-        if (!m.matches()) {
+    private static Optional<LocalDate> weekday(String query, LocalDate today) {
+        Matcher matcher = WEEKDAY.matcher(query);
+        if (!matcher.matches()) {
             return Optional.empty();
         }
-        DayOfWeek target = DayOfWeek.of(WEEKDAYS.indexOf(m.group(2)) + 1);
-        String week = m.group(1);
+        DayOfWeek target = DayOfWeek.of(WEEKDAYS.indexOf(matcher.group(2)) + 1);
+        String week = matcher.group(1);
         if (week == null) {
             int ahead = (target.getValue() - today.getDayOfWeek().getValue() + 7) % 7;
             return Optional.of(today.plusDays(ahead));
@@ -119,27 +120,27 @@ public final class DateQueryParser {
     }
 
     /** 숫자로 적은 날짜: 연월일 / 월일(올해) / 일(이번 달) */
-    private static Optional<LocalDate> written(String q, LocalDate today) {
-        Matcher full = FULL.matcher(q);
+    private static Optional<LocalDate> written(String query, LocalDate today) {
+        Matcher full = FULL.matcher(query);
         if (full.matches()) {
             return Optional.of(LocalDate.of(num(full, 1), num(full, 2), num(full, 3)));
         }
-        Matcher compact = COMPACT.matcher(q);
+        Matcher compact = COMPACT.matcher(query);
         if (compact.matches()) {
             return Optional.of(LocalDate.of(num(compact, 1), num(compact, 2), num(compact, 3)));
         }
-        Matcher md = MONTH_DAY.matcher(q);
-        if (md.matches()) {
-            return Optional.of(LocalDate.of(today.getYear(), num(md, 1), num(md, 2)));
+        Matcher monthDay = MONTH_DAY.matcher(query);
+        if (monthDay.matches()) {
+            return Optional.of(LocalDate.of(today.getYear(), num(monthDay, 1), num(monthDay, 2)));
         }
-        Matcher day = DAY_ONLY.matcher(q);
+        Matcher day = DAY_ONLY.matcher(query);
         if (day.matches()) {
             return Optional.of(today.withDayOfMonth(num(day, 1)));
         }
         return Optional.empty();
     }
 
-    private static int num(Matcher m, int group) {
-        return Integer.parseInt(m.group(group));
+    private static int num(Matcher matcher, int group) {
+        return Integer.parseInt(matcher.group(group));
     }
 }

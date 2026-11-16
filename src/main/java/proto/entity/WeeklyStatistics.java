@@ -6,8 +6,8 @@ import java.util.Map;
 
 /**
  * [엔티티 entity] 한 주(월~일) 통계 결과 (F14).
- * F14(주간 통계)에서 쓴다. StatisticsCalculator가 계산해서 ScheduleController를 거쳐 StatsView에 전달한다.
- * 값을 담기만 하는 레코드이고, 화면에 맞춰 퍼센트로 바꾸는 일 등은 화면이 한다.
+ * StatisticsCalculator가 계산해서 ScheduleController를 거쳐 StatsView에 전달한다.
+ * 값을 담기만 하는 레코드이고, 퍼센트로 바꾸는 일 등은 화면이 한다.
  *
  * @param weekStart           그 주 월요일
  * @param total               그 주 하루치 일정 수 (반복은 펼친 개수)
@@ -27,7 +27,7 @@ public record WeeklyStatistics(
         Map<String, Long> minutesByCategory,
         Map<DayOfWeek, Integer> countByDay) {
 
-    /** 그 주 일요일 (weekStart + 6일). */
+    /** 그 주 일요일 (weekStart + 6일) */
     public LocalDate weekEnd() {
         return weekStart.plusDays(6);
     }

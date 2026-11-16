@@ -10,11 +10,10 @@ import java.nio.file.Path;
 import java.util.Properties;
 
 /**
- * [서버 대비 — 현재 사용 안 함] data/server.properties에서 서버를 쓸지 읽는다.
- * [엔티티 entity] 켜짐, 주소, 토큰, 제한 시간, 경고 문장을 담는다.
- * StoreFactory가 시작할 때 한 번 읽고, 켜져 있으면 서버 저장소로 갈아 끼운다. 값이 잘못돼도 앱이 못 켜지면 안 되므로 예외 대신 "꺼짐 + 경고 문장"을 돌려준다.
- * 객체는 만든 뒤 바뀌지 않는다. 경고는 SettingsWarningScheduleStore가 사용자에게 전달한다.
- * 파일이 없거나 값이 잘못되면 예외를 던지지 않고 꺼진 상태로 돌아간다. 파일을 새로 만들지도 않는다.
+ * [엔티티 entity] data/server.properties에서 읽은 서버 설정: 켜짐, 주소, 토큰, 제한 시간, 경고 문장. 서버 대비 코드(현재 사용 안 함).
+ * StoreFactory가 시작할 때 한 번 읽고, 켜져 있으면 서버 저장소로 갈아 끼운다. 만든 뒤에는 바뀌지 않는다.
+ * 파일이 없거나 값이 잘못돼도 앱이 못 켜지면 안 되므로 예외를 던지지 않고 "꺼짐 + 경고 문장"을 돌려주며, 파일을 새로 만들지도 않는다.
+ * 경고는 SettingsWarningScheduleStore가 사용자에게 전달한다.
  */
 public final class ServerSettings {
 
@@ -47,16 +46,16 @@ public final class ServerSettings {
         if (!Files.exists(file)) {
             return off("");
         }
-        Properties props = new Properties();
+        Properties properties = new Properties();
         try {
-            props.load(new StringReader(readText(file)));
+            properties.load(new StringReader(readText(file)));
         } catch (IOException | IllegalArgumentException e) {
             return off("server.properties를 읽지 못해 서버를 쓰지 않아요");
         }
-        return fromProperties(props);
+        return fromProperties(properties);
     }
 
-    /** 서버를 쓸지 여부. enabled=true이고 나머지 값이 모두 올바를 때만 true이다. */
+    /** 서버를 쓸지 여부. enabled=true이고 나머지 값이 모두 올바를 때만 true이다 */
     public boolean isEnabled() {
         return enabled;
     }
@@ -71,7 +70,7 @@ public final class ServerSettings {
         return token;
     }
 
-    /** 서버를 기다리는 제한 시간(초). 적지 않았으면 5, 올바른 값은 1~120이다. */
+    /** 서버를 기다리는 제한 시간(초). 적지 않았으면 5, 올바른 값은 1~120이다 */
     public int timeoutSeconds() {
         return timeoutSeconds;
     }
@@ -81,12 +80,12 @@ public final class ServerSettings {
         return warning;
     }
 
-    private static ServerSettings fromProperties(Properties props) {
-        String enabledText = value(props, "enabled");
+    private static ServerSettings fromProperties(Properties properties) {
+        String enabledText = value(properties, "enabled");
         if (!enabledText.equalsIgnoreCase("true")) {
             return off(enabledProblem(enabledText));
         }
-        return enabledSettings(props);
+        return enabledSettings(properties);
     }
 
     /** true/false가 아닌 값은 깨진 설정이다. 비어 있거나 false면 일부러 끈 것이라 경고가 없다 */
@@ -97,27 +96,27 @@ public final class ServerSettings {
         return "server.properties의 enabled 값을 읽지 못해 서버를 쓰지 않아요";
     }
 
-    private static ServerSettings enabledSettings(Properties props) {
-        String baseUrl = normalizeUrl(value(props, "baseUrl"));
+    private static ServerSettings enabledSettings(Properties properties) {
+        String baseUrl = normalizeUrl(value(properties, "baseUrl"));
         if (baseUrl == null) {
             return off("server.properties의 baseUrl이 http 주소가 아니어서 서버를 쓰지 않아요");
         }
-        String token = value(props, "token");
+        String token = value(properties, "token");
         if (!isHeaderSafe(token)) {
             return off("server.properties의 token에 쓸 수 없는 문자가 있어 서버를 쓰지 않아요");
         }
-        Integer timeout = timeoutSeconds(value(props, "timeoutSeconds"));
+        Integer timeout = timeoutSeconds(value(properties, "timeoutSeconds"));
         if (timeout == null) {
             return off("server.properties의 timeoutSeconds 값을 읽지 못해 서버를 쓰지 않아요");
         }
         return new ServerSettings(true, baseUrl, token, timeout, "");
     }
 
-    /** 왜 검사하나: 토큰은 HTTP 헤더(Authorization)에 그대로 들어가는데, 줄바꿈이나 한글이 있으면 요청이 깨지거나 헤더가 위조될 수 있다. */
+    /** 토큰은 HTTP 헤더(Authorization)에 그대로 들어가므로, 줄바꿈이나 한글이 있으면 요청이 깨지거나 헤더가 위조될 수 있어 막는다 */
     private static boolean isHeaderSafe(String token) {
         for (int i = 0; i < token.length(); i++) {
-            char c = token.charAt(i);
-            if (c < 0x21 || c > 0x7E) {
+            char letter = token.charAt(i);
+            if (letter < 0x21 || letter > 0x7E) {
                 return false;
             }
         }
@@ -173,8 +172,8 @@ public final class ServerSettings {
         }
     }
 
-    private static String value(Properties props, String key) {
-        String raw = props.getProperty(key);
+    private static String value(Properties properties, String key) {
+        String raw = properties.getProperty(key);
         return raw == null ? "" : raw.trim();
     }
 

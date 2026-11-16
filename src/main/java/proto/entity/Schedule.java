@@ -9,7 +9,7 @@ import java.util.TreeSet;
 
 /**
  * [엔티티 entity] 저장되는 일정 하나. 반복 일정도 "일정 하나 + 반복 규칙"으로 저장한다 (F9).
- * F1~F6, F9에서 쓴다. 저장소(ScheduleStore)가 목록으로 들고 있고, 읽기 전용 "하루치"는 Occurrence.of로 만든다.
+ * 저장소(ScheduleStore)가 목록으로 들고 있고, 읽기 전용 "하루치"는 Occurrence.of로 만든다.
  * 고치는 곳은 ScheduleController(와 SeriesEditor)뿐이다. 같은 id면 같은 일정으로 본다(equals).
  *
  * <ul>
@@ -77,33 +77,27 @@ public class Schedule {
         setAllDay(allDay);
     }
 
-    /**
-     * 같은 값을 가진 복사본 (id도 같음). 수정 전 값을 보관하거나 테스트할 때 쓴다.
-     * 완료·제외 날짜와 하루 종일 여부도 같이 복사한다(내용을 바꿔도 원본에 영향이 없다).
-     */
+    /** 같은 값을 가진 복사본 (id도 같음). 수정 전 값을 보관하거나 테스트할 때 쓴다. 날짜 목록도 따로 복사한다 */
     public Schedule copy() {
         return copyWithId(id);
     }
 
-    /**
-     * 값은 같고 id만 다른 복사본. 반복 일정을 나눌 때(F3 "앞으로 전부") 쓴다.
-     * 완료·제외 날짜 목록도 복사하지만, 두 일정이 서로 다른 Set을 가지므로 한쪽을 고쳐도 다른 쪽은 그대로다.
-     */
+    /** 값은 같고 id만 다른 복사본. 반복 일정을 나눌 때(F3 "앞으로 전부") 쓴다. 날짜 목록은 따로 복사하므로 서로 영향이 없다 */
     public Schedule copyWithId(String newId) {
-        Schedule s = new Schedule(newId, title, date, startTime, endTime, categoryId, memo,
+        Schedule copy = new Schedule(newId, title, date, startTime, endTime, categoryId, memo,
                 repeatRule, repeatEndDate, reminder, allDay);
-        s.colorKey = colorKey;
-        s.completedDates.addAll(completedDates);
-        s.excludedDates.addAll(excludedDates);
-        return s;
+        copy.colorKey = colorKey;
+        copy.completedDates.addAll(completedDates);
+        copy.excludedDates.addAll(excludedDates);
+        return copy;
     }
 
-    /** 반복 규칙이 NONE이 아니면 true. */
+    /** 반복 규칙이 NONE이 아니면 true */
     public boolean isRepeating() {
         return repeatRule != RepeatRule.NONE;
     }
 
-    /** 그 날짜에 완료 처리됐는지. 반복 일정은 날짜마다 따로 본다 (F5). */
+    /** 그 날짜에 완료 처리됐는지. 반복 일정은 날짜마다 따로 본다 (F5) */
     public boolean isCompletedOn(LocalDate day) {
         return completedDates.contains(day);
     }
@@ -122,7 +116,7 @@ public class Schedule {
         return excludedDates.contains(day);
     }
 
-    /** 그 날짜를 반복에서 뺀다. RepeatExpander가 펼칠 때 이 날짜는 건너뛴다. */
+    /** 그 날짜를 반복에서 뺀다. RepeatExpander가 펼칠 때 이 날짜는 건너뛴다 */
     public void excludeDate(LocalDate day) {
         excludedDates.add(day);
     }
@@ -161,12 +155,14 @@ public class Schedule {
     public String getMemo() { return memo; }
     public void setMemo(String memo) { this.memo = memo == null ? "" : memo; }
     public RepeatRule getRepeatRule() { return repeatRule; }
-    public void setRepeatRule(RepeatRule rule) { this.repeatRule = rule == null ? RepeatRule.NONE : rule; }
+    public void setRepeatRule(RepeatRule repeatRule) {
+        this.repeatRule = repeatRule == null ? RepeatRule.NONE : repeatRule;
+    }
     public LocalDate getRepeatEndDate() { return repeatEndDate; }
     public void setRepeatEndDate(LocalDate repeatEndDate) { this.repeatEndDate = repeatEndDate; }
     /** 알림. 하루 종일 일정이면 언제나 NONE (시작 시각이 없어 알릴 때를 정할 수 없다) */
     public ReminderOption getReminder() { return allDay ? ReminderOption.NONE : reminder; }
-    public void setReminder(ReminderOption r) { this.reminder = r == null ? ReminderOption.NONE : r; }
+    public void setReminder(ReminderOption reminder) { this.reminder = reminder == null ? ReminderOption.NONE : reminder; }
 
     /** 하루 종일 일정인지 */
     public boolean isAllDay() { return allDay; }
