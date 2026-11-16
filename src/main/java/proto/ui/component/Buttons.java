@@ -71,6 +71,8 @@ public final class Buttons {
         b.putClientProperty(FlatClientProperties.STYLE, "toolbar.margin:6,6,6,6; toolbar.hoverBackground:$proto.hover;"
                 + " toolbar.pressedBackground:$proto.hover; toolbar.spacingInsets:0,0,0,0; arc:8");
         b.getAccessibleContext().setAccessibleName(tooltip);
+        // 마우스로 눌러도 포커스를 가져가지 않는다 (누를 때마다 포커스 테두리가 생기지 않게). Tab으로는 그대로 갈 수 있다
+        b.setRequestFocusEnabled(false);
         return b;
     }
 

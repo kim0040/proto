@@ -33,6 +33,7 @@ import javax.swing.JFrame;
 import javax.swing.JLayeredPane;
 import javax.swing.JPanel;
 import javax.swing.KeyStroke;
+import javax.swing.LayoutFocusTraversalPolicy;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.UIManager;
@@ -42,6 +43,7 @@ import java.awt.Dimension;
 import java.awt.KeyboardFocusManager;
 import java.awt.Taskbar;
 import java.awt.Toolkit;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
@@ -296,7 +298,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
 
     /**
      * 사이드바를 숨기거나 다시 보인다 (⌘\, 사이드바의 숨기기 버튼, 위쪽 줄의 보이기 버튼, 명령 메뉴). 다음 실행 때도 기억한다.
-     * 사이드바 안에 포커스가 있었으면 위쪽 줄의 보이기 버튼으로 옮겨서 키보드 사용자가 길을 잃지 않게 한다
+     * 사이드바 안에 포커스가 있었으면 본문으로 옮긴다 (보이지 않는 칸에 포커스가 남지 않게)
      */
     private void toggleSidebar() {
         boolean hide = !sidebarHost.isHidden();
@@ -308,7 +310,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         sidebarHost.setHidden(hide, true);
         header.setSidebarHidden(hide);
         if (hide && focusInside) {
-            header.focusSidebarButton();
+            host.requestFocusInWindow();
         }
     }
 
@@ -397,6 +399,15 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
     }
 
     private void installFocusAndCloseListener() {
+        // 본문 틀은 포커스 테두리를 그리지 않는 "쉬는 자리"다. 처음 열 때와 사이드바를 숨길 때 포커스를 여기에 둔다. Tab은 여기서 다음 칸으로 간다.
+        // 그대로 두면 창에서 첫 버튼(사이드바 숨기기)이 처음 포커스를 받아, 창이 활성일 때만 테두리가 보였다 안 보였다 한다
+        host.setFocusable(true);
+        setFocusTraversalPolicy(new LayoutFocusTraversalPolicy() {
+            @Override
+            public Component getInitialComponent(Window window) {
+                return host;
+            }
+        });
         WindowAdapter listener = new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {

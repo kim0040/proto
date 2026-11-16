@@ -84,10 +84,6 @@ public final class HeaderBar extends JPanel {
         repaint();
     }
 
-    /** "사이드바 보이기" 버튼으로 포커스를 옮긴다 (사이드바 안에 있던 포커스가 사이드바와 함께 사라지지 않게) */
-    public void focusSidebarButton() {
-        sidebarButton.requestFocusInWindow();
-    }
 
     /** 화면 크기 등급에 맞춰 여백과 검색창 모양(좁으면 아이콘 버튼)을 바꾼다 */
     public void apply(SizeClass sc) {
