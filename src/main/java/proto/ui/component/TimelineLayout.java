@@ -12,14 +12,6 @@ import java.util.List;
  */
 public final class TimelineLayout {
 
-    /** 일정 하나의 시작·끝(분) */
-    public record Span(int start, int end) {
-    }
-
-    /** 놓일 위치: column번째 줄(0부터), 묶음 전체의 줄 수 columns */
-    public record Placement(int column, int columns) {
-    }
-
     private TimelineLayout() {
     }
 
@@ -86,5 +78,13 @@ public final class TimelineLayout {
             columns[i] = lines;
         }
         cluster.clear();
+    }
+
+    /** 일정 하나의 시작·끝(분) */
+    public record Span(int start, int end) {
+    }
+
+    /** 놓일 위치: column번째 줄(0부터), 묶음 전체의 줄 수 columns */
+    public record Placement(int column, int columns) {
     }
 }

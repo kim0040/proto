@@ -11,8 +11,8 @@ import java.awt.event.KeyEvent;
 import java.util.function.IntConsumer;
 
 /**
- * [경계 boundary] 자주 쓰는 리스너 묶음을 한 줄로 달아 주는 도우미 (포커스 때 다시 그리기, 글자 바뀜, 키 입력).
- * 컴포넌트마다 반복되는 리스너 코드를 한 줄로 줄이려는 도우미이다 (OccurrenceRow, MonthGrid, PillList 등이 쓴다).
+ * [경계 boundary] 자주 쓰는 리스너(포커스 때 다시 그리기, 글자 바뀜, 키 입력)를 한 줄로 달아 주는 도우미.
+ * OccurrenceRow, MonthGrid, PillList 등이 쓴다. 컴포넌트마다 반복되던 리스너 코드를 줄이려고 따로 두었다.
  */
 public final class Listeners {
 

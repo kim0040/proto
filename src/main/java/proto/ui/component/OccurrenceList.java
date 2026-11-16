@@ -6,6 +6,7 @@ import proto.ui.theme.Ui;
 
 import javax.swing.SwingUtilities;
 import java.awt.Component;
+import java.awt.Container;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -14,12 +15,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * [경계 boundary] 일정 행을 세로로 쌓은 목록. 같은 일정(id@날짜)의 행은 다시 만들지 않고 재사용해서
- * 완료·상태 변화 애니메이션이 끊기지 않고, 목록이 바뀔 때는 남은 행이 새 자리로 미끄러진다 (F2).
- * TodayView와 MonthView가 일정 목록으로 쓴다. 새 목록이 올 때마다 모두 지우고 다시 만들면 완료 체크·상태 색 애니메이션이 끊기므로,
- * 같은 키(일정id@날짜)의 줄은 그대로 두고 값만 바꾼다.
- * 목록 변화(FLIP): 남은 행은 예전 자리에서 새 자리로 160ms 미끄러지고(오버슈트 없음), 지워진 행은 제자리에서 100ms 흐려지고, 새 행은 6px 아래에서 올라오며
- * 나타난다 (여러 개여도 시차는 합쳐 60ms 이하). 검색어를 빠르게 칠 때는(이전 갱신 후 150ms 안) 움직이지 않고 바로 맞춘다.
+ * [경계 boundary] 일정 행을 세로로 쌓은 목록 (F2). TodayView와 MonthView가 일정 목록으로 쓴다.
+ * 새 목록이 올 때마다 모두 지우고 다시 만들면 완료 체크·상태 색 애니메이션이 끊기므로, 같은 키(일정id@날짜)의 행은 그대로 두고 값만 바꾼다.
+ * 목록이 바뀌면(FLIP) 남은 행은 예전 자리에서 새 자리로 160ms 미끄러지고(오버슈트 없음), 지워진 행은 제자리에서 100ms 흐려지고,
+ * 새 행은 6px 아래에서 올라오며 나타난다 (여러 개여도 시차는 합쳐 60ms 이하). 검색어를 빠르게 칠 때는(이전 갱신 후 150ms 안) 움직이지 않고 바로 맞춘다.
  */
 public class OccurrenceList extends ScrollPanel {
 
@@ -27,6 +26,7 @@ public class OccurrenceList extends ScrollPanel {
     private static final long QUIET_NANOS = 150_000_000L;
     private static final int STAGGER_MS = 15;
     private static final int MAX_STAGGER_MS = 60;
+    private static final int APPEAR_RISE = 6;
 
     private final RowHandler handler;
     private final boolean compact;
@@ -61,6 +61,26 @@ public class OccurrenceList extends ScrollPanel {
         repaint();
     }
 
+    /** 좁은 화면에서 카테고리 이름을 감추고 점만 보여 줄지 (모든 줄에 적용) */
+    public void setHideCategoryName(boolean hide) {
+        hideCategory = hide;
+        rows.values().forEach(r -> r.setHideCategoryName(hide));
+    }
+
+    public int count() {
+        return rows.size();
+    }
+
+    /** 첫 번째 행 (키보드 포커스 이동용). 없으면 null */
+    public Component firstRow() {
+        for (Component c : getComponents()) {
+            if (c instanceof OccurrenceRow) {
+                return c;
+            }
+        }
+        return null;
+    }
+
     /** 움직여도 되는 갱신인지: 모션이 켜져 있고, 화면에 보이고, 화면 전환 중이 아니고, 행의 구성이 달라졌고, 글자를 치는 중이 아니다 */
     private boolean canFlip(List<String> newKeys) {
         return Motion.enabled() && isShowing() && !inTransition() && !keys.equals(newKeys)
@@ -69,7 +89,7 @@ public class OccurrenceList extends ScrollPanel {
 
     /** 화면 전환(TransitionHost) 효과가 이미 돌고 있으면 목록은 따로 움직이지 않는다 */
     private boolean inTransition() {
-        java.awt.Container host = SwingUtilities.getAncestorOfClass(TransitionHost.class, this);
+        Container host = SwingUtilities.getAncestorOfClass(TransitionHost.class, this);
         return host instanceof TransitionHost t && t.isTransitioning();
     }
 
@@ -130,7 +150,7 @@ public class OccurrenceList extends ScrollPanel {
                 continue;
             }
             if (fresh.contains(row)) {
-                row.motion().appear(Ui.px(6), Math.min(appearing++ * STAGGER_MS, MAX_STAGGER_MS));
+                row.motion().appear(Ui.px(APPEAR_RISE), Math.min(appearing++ * STAGGER_MS, MAX_STAGGER_MS));
             } else {
                 glideIfMoved(row, oldY.get(row.occurrence().key()), y);
             }
@@ -156,25 +176,5 @@ public class OccurrenceList extends ScrollPanel {
             revalidate();
             repaint();
         });
-    }
-
-    /** 좁은 화면에서 카테고리 이름을 감추고 점만 보여 줄지 (모든 줄에 적용) */
-    public void setHideCategoryName(boolean hide) {
-        hideCategory = hide;
-        rows.values().forEach(r -> r.setHideCategoryName(hide));
-    }
-
-    public int count() {
-        return rows.size();
-    }
-
-    /** 첫 번째 행 (키보드 포커스 이동용). 없으면 null */
-    public Component firstRow() {
-        for (Component c : getComponents()) {
-            if (c instanceof OccurrenceRow) {
-                return c;
-            }
-        }
-        return null;
     }
 }

@@ -8,6 +8,8 @@ import proto.ui.theme.Fonts;
 import proto.ui.theme.Glyphs;
 import proto.ui.theme.Ui;
 
+import javax.accessibility.AccessibleContext;
+import javax.accessibility.AccessibleRole;
 import javax.swing.JComponent;
 import javax.swing.SwingUtilities;
 import java.awt.AlphaComposite;
@@ -16,6 +18,7 @@ import java.awt.Cursor;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Point;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
@@ -28,9 +31,6 @@ import java.awt.event.MouseEvent;
  * 마우스 누르기·끌기는 TimelineDrag로 넘기고(아래쪽 가장자리를 잡으면 크기 바꾸기), 클릭은 열기, 오른쪽 클릭은 메뉴, Enter는 열기, Delete는 삭제, Alt+방향키는 옮기기를 요청한다.
  */
 public class TimelineBlock extends JComponent implements OccurrenceHolder {
-
-    /** 블록 위에서 마우스가 놓인 자리 */
-    public enum Zone { BODY, RESIZE }
 
     private static final int RESIZE_ZONE = 6;
     private static final int ARC = 5;
@@ -107,113 +107,16 @@ public class TimelineBlock extends JComponent implements OccurrenceHolder {
     }
 
     @Override
-    public javax.accessibility.AccessibleContext getAccessibleContext() {
+    public AccessibleContext getAccessibleContext() {
         if (accessibleContext == null) {
             accessibleContext = new AccessibleJComponent() {
                 @Override
-                public javax.accessibility.AccessibleRole getAccessibleRole() {
-                    return javax.accessibility.AccessibleRole.PUSH_BUTTON;
+                public AccessibleRole getAccessibleRole() {
+                    return AccessibleRole.PUSH_BUTTON;
                 }
             };
         }
         return accessibleContext;
-    }
-
-    /** 키보드: Enter 열기, Delete 삭제, Alt+←/→ 하루, Alt+↑/↓ 15분 */
-    private final class BlockKeys extends KeyAdapter {
-        @Override
-        public void keyPressed(KeyEvent e) {
-            int code = e.getKeyCode();
-            if (e.isAltDown()) {
-                nudgeKey(code, e);
-            } else if (code == KeyEvent.VK_ENTER) {
-                handler.open(occurrence);
-            } else if (code == KeyEvent.VK_DELETE || code == KeyEvent.VK_BACK_SPACE) {
-                handler.delete(occurrence);
-            }
-        }
-
-        private void nudgeKey(int code, KeyEvent e) {
-            int days = code == KeyEvent.VK_LEFT ? -1 : code == KeyEvent.VK_RIGHT ? 1 : 0;
-            int minutes = code == KeyEvent.VK_UP ? -TimeSnap.STEP : code == KeyEvent.VK_DOWN ? TimeSnap.STEP : 0;
-            if (days != 0 || minutes != 0) {
-                e.consume();
-                grid.nudge(occurrence, days, minutes);
-            }
-        }
-    }
-
-    /** 블록 위의 마우스 동작: 위에 올림(강조), 메뉴, 누르기·끌기·놓기는 TimelineDrag로 */
-    private final class BlockMouse extends MouseAdapter {
-        @Override
-        public void mouseEntered(MouseEvent e) {
-            hover.to(1f, 50);
-        }
-
-        @Override
-        public void mouseExited(MouseEvent e) {
-            hover.to(0f, 120);
-        }
-
-        @Override
-        public void mouseMoved(MouseEvent e) {
-            setCursor(Cursor.getPredefinedCursor(zoneAt(e.getY()) == Zone.RESIZE
-                    ? Cursor.S_RESIZE_CURSOR : Cursor.HAND_CURSOR));
-        }
-
-        @Override
-        public void mousePressed(MouseEvent e) {
-            if (!menu(e) && SwingUtilities.isLeftMouseButton(e)) {
-                requestFocusInWindow();
-                grid.drag().pressBlock(TimelineBlock.this, inGrid(e), zoneAt(e.getY()));
-            }
-        }
-
-        @Override
-        public void mouseDragged(MouseEvent e) {
-            grid.drag().dragged(inGrid(e));
-        }
-
-        @Override
-        public void mouseReleased(MouseEvent e) {
-            if (!menu(e) && SwingUtilities.isLeftMouseButton(e)) {
-                grid.drag().released(inGrid(e), e.getClickCount());
-            }
-        }
-
-        private boolean menu(MouseEvent e) {
-            if (e.isPopupTrigger()) {
-                handler.showMenu(TimelineBlock.this, e.getPoint(), occurrence);
-            }
-            return e.isPopupTrigger();
-        }
-
-        private java.awt.Point inGrid(MouseEvent e) {
-            return SwingUtilities.convertPoint(TimelineBlock.this, e.getPoint(), grid);
-        }
-    }
-
-    // ---- 그리기 ----
-
-    /** 지금 모양의 바탕·글자색 묶음 */
-    private record Look(Color fill, Color title, Color sub, Color word) {
-    }
-
-    /** 고른(포커스) 블록과 끌고 있는 카드는 진한 바탕이다 */
-    private boolean solid() {
-        return lifted || isFocusOwner();
-    }
-
-    private Look look() {
-        if (solid()) {
-            Color fill = EventPaint.solidFill(occurrence, hover.value());
-            Color text = EventPaint.solidText(occurrence, fill);
-            return new Look(fill, text, text, text);
-        }
-        Color fill = EventPaint.tintFill(occurrence, hover.value());
-        Color sub = EventPaint.tintSub(occurrence, fill);
-        Color word = state == ScheduleState.DELAYED && !occurrence.completed() ? EventPaint.warning(fill) : sub;
-        return new Look(fill, EventPaint.tintTitle(occurrence, fill), sub, word);
     }
 
     @Override
@@ -240,6 +143,23 @@ public class TimelineBlock extends JComponent implements OccurrenceHolder {
             FocusRing.paint(g2, getWidth(), getHeight(), arc);
         }
         g2.dispose();
+    }
+
+    /** 고른(포커스) 블록과 끌고 있는 카드는 진한 바탕이다 */
+    private boolean solid() {
+        return lifted || isFocusOwner();
+    }
+
+    private Look look() {
+        if (solid()) {
+            Color fill = EventPaint.solidFill(occurrence, hover.value());
+            Color text = EventPaint.solidText(occurrence, fill);
+            return new Look(fill, text, text, text);
+        }
+        Color fill = EventPaint.tintFill(occurrence, hover.value());
+        Color sub = EventPaint.tintSub(occurrence, fill);
+        Color word = state == ScheduleState.DELAYED && !occurrence.completed() ? EventPaint.warning(fill) : sub;
+        return new Look(fill, EventPaint.tintTitle(occurrence, fill), sub, word);
     }
 
     /** 제목을 둘 수 있는 줄 수 (0이면 한 줄짜리 낮은 모양) */
@@ -319,5 +239,86 @@ public class TimelineBlock extends JComponent implements OccurrenceHolder {
             case DONE -> "완료";
             default -> "";
         };
+    }
+
+    /** 블록 위에서 마우스가 놓인 자리 */
+    public enum Zone { BODY, RESIZE }
+
+    /** 키보드: Enter 열기, Delete 삭제, Alt+←/→ 하루, Alt+↑/↓ 15분 */
+    private final class BlockKeys extends KeyAdapter {
+        @Override
+        public void keyPressed(KeyEvent e) {
+            int code = e.getKeyCode();
+            if (e.isAltDown()) {
+                nudgeKey(code, e);
+            } else if (code == KeyEvent.VK_ENTER) {
+                handler.open(occurrence);
+            } else if (code == KeyEvent.VK_DELETE || code == KeyEvent.VK_BACK_SPACE) {
+                handler.delete(occurrence);
+            }
+        }
+
+        private void nudgeKey(int code, KeyEvent e) {
+            int days = code == KeyEvent.VK_LEFT ? -1 : code == KeyEvent.VK_RIGHT ? 1 : 0;
+            int minutes = code == KeyEvent.VK_UP ? -TimeSnap.STEP : code == KeyEvent.VK_DOWN ? TimeSnap.STEP : 0;
+            if (days != 0 || minutes != 0) {
+                e.consume();
+                grid.nudge(occurrence, days, minutes);
+            }
+        }
+    }
+
+    /** 블록 위의 마우스 동작: 위에 올림(강조), 메뉴, 누르기·끌기·놓기는 TimelineDrag로 */
+    private final class BlockMouse extends MouseAdapter {
+        @Override
+        public void mouseEntered(MouseEvent e) {
+            hover.to(1f, 50);
+        }
+
+        @Override
+        public void mouseExited(MouseEvent e) {
+            hover.to(0f, 120);
+        }
+
+        @Override
+        public void mouseMoved(MouseEvent e) {
+            setCursor(Cursor.getPredefinedCursor(zoneAt(e.getY()) == Zone.RESIZE
+                    ? Cursor.S_RESIZE_CURSOR : Cursor.HAND_CURSOR));
+        }
+
+        @Override
+        public void mousePressed(MouseEvent e) {
+            if (!menu(e) && SwingUtilities.isLeftMouseButton(e)) {
+                requestFocusInWindow();
+                grid.drag().pressBlock(TimelineBlock.this, inGrid(e), zoneAt(e.getY()));
+            }
+        }
+
+        @Override
+        public void mouseDragged(MouseEvent e) {
+            grid.drag().dragged(inGrid(e));
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent e) {
+            if (!menu(e) && SwingUtilities.isLeftMouseButton(e)) {
+                grid.drag().released(inGrid(e), e.getClickCount());
+            }
+        }
+
+        private boolean menu(MouseEvent e) {
+            if (e.isPopupTrigger()) {
+                handler.showMenu(TimelineBlock.this, e.getPoint(), occurrence);
+            }
+            return e.isPopupTrigger();
+        }
+
+        private Point inGrid(MouseEvent e) {
+            return SwingUtilities.convertPoint(TimelineBlock.this, e.getPoint(), grid);
+        }
+    }
+
+    /** 지금 모양의 바탕·글자색 묶음 */
+    private record Look(Color fill, Color title, Color sub, Color word) {
     }
 }

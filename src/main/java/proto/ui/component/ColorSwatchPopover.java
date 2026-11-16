@@ -3,6 +3,7 @@ package proto.ui.component;
 import proto.ui.theme.CategoryColors;
 import proto.ui.theme.Ui;
 
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
 import javax.swing.JPopupMenu;
@@ -52,7 +53,7 @@ public final class ColorSwatchPopover {
 
     private static void bindEscape(JComponent grid, JPopupMenu popup, Component anchor) {
         grid.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), CLOSE);
-        grid.getActionMap().put(CLOSE, new javax.swing.AbstractAction() {
+        grid.getActionMap().put(CLOSE, new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 close(popup, anchor);

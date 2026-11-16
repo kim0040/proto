@@ -10,13 +10,16 @@ import proto.ui.theme.Icons;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
+import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
+import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
+import java.awt.Container;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -25,6 +28,7 @@ import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.Point;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -39,8 +43,6 @@ public class OccurrenceRow extends JPanel implements OccurrenceHolder {
 
     private final RowHandler handler;
     private final boolean compact;
-    private Occurrence occurrence;
-
     private final TokenLabel time = new TokenLabel("", Fonts.medium(Fonts.SMALL), Tokens.MUTED);
     private final CompletionCheck check = new CompletionCheck();
     private final StrikeLabel title = new StrikeLabel(Fonts.medium(Fonts.BODY));
@@ -58,6 +60,7 @@ public class OccurrenceRow extends JPanel implements OccurrenceHolder {
     private final Tween hover = new Tween(0f, this::repaint);
     private final RowMotion motion = new RowMotion(this::motionChanged);
     private final JPanel chip = new Chip();
+    private Occurrence occurrence;
     private boolean hideCategory;
 
     public OccurrenceRow(RowHandler handler, boolean compact) {
@@ -67,7 +70,7 @@ public class OccurrenceRow extends JPanel implements OccurrenceHolder {
         setOpaque(false);
         setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         setFocusable(true);
-        setBorder(javax.swing.BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
         buildLayout();
         installMouse();
     }
@@ -81,29 +84,6 @@ public class OccurrenceRow extends JPanel implements OccurrenceHolder {
     /** 목록이 바뀔 때의 미끄러짐·나타남 모션 (OccurrenceList가 시키고 FlipLayout이 읽는다) */
     RowMotion motion() {
         return motion;
-    }
-
-    /** 모션 값이 바뀌었다: 어긋난 자리를 목록이 다시 배치하고, 투명도가 바뀐 모습을 다시 그린다 */
-    private void motionChanged() {
-        java.awt.Container parent = getParent();
-        if (parent != null) {
-            parent.doLayout();
-        }
-        repaint();
-    }
-
-    /** 나타나는 중이면 투명도를 곁들여 그린다 */
-    @Override
-    public void paint(Graphics g) {
-        float a = motion.alpha();
-        if (a >= 0.999f) {
-            super.paint(g);
-            return;
-        }
-        Graphics2D g2 = (Graphics2D) g.create();
-        g2.setComposite(java.awt.AlphaComposite.SrcOver.derive(a));
-        super.paint(g2);
-        g2.dispose();
     }
 
     /** 새 값을 반영한다. 같은 일정이면 animate에 따라 체크·색이 부드럽게 바뀐다 */
@@ -126,6 +106,71 @@ public class OccurrenceRow extends JPanel implements OccurrenceHolder {
         time.setColorToken(o.completed() ? Tokens.FAINT : Tokens.MUTED);
         getAccessibleContext().setAccessibleName(o.title() + ", " + AllDayTag.when(o) + ", " + state.label());
         revalidate();
+    }
+
+    /** 좁은 화면에서는 카테고리 이름을 감추고 색 점만 남긴다 (점은 그대로, 이름은 한 줄 말줄임) */
+    public void setHideCategoryName(boolean hide) {
+        if (hide != hideCategory) {
+            hideCategory = hide;
+            category.setVisible(!hide);
+            chip.revalidate();
+            revalidate();
+        }
+    }
+
+    /** 나타나는 중이면 투명도를 곁들여 그린다 */
+    @Override
+    public void paint(Graphics g) {
+        float a = motion.alpha();
+        if (a >= 0.999f) {
+            super.paint(g);
+            return;
+        }
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setComposite(AlphaComposite.SrcOver.derive(a));
+        super.paint(g2);
+        g2.dispose();
+    }
+
+    @Override
+    public Dimension getMaximumSize() {
+        return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
+    }
+
+    @Override
+    public Dimension getPreferredSize() {
+        Dimension d = super.getPreferredSize();
+        return new Dimension(d.width, Math.max(d.height + Ui.px(compact ? 16 : 22), Ui.px(compact ? 56 : 58)));
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        Ui.smooth(g2);
+        int arc = Ui.px(10);
+        if (hover.value() > 0.01f) {
+            g2.setColor(Tokens.alpha(Tokens.get(Tokens.SUBTLE), hover.value()));
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
+            g2.setColor(Tokens.alpha(Tokens.get(Tokens.HOVER), hover.value() * 0.5f));
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
+        }
+        g2.setColor(Tokens.alpha(Tokens.get(Tokens.BORDER), 1f - hover.value()));
+        g2.fillRect(Ui.px(12), getHeight() - 1, getWidth() - Ui.px(24), 1);
+        if (isFocusOwner()) {
+            g2.setColor(Tokens.alpha(Tokens.get(Tokens.ACCENT), 0.6f));
+            g2.setStroke(new BasicStroke(Ui.px(1.5f)));
+            g2.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, arc, arc);
+        }
+        g2.dispose();
+    }
+
+    /** 모션 값이 바뀌었다: 어긋난 자리를 목록이 다시 배치하고, 투명도가 바뀐 모습을 다시 그린다 */
+    private void motionChanged() {
+        Container parent = getParent();
+        if (parent != null) {
+            parent.doLayout();
+        }
+        repaint();
     }
 
     /** 시간 자리: 하루 종일이면 색 네모 + "하루 종일", 아니면 시간 범위 */
@@ -188,39 +233,6 @@ public class OccurrenceRow extends JPanel implements OccurrenceHolder {
         add(pill, cell(2, 0, 0, new Insets(0, 0, 0, 8)));
     }
 
-    /** 좁은 화면에서는 카테고리 이름을 감추고 색 점만 남긴다 (점은 그대로, 이름은 한 줄 말줄임) */
-    public void setHideCategoryName(boolean hide) {
-        if (hide != hideCategory) {
-            hideCategory = hide;
-            category.setVisible(!hide);
-            chip.revalidate();
-            revalidate();
-        }
-    }
-
-    /** 카테고리 점 + 이름 묶음. 넓이가 모자라면 이름이 먼저 "…"로 줄고 점은 남는다 */
-    private final class Chip extends JPanel {
-        Chip() {
-            super(new BorderLayout(Ui.px(6), 0));
-            setOpaque(false);
-            add(dot, BorderLayout.WEST);
-            add(category, BorderLayout.CENTER);
-        }
-
-        @Override
-        public Dimension getPreferredSize() {
-            Dimension d = super.getPreferredSize();
-            int w = hideCategory ? dot.getPreferredSize().width : compact ? d.width : Ui.px(112);
-            return new Dimension(w, Math.max(d.height, Ui.px(20)));
-        }
-
-        @Override
-        public Dimension getMinimumSize() {
-            int w = dot.getPreferredSize().width + (hideCategory ? 0 : Ui.px(48));
-            return new Dimension(w, getPreferredSize().height);
-        }
-    }
-
     private static JPanel textColumn(JComponent first, JComponent second) {
         JPanel p = new JPanel();
         p.setOpaque(false);
@@ -256,6 +268,35 @@ public class OccurrenceRow extends JPanel implements OccurrenceHolder {
         Listeners.repaintOnFocus(this);
     }
 
+    private void maybeMenu(MouseEvent e) {
+        if (e.isPopupTrigger()) {
+            handler.showMenu(this, e.getPoint(), occurrence);
+        }
+    }
+
+    /** 카테고리 점 + 이름 묶음. 넓이가 모자라면 이름이 먼저 "…"로 줄고 점은 남는다 */
+    private final class Chip extends JPanel {
+        Chip() {
+            super(new BorderLayout(Ui.px(6), 0));
+            setOpaque(false);
+            add(dot, BorderLayout.WEST);
+            add(category, BorderLayout.CENTER);
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            Dimension d = super.getPreferredSize();
+            int w = hideCategory ? dot.getPreferredSize().width : compact ? d.width : Ui.px(112);
+            return new Dimension(w, Math.max(d.height, Ui.px(20)));
+        }
+
+        @Override
+        public Dimension getMinimumSize() {
+            int w = dot.getPreferredSize().width + (hideCategory ? 0 : Ui.px(48));
+            return new Dimension(w, getPreferredSize().height);
+        }
+    }
+
     /** 행 위의 마우스 동작: hover 배경, 열기, 오른쪽 클릭 메뉴 */
     private final class RowMouse extends MouseAdapter {
         @Override
@@ -265,7 +306,7 @@ public class OccurrenceRow extends JPanel implements OccurrenceHolder {
 
         @Override
         public void mouseExited(MouseEvent e) {
-            java.awt.Point p = SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), OccurrenceRow.this);
+            Point p = SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), OccurrenceRow.this);
             if (!contains(p)) {
                 hover.to(0f, 180);
             }
@@ -287,43 +328,5 @@ public class OccurrenceRow extends JPanel implements OccurrenceHolder {
                 handler.open(occurrence);
             }
         }
-    }
-
-    private void maybeMenu(MouseEvent e) {
-        if (e.isPopupTrigger()) {
-            handler.showMenu(this, e.getPoint(), occurrence);
-        }
-    }
-
-    @Override
-    public Dimension getMaximumSize() {
-        return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
-    }
-
-    @Override
-    public Dimension getPreferredSize() {
-        Dimension d = super.getPreferredSize();
-        return new Dimension(d.width, Math.max(d.height + Ui.px(compact ? 16 : 22), Ui.px(compact ? 56 : 58)));
-    }
-
-    @Override
-    protected void paintComponent(Graphics g) {
-        Graphics2D g2 = (Graphics2D) g.create();
-        Ui.smooth(g2);
-        int arc = Ui.px(10);
-        if (hover.value() > 0.01f) {
-            g2.setColor(Tokens.alpha(Tokens.get(Tokens.SUBTLE), hover.value()));
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
-            g2.setColor(Tokens.alpha(Tokens.get(Tokens.HOVER), hover.value() * 0.5f));
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
-        }
-        g2.setColor(Tokens.alpha(Tokens.get(Tokens.BORDER), 1f - hover.value()));
-        g2.fillRect(Ui.px(12), getHeight() - 1, getWidth() - Ui.px(24), 1);
-        if (isFocusOwner()) {
-            g2.setColor(Tokens.alpha(Tokens.get(Tokens.ACCENT), 0.6f));
-            g2.setStroke(new BasicStroke(Ui.px(1.5f)));
-            g2.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, arc, arc);
-        }
-        g2.dispose();
     }
 }

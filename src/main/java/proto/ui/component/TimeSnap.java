@@ -14,13 +14,6 @@ public final class TimeSnap {
     /** 하루의 끝(24:00)을 분으로 센 값 */
     public static final int DAY = 1440;
 
-    /** 시작·끝 분. 끝은 시작보다 항상 크다 */
-    public record Range(int start, int end) {
-        public int length() {
-            return end - start;
-        }
-    }
-
     private TimeSnap() {
     }
 
@@ -98,5 +91,12 @@ public final class TimeSnap {
             return new Range(DAY - 60, DAY);
         }
         return new Range(start, end);
+    }
+
+    /** 시작·끝 분. 끝은 시작보다 항상 크다 */
+    public record Range(int start, int end) {
+        public int length() {
+            return end - start;
+        }
     }
 }

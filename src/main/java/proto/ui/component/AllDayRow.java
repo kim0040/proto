@@ -26,12 +26,9 @@ import java.util.function.Predicate;
 
 /**
  * [경계 boundary] 주 시간표 위쪽(요일 머리글 아래)에 붙는 하루 종일 줄: 날짜 칸마다 하루 종일 일정 칩(AllDayChip)을 세로로 쌓고, 왼쪽 시각 글자 영역에 "하루 종일" 이름표를 둔다.
- * WeekView가 TimelineHeader와 함께 스크롤 영역의 열 머리글로 달아 둔다 (F2, F3). 이번 주에 하루 종일 일정이 하나도 없으면 높이가 0이라 보이지 않는다.
- * 한 날에 3개 이상이면 접힌 상태에서는 칩 1개 + "+N"(AllDayButton)만 보이고, 왼쪽 칸의 화살표나 "+N"을 누르면 140ms 동안 펼쳐진다 (노션 캘린더의 접히는 하루 종일 구역).
- * 칩을 가로로 끌면 다른 날로 옮긴다(AllDayDrag, 시간은 그대로). 시간 블록과 칩을 서로의 영역에 끌어 놓는 것은 지원하지 않는다.
- * 칸 위치는 TimelineMetrics로 계산해 시간 본문과 어긋나지 않는다.
- * 보이는 높이는 setHeightCap으로 받은 한도(예: 시간표 스크롤 영역의 40%, 적어도 한 줄)를 넘지 않는다. 내용이 더 길면 AllDayPane 안에서 따로 스크롤되고,
- * 왼쪽 칸의 이름표와 화살표는 스크롤해도 제자리에 남는다. 끄는 도중 주가 바뀌거나 일정이 다시 채워지거나 화면에서 떨어지면 끌기를 거둔다.
+ * WeekView가 TimelineHeader와 함께 스크롤 영역의 열 머리글로 달아 둔다 (F2, F3). 하루 종일 일정이 없는 주에는 높이가 0이라 보이지 않는다.
+ * 한 날에 3개 이상이면 접힌 상태에서는 칩 1개 + "+N"(AllDayButton)만 보이고, 화살표나 "+N"을 누르면 140ms 동안 펼쳐진다. 칩을 가로로 끌면 다른 날로 옮긴다(AllDayDrag).
+ * 보이는 높이는 setHeightCap으로 받은 한도(적어도 한 줄)를 넘지 않고, 내용이 더 길면 AllDayPane 안에서 따로 스크롤된다. 칸 위치는 TimelineMetrics로 시간 본문과 맞춘다.
  */
 public class AllDayRow extends JComponent implements AllDayChip.Host, Scrollable {
 
@@ -42,13 +39,14 @@ public class AllDayRow extends JComponent implements AllDayChip.Host, Scrollable
     /** 왼쪽 칸의 화살표가 놓이는 줄 (이름표 바로 아래) */
     private static final int TOGGLE_ROW = 1;
 
-    /** 칩 하나와 놓일 날짜 칸·칸 안의 줄 번호 */
-    private record Cell(AllDayChip chip, int day, int index) {
-    }
-
-    /** "+N" 버튼과 놓일 날짜 칸·줄 번호 */
-    private record Extra(AllDayButton button, int day, int index) {
-    }
+    /** 키보드로 칩에 포커스가 오면 그 칩이 보이게 스크롤한다 */
+    private static final FocusAdapter REVEAL = new FocusAdapter() {
+        @Override
+        public void focusGained(FocusEvent e) {
+            JComponent c = (JComponent) e.getComponent();
+            c.scrollRectToVisible(new Rectangle(0, 0, c.getWidth(), c.getHeight()));
+        }
+    };
 
     private final TimelineHandler handler;
     private final int gutter;
@@ -57,11 +55,6 @@ public class AllDayRow extends JComponent implements AllDayChip.Host, Scrollable
     private final List<Extra> extras = new ArrayList<>();
     private final List<List<Occurrence>> days = new ArrayList<>();
     private LocalDate weekStart = LocalDate.now();
-
-    /** 이 주를 보여 주는 동안 하루 종일 칩을 끄는 중인지 (TimelineGrid#isDragging과 같은 쓰임) */
-    public boolean isDragging(LocalDate start) {
-        return drag.isActive() && start.equals(weekStart);
-    }
     private int today = -1;
     private boolean expanded;
     private boolean showAll;
@@ -77,6 +70,11 @@ public class AllDayRow extends JComponent implements AllDayChip.Host, Scrollable
         for (int i = 0; i < TimelineMetrics.DAYS; i++) {
             days.add(List.of());
         }
+    }
+
+    /** 이 주를 보여 주는 동안 하루 종일 칩을 끄는 중인지 (TimelineGrid#isDragging과 같은 쓰임) */
+    public boolean isDragging(LocalDate start) {
+        return drag.isActive() && start.equals(weekStart);
     }
 
     /** 이번에 보여 줄 한 주와 오늘, 그 주의 일정 (하루 종일이 아닌 일정은 건너뛴다) */
@@ -266,15 +264,6 @@ public class AllDayRow extends JComponent implements AllDayChip.Host, Scrollable
         return getParent() != null && getParent().getHeight() >= getPreferredSize().height;
     }
 
-    /** 키보드로 칩에 포커스가 오면 그 칩이 보이게 스크롤한다 */
-    private static final FocusAdapter REVEAL = new FocusAdapter() {
-        @Override
-        public void focusGained(FocusEvent e) {
-            JComponent c = (JComponent) e.getComponent();
-            c.scrollRectToVisible(new Rectangle(0, 0, c.getWidth(), c.getHeight()));
-        }
-    };
-
     // ---- 펼치기·접기 ----
 
     /** 접힌 줄을 펼치거나 펼친 줄을 접는다. 펼칠 때는 칩을 먼저 모두 놓고 높이를 키우고, 접을 때는 높이를 줄인 뒤 칩을 바꾼다 */
@@ -286,7 +275,7 @@ public class AllDayRow extends JComponent implements AllDayChip.Host, Scrollable
             showAll = true;
             rebuild();
         }
-        float to = expanded ? targetHeightFor(true) : targetHeightFor(false);
+        float to = targetHeightFor(expanded);
         toggling = Motion.run(TOGGLE_MS, Motion.OUT, f -> {
             height = from + (to - from) * f;
             revalidate();
@@ -451,5 +440,13 @@ public class AllDayRow extends JComponent implements AllDayChip.Host, Scrollable
     public Rectangle chipBounds(int day, int index) {
         return cells.stream().filter(c -> c.day() == day && c.index() == index).map(c -> c.chip().getBounds())
                 .findFirst().orElse(null);
+    }
+
+    /** 칩 하나와 놓일 날짜 칸·칸 안의 줄 번호 */
+    private record Cell(AllDayChip chip, int day, int index) {
+    }
+
+    /** "+N" 버튼과 놓일 날짜 칸·줄 번호 */
+    private record Extra(AllDayButton button, int day, int index) {
     }
 }

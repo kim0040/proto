@@ -9,8 +9,11 @@ import proto.ui.theme.Glyphs;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
+import javax.accessibility.AccessibleContext;
+import javax.accessibility.AccessibleRole;
 import javax.swing.JComponent;
 import javax.swing.SwingUtilities;
+import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FontMetrics;
@@ -59,53 +62,17 @@ public class WeekChip extends JComponent implements OccurrenceHolder {
         return occurrence;
     }
 
-    /** 칩 위의 마우스 동작 */
-    private final class ChipMouse extends MouseAdapter {
-        @Override
-        public void mouseEntered(MouseEvent e) {
-            hover.to(1f, 50);
-        }
-
-        @Override
-        public void mouseExited(MouseEvent e) {
-            hover.to(0f, 110);
-        }
-
-        @Override
-        public void mouseClicked(MouseEvent e) {
-            if (SwingUtilities.isLeftMouseButton(e)) {
-                handler.open(occurrence);
-            }
-        }
-
-        @Override
-        public void mousePressed(MouseEvent e) {
-            menu(e);
-        }
-
-        @Override
-        public void mouseReleased(MouseEvent e) {
-            menu(e);
-        }
-    }
-
     @Override
-    public javax.accessibility.AccessibleContext getAccessibleContext() {
+    public AccessibleContext getAccessibleContext() {
         if (accessibleContext == null) {
             accessibleContext = new AccessibleJComponent() {
                 @Override
-                public javax.accessibility.AccessibleRole getAccessibleRole() {
-                    return javax.accessibility.AccessibleRole.PUSH_BUTTON;
+                public AccessibleRole getAccessibleRole() {
+                    return AccessibleRole.PUSH_BUTTON;
                 }
             };
         }
         return accessibleContext;
-    }
-
-    private void menu(MouseEvent e) {
-        if (e.isPopupTrigger()) {
-            handler.showMenu(this, e.getPoint(), occurrence);
-        }
     }
 
     /** 칩이 놓일 칸의 너비. 제목을 이 너비로 줄바꿈한다 */
@@ -114,11 +81,6 @@ public class WeekChip extends JComponent implements OccurrenceHolder {
             wrapWidth = width;
             revalidate();
         }
-    }
-
-    private List<String> titleLines() {
-        FontMetrics fm = getFontMetrics(Fonts.medium(Fonts.SMALL));
-        return TextUtil.wrap(occurrence.title(), fm, wrapWidth - Ui.px(20), 2);
     }
 
     @Override
@@ -174,7 +136,7 @@ public class WeekChip extends JComponent implements OccurrenceHolder {
         }
     }
 
-    private java.awt.Color timeColor() {
+    private Color timeColor() {
         return Tokens.get(switch (state) {
             case DELAYED -> Tokens.DANGER;
             case IN_PROGRESS -> Tokens.ACCENT;
@@ -189,5 +151,46 @@ public class WeekChip extends JComponent implements OccurrenceHolder {
             case DONE -> " 완료";
             default -> "";
         };
+    }
+
+    private void menu(MouseEvent e) {
+        if (e.isPopupTrigger()) {
+            handler.showMenu(this, e.getPoint(), occurrence);
+        }
+    }
+
+    private List<String> titleLines() {
+        FontMetrics fm = getFontMetrics(Fonts.medium(Fonts.SMALL));
+        return TextUtil.wrap(occurrence.title(), fm, wrapWidth - Ui.px(20), 2);
+    }
+
+    /** 칩 위의 마우스 동작 */
+    private final class ChipMouse extends MouseAdapter {
+        @Override
+        public void mouseEntered(MouseEvent e) {
+            hover.to(1f, 50);
+        }
+
+        @Override
+        public void mouseExited(MouseEvent e) {
+            hover.to(0f, 110);
+        }
+
+        @Override
+        public void mouseClicked(MouseEvent e) {
+            if (SwingUtilities.isLeftMouseButton(e)) {
+                handler.open(occurrence);
+            }
+        }
+
+        @Override
+        public void mousePressed(MouseEvent e) {
+            menu(e);
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent e) {
+            menu(e);
+        }
     }
 }

@@ -8,6 +8,8 @@ import proto.ui.theme.Fonts;
 import proto.ui.theme.Glyphs;
 import proto.ui.theme.Ui;
 
+import javax.accessibility.AccessibleContext;
+import javax.accessibility.AccessibleRole;
 import javax.swing.JComponent;
 import javax.swing.SwingUtilities;
 import java.awt.AlphaComposite;
@@ -35,18 +37,6 @@ public class AllDayChip extends JComponent implements OccurrenceHolder {
     public static final int HEIGHT = 20;
     private static final int ARC = 4;
     private static final int PAD_X = 6;
-
-    /** 칩이 끌기·키보드 이동을 넘기는 쪽 (AllDayRow) */
-    interface Host {
-        void press(AllDayChip chip, MouseEvent e);
-
-        void drag(MouseEvent e);
-
-        /** 끌기를 끝냈다. 끌기였으면 true (그러면 칩은 클릭으로 열지 않는다) */
-        boolean release(MouseEvent e);
-
-        void nudge(AllDayChip chip, int days);
-    }
 
     private final RowHandler handler;
     private final Occurrence occurrence;
@@ -97,12 +87,12 @@ public class AllDayChip extends JComponent implements OccurrenceHolder {
     }
 
     @Override
-    public javax.accessibility.AccessibleContext getAccessibleContext() {
+    public AccessibleContext getAccessibleContext() {
         if (accessibleContext == null) {
             accessibleContext = new AccessibleJComponent() {
                 @Override
-                public javax.accessibility.AccessibleRole getAccessibleRole() {
-                    return javax.accessibility.AccessibleRole.PUSH_BUTTON;
+                public AccessibleRole getAccessibleRole() {
+                    return AccessibleRole.PUSH_BUTTON;
                 }
             };
         }
@@ -117,6 +107,18 @@ public class AllDayChip extends JComponent implements OccurrenceHolder {
     @Override
     public Dimension getMaximumSize() {
         return new Dimension(Integer.MAX_VALUE, Ui.px(HEIGHT));
+    }
+
+    /** 칩이 끌기·키보드 이동을 넘기는 쪽 (AllDayRow) */
+    interface Host {
+        void press(AllDayChip chip, MouseEvent e);
+
+        void drag(MouseEvent e);
+
+        /** 끌기를 끝냈다. 끌기였으면 true (그러면 칩은 클릭으로 열지 않는다) */
+        boolean release(MouseEvent e);
+
+        void nudge(AllDayChip chip, int days);
     }
 
     /** Enter 열기, Delete 삭제, Alt+←/→ 하루씩 옮기기 */

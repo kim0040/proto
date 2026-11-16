@@ -20,16 +20,6 @@ import java.awt.Graphics2D;
  */
 public class TransitionHost extends JPanel {
 
-    /** 새 내용이 들어오는 방향. UP은 아래에서 올라오고 DOWN은 위에서 내려온다 (사이드바에서 아래쪽 항목으로 가면 UP) */
-    public enum Dir {
-        UP, DOWN, FROM_RIGHT, FROM_LEFT, NONE;
-
-        /** 사이드바 순서(위에서 아래)의 from번째에서 to번째 보기로 갈 때의 방향 */
-        public static Dir toward(int from, int to) {
-            return to >= from ? UP : DOWN;
-        }
-    }
-
     private static final Animator.Interpolator LINEAR = f -> f;
 
     private SnapshotBuffer outgoing = new SnapshotBuffer();
@@ -82,6 +72,32 @@ public class TransitionHost extends JPanel {
     /** 전환 효과가 돌고 있는지 (내용을 바꾸는 중 포함). 목록 같은 안쪽 요소가 따로 움직이지 않을 때 묻는다 */
     public boolean isTransitioning() {
         return running || changing;
+    }
+
+    /** 전환 중에는 자식의 repaint도 이 틀을 거쳐 그려져야 투명도와 밀림이 한결같다 */
+    @Override
+    protected boolean isPaintingOrigin() {
+        return running;
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setColor(Tokens.get(Tokens.BG));
+        g2.fillRect(0, 0, getWidth(), getHeight());
+        if (running) {
+            outgoing.draw(g2, getWidth(), getHeight(), plan.outgoingAlpha(elapsedMs));
+        }
+        g2.dispose();
+    }
+
+    @Override
+    protected void paintChildren(Graphics g) {
+        if (running) {
+            paintIncoming((Graphics2D) g);
+        } else {
+            super.paintChildren(g);
+        }
     }
 
     private boolean canAnimate(Dir direction) {
@@ -138,32 +154,6 @@ public class TransitionHost extends JPanel {
         pendingDone = null;
     }
 
-    /** 전환 중에는 자식의 repaint도 이 틀을 거쳐 그려져야 투명도와 밀림이 한결같다 */
-    @Override
-    protected boolean isPaintingOrigin() {
-        return running;
-    }
-
-    @Override
-    protected void paintComponent(Graphics g) {
-        Graphics2D g2 = (Graphics2D) g.create();
-        g2.setColor(Tokens.get(Tokens.BG));
-        g2.fillRect(0, 0, getWidth(), getHeight());
-        if (running) {
-            outgoing.draw(g2, getWidth(), getHeight(), plan.outgoingAlpha(elapsedMs));
-        }
-        g2.dispose();
-    }
-
-    @Override
-    protected void paintChildren(Graphics g) {
-        if (running) {
-            paintIncoming((Graphics2D) g);
-        } else {
-            super.paintChildren(g);
-        }
-    }
-
     /** 들어오는 화면(진짜 컴포넌트)을 지금 시각의 투명도와 밀림으로 그린다 */
     private void paintIncoming(Graphics2D g) {
         Graphics2D g2 = (Graphics2D) g.create();
@@ -172,5 +162,15 @@ public class TransitionHost extends JPanel {
         g2.setComposite(AlphaComposite.SrcOver.derive(Math.min(1f, plan.incomingAlpha(elapsedMs))));
         super.paintChildren(g2);
         g2.dispose();
+    }
+
+    /** 새 내용이 들어오는 방향. UP은 아래에서 올라오고 DOWN은 위에서 내려온다 (사이드바에서 아래쪽 항목으로 가면 UP) */
+    public enum Dir {
+        UP, DOWN, FROM_RIGHT, FROM_LEFT, NONE;
+
+        /** 사이드바 순서(위에서 아래)의 from번째에서 to번째 보기로 갈 때의 방향 */
+        public static Dir toward(int from, int to) {
+            return to >= from ? UP : DOWN;
+        }
     }
 }

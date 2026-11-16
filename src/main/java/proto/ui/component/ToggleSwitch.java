@@ -31,6 +31,7 @@ public class ToggleSwitch extends JComponent {
     private static final int H = 24;
     private static final int PAD = 3;
     private static final int SPRING_MS = 320;
+    private static final int GLIDE_MS = 150;
 
     private final List<Consumer<Boolean>> listeners = new ArrayList<>();
     private final Tween position = new Tween(0f, this::repaint);
@@ -65,22 +66,11 @@ public class ToggleSwitch extends JComponent {
     /** 값을 정한다 (리스너는 부르지 않는다) */
     public void setOn(boolean value) {
         on = value;
-        position.to(value ? 1f : 0f, 150);
-    }
-
-    /** 사용자가 눌러서 바꿀 때: 스프링으로 살짝 넘었다 돌아온다 */
-    private void flip(boolean value) {
-        on = value;
-        position.springTo(value ? 1f : 0f, SPRING_MS);
+        position.to(value ? 1f : 0f, GLIDE_MS);
     }
 
     public void addChangeListener(Consumer<Boolean> listener) {
         listeners.add(listener);
-    }
-
-    private void toggle() {
-        flip(!on);
-        listeners.forEach(l -> l.accept(on));
     }
 
     @Override
@@ -136,5 +126,16 @@ public class ToggleSwitch extends JComponent {
             };
         }
         return accessibleContext;
+    }
+
+    /** 사용자가 눌러서 바꿀 때: 스프링으로 살짝 넘었다 돌아온다 */
+    private void flip(boolean value) {
+        on = value;
+        position.springTo(value ? 1f : 0f, SPRING_MS);
+    }
+
+    private void toggle() {
+        flip(!on);
+        listeners.forEach(l -> l.accept(on));
     }
 }

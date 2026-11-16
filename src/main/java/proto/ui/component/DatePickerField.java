@@ -7,6 +7,7 @@ import proto.ui.theme.Icons;
 import proto.ui.theme.Tokens;
 
 import javax.swing.AbstractAction;
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JPopupMenu;
 import javax.swing.KeyStroke;
@@ -14,11 +15,11 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
-import java.util.function.UnaryOperator;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 /**
  * [경계 boundary] 날짜를 보여 주는 칸. 누르면 작은 월 달력이 팝업으로 열려 날짜를 고른다. 값은 절대 null이 되지 않는다.
@@ -27,9 +28,9 @@ import java.util.function.Consumer;
  */
 public class DatePickerField extends JButton {
 
-    private LocalDate date;
     private final LocalDate today;
     private final List<Consumer<LocalDate>> listeners = new ArrayList<>();
+    private LocalDate date;
 
     public DatePickerField(LocalDate initial, LocalDate today) {
         this.today = today;
@@ -52,20 +53,6 @@ public class DatePickerField extends JButton {
         refreshText();
     }
 
-    /** 칸에 포커스가 있을 때 키 하나로 날짜를 옮긴다 (팝업을 열지 않고도 키보드만으로 고를 수 있게) */
-    private void bindStep(int key, UnaryOperator<LocalDate> step) {
-        String name = "proto-step-" + key;
-        getInputMap(WHEN_FOCUSED).put(KeyStroke.getKeyStroke(key, 0), name);
-        getActionMap().put(name, new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                LocalDate next = step.apply(date);
-                setDate(next);
-                listeners.forEach(l -> l.accept(next));
-            }
-        });
-    }
-
     public LocalDate getDate() {
         return date;
     }
@@ -83,13 +70,27 @@ public class DatePickerField extends JButton {
         listeners.add(l);
     }
 
+    /** 칸에 포커스가 있을 때 키 하나로 날짜를 옮긴다 (팝업을 열지 않고도 키보드만으로 고를 수 있게) */
+    private void bindStep(int key, UnaryOperator<LocalDate> step) {
+        String name = "proto-step-" + key;
+        getInputMap(WHEN_FOCUSED).put(KeyStroke.getKeyStroke(key, 0), name);
+        getActionMap().put(name, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                LocalDate next = step.apply(date);
+                setDate(next);
+                listeners.forEach(l -> l.accept(next));
+            }
+        });
+    }
+
     private void refreshText() {
         setText(Fmt.dateFull(date));
     }
 
     private void openPopup() {
         JPopupMenu menu = new JPopupMenu();
-        menu.setBorder(javax.swing.BorderFactory.createLineBorder(Tokens.get(Tokens.BORDER)));
+        menu.setBorder(BorderFactory.createLineBorder(Tokens.get(Tokens.BORDER)));
         menu.setFocusable(true);
         MiniCalendar cal = new MiniCalendar(date, today, picked -> {
             setDate(picked);

@@ -5,7 +5,10 @@ import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
+import javax.accessibility.AccessibleContext;
+import javax.accessibility.AccessibleRole;
 import javax.swing.JComponent;
+import java.awt.BasicStroke;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FontMetrics;
@@ -28,12 +31,14 @@ public class Segmented<T> extends JComponent {
 
     private static final int PAD = 3;
     private static final int TEXT_PAD = 14;
+    private static final int SPRING_MS = 340;
+    private static final int GLIDE_MS = 220;
 
     private final List<T> values;
     private final Function<T, String> label;
     private final List<Consumer<T>> listeners = new ArrayList<>();
-    private int selected;
     private final Tween thumb = new Tween(0f, this::repaint);
+    private int selected;
 
     public Segmented(List<T> values, Function<T, String> label) {
         this.values = values;
@@ -58,12 +63,12 @@ public class Segmented<T> extends JComponent {
     }
 
     @Override
-    public javax.accessibility.AccessibleContext getAccessibleContext() {
+    public AccessibleContext getAccessibleContext() {
         if (accessibleContext == null) {
             accessibleContext = new AccessibleJComponent() {
                 @Override
-                public javax.accessibility.AccessibleRole getAccessibleRole() {
-                    return javax.accessibility.AccessibleRole.PUSH_BUTTON;
+                public AccessibleRole getAccessibleRole() {
+                    return AccessibleRole.PUSH_BUTTON;
                 }
             };
         }
@@ -84,48 +89,6 @@ public class Segmented<T> extends JComponent {
         if (i >= 0) {
             moveThumb(i, animate, false);
         }
-    }
-
-    private void select(int index, boolean animate) {
-        if (index == selected) {
-            return;
-        }
-        moveThumb(index, animate, true);
-        listeners.forEach(l -> l.accept(value()));
-    }
-
-    /** spring이면 사용자가 고른 것이라 스프링으로, 아니면 부드러운 ease-out으로 옮긴다 */
-    private void moveThumb(int index, boolean animate, boolean spring) {
-        selected = index;
-        if (animate && spring) {
-            thumb.springTo(index, 340);
-        } else if (animate) {
-            thumb.to(index, 220);
-        } else {
-            thumb.set(index);
-        }
-        repaint();
-    }
-
-    private int segWidth(int i) {
-        return getFontMetrics(getFont()).stringWidth(label.apply(values.get(i))) + Ui.px(TEXT_PAD) * 2;
-    }
-
-    private int left(int i) {
-        int x = Ui.px(PAD);
-        for (int k = 0; k < i; k++) {
-            x += segWidth(k);
-        }
-        return x;
-    }
-
-    private int indexAt(int x) {
-        for (int i = 0; i < values.size(); i++) {
-            if (x < left(i) + segWidth(i)) {
-                return i;
-            }
-        }
-        return values.size() - 1;
     }
 
     @Override
@@ -152,10 +115,52 @@ public class Segmented<T> extends JComponent {
         }
         if (isFocusOwner()) {
             g2.setColor(Tokens.alpha(Tokens.get(Tokens.ACCENT), 0.6f));
-            g2.setStroke(new java.awt.BasicStroke(Ui.px(1.5f)));
+            g2.setStroke(new BasicStroke(Ui.px(1.5f)));
             g2.drawRoundRect(1, 1, w - 3, getHeight() - 3, arc, arc);
         }
         g2.dispose();
+    }
+
+    private void select(int index, boolean animate) {
+        if (index == selected) {
+            return;
+        }
+        moveThumb(index, animate, true);
+        listeners.forEach(l -> l.accept(value()));
+    }
+
+    /** spring이면 사용자가 고른 것이라 스프링으로, 아니면 부드러운 ease-out으로 옮긴다 */
+    private void moveThumb(int index, boolean animate, boolean spring) {
+        selected = index;
+        if (animate && spring) {
+            thumb.springTo(index, SPRING_MS);
+        } else if (animate) {
+            thumb.to(index, GLIDE_MS);
+        } else {
+            thumb.set(index);
+        }
+        repaint();
+    }
+
+    private int segWidth(int i) {
+        return getFontMetrics(getFont()).stringWidth(label.apply(values.get(i))) + Ui.px(TEXT_PAD) * 2;
+    }
+
+    private int left(int i) {
+        int x = Ui.px(PAD);
+        for (int k = 0; k < i; k++) {
+            x += segWidth(k);
+        }
+        return x;
+    }
+
+    private int indexAt(int x) {
+        for (int i = 0; i < values.size(); i++) {
+            if (x < left(i) + segWidth(i)) {
+                return i;
+            }
+        }
+        return values.size() - 1;
     }
 
     /** 선택 표시(thumb)가 두 칸 사이에 있을 때의 위치·너비를 앞뒤 칸의 값에서 비율로 섞어(보간) 계산한다. 그래서 칸 너비가 달라도 매끄럽게 미끄러진다. */

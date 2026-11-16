@@ -8,15 +8,16 @@ import proto.ui.theme.Ui;
 import javax.swing.JComponent;
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.Cursor;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,13 +33,14 @@ public class CompletionCheck extends JComponent {
     /** 체크 톡: 70% 크기에서 시작해 스프링(오버슈트 8%)으로 제 크기를 살짝 넘었다 돌아온다 */
     private static final Spring POP = Spring.of(0.08);
     private static final int POP_MS = 340;
+    private static final int FILL_MS = 160;
     private static final float POP_FROM = 0.7f;
 
-    private boolean checked;
-    private boolean hover;
     private final Tween fill = new Tween(0f, this::repaint);
     private final Tween pulse = new Tween(1f, this::repaint);
     private final List<ActionListener> listeners = new ArrayList<>();
+    private boolean checked;
+    private boolean hover;
 
     public CompletionCheck() {
         setOpaque(false);
@@ -53,35 +55,8 @@ public class CompletionCheck extends JComponent {
         Listeners.repaintOnFocus(this);
     }
 
-    /** 체크 동그라미 위의 마우스 동작 */
-    private final class CheckMouse extends MouseAdapter {
-        @Override
-        public void mouseEntered(MouseEvent e) {
-            hover = true;
-            repaint();
-        }
-
-        @Override
-        public void mouseExited(MouseEvent e) {
-            hover = false;
-            repaint();
-        }
-
-        @Override
-        public void mouseClicked(MouseEvent e) {
-            if (e.getButton() == MouseEvent.BUTTON1) {
-                fire();
-            }
-        }
-    }
-
     public void addActionListener(ActionListener l) {
         listeners.add(l);
-    }
-
-    private void fire() {
-        ActionEvent ev = new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "toggle");
-        listeners.forEach(l -> l.actionPerformed(ev));
     }
 
     public boolean isChecked() {
@@ -95,7 +70,7 @@ public class CompletionCheck extends JComponent {
         }
         checked = value;
         if (animate) {
-            fill.to(value ? 1f : 0f, 160);
+            fill.to(value ? 1f : 0f, FILL_MS);
             if (value) {
                 pulse.set(0f);
                 pulse.to(1f, POP_MS, POP);
@@ -131,11 +106,11 @@ public class CompletionCheck extends JComponent {
         Color ring = Tokens.blend(hover ? Tokens.get(Tokens.ACCENT) : Tokens.get(Tokens.BORDER_STRONG),
                 Tokens.get(Tokens.ACCENT), f);
         g2.setColor(Tokens.alpha(Tokens.get(Tokens.ACCENT), f));
-        g2.fill(new java.awt.geom.Ellipse2D.Float(cx - r, cy - r, r * 2, r * 2));
+        g2.fill(new Ellipse2D.Float(cx - r, cy - r, r * 2, r * 2));
         g2.setStroke(new BasicStroke(Ui.px(1.6f)));
         g2.setColor(ring);
         float inset = Ui.px(0.8f);
-        g2.draw(new java.awt.geom.Ellipse2D.Float(cx - r + inset, cy - r + inset, (r - inset) * 2, (r - inset) * 2));
+        g2.draw(new Ellipse2D.Float(cx - r + inset, cy - r + inset, (r - inset) * 2, (r - inset) * 2));
         paintCheck(g2, cx, cy, d * scale, f);
         if (isFocusOwner()) {
             g2.setColor(Tokens.alpha(Tokens.get(Tokens.ACCENT), 0.5f));
@@ -156,5 +131,32 @@ public class CompletionCheck extends JComponent {
         g2.setStroke(new BasicStroke(Ui.px(1.9f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         g2.setColor(Tokens.alpha(Tokens.get(Tokens.ON_ACCENT), f));
         g2.draw(p);
+    }
+
+    private void fire() {
+        ActionEvent ev = new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "toggle");
+        listeners.forEach(l -> l.actionPerformed(ev));
+    }
+
+    /** 체크 동그라미 위의 마우스 동작 */
+    private final class CheckMouse extends MouseAdapter {
+        @Override
+        public void mouseEntered(MouseEvent e) {
+            hover = true;
+            repaint();
+        }
+
+        @Override
+        public void mouseExited(MouseEvent e) {
+            hover = false;
+            repaint();
+        }
+
+        @Override
+        public void mouseClicked(MouseEvent e) {
+            if (e.getButton() == MouseEvent.BUTTON1) {
+                fire();
+            }
+        }
     }
 }

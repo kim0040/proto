@@ -23,19 +23,12 @@ import java.time.LocalDate;
  */
 public final class TimelineDrag {
 
-    private enum Mode { NONE, MOVE, RESIZE, CREATE }
-
     private static final int THRESHOLD = 4;
 
     private final TimelineGrid grid;
     private final KeyEventDispatcher escape = this::onKey;
     private Mode mode = Mode.NONE;
     private boolean active;
-
-    /** 지금 끄는 중인지 (눌렀다가 문턱을 넘어 실제로 움직이기 시작한 뒤) */
-    boolean isActive() {
-        return active;
-    }
     private TimelineBlock block;
     private Point origin;
     private LocalDate period;
@@ -49,6 +42,11 @@ public final class TimelineDrag {
 
     TimelineDrag(TimelineGrid grid) {
         this.grid = grid;
+    }
+
+    /** 지금 끄는 중인지 (눌렀다가 문턱을 넘어 실제로 움직이기 시작한 뒤) */
+    boolean isActive() {
+        return active;
     }
 
     /** 일정 블록을 눌렀다. 아래 가장자리면 크기 바꾸기, 아니면 옮기기 후보 */
@@ -67,15 +65,7 @@ public final class TimelineDrag {
         }
     }
 
-    private void begin(Mode m, Point p) {
-        mode = m;
-        origin = p;
-        period = grid.dateOf(0);
-        pressedDay = grid.metrics().dayAt(p.x);
-        day = pressedDay;
-        grid.selectDay(pressedDay);
-    }
-
+    /** 마우스를 끌었다. 4px를 넘으면 끌기가 시작되고, 그 뒤로는 놓일 자리 틀과 카드가 따라간다 */
     public void dragged(Point p) {
         if (mode == Mode.NONE) {
             return;
@@ -114,9 +104,38 @@ public final class TimelineDrag {
         }
     }
 
-    /** 놓는 순간의 끌기 결과 (clear가 상태를 지운 뒤에도 넘길 수 있게 따로 담아 둔다) */
-    private record Handoff(Mode mode, TimelineBlock block, int day, TimeSnap.Range range, DragCard card,
-                           Rectangle slot) {
+    /**
+     * 진행 중인 누름·끌기를 아무것도 바꾸지 않고 바로 거둔다 (카드는 날아가지 않고 사라진다). 이어지는 끌기·놓기 이벤트는 무시된다.
+     * 주가 바뀌거나 일정이 다시 채워지거나 시간표가 화면에서 떨어질 때 TimelineGrid가 부른다. 진행 중인 것이 없으면 아무 일도 하지 않는다.
+     */
+    void abort() {
+        if (mode != Mode.NONE) {
+            clear();
+        }
+    }
+
+    /** 끄는 동안의 자리 틀·들린 카드·시간 범위 알약을 시간표 위에 그린다 */
+    void paint(Graphics2D g2) {
+        if (!active || range == null || slot == null || slot.shown() == null) {
+            return;
+        }
+        Rectangle box = slot.shown();
+        TimelineGhost.paintFrame(g2, box, card == null ? 1f : Math.min(1f, card.liftValue()));
+        if (card != null) {
+            card.paint(g2);
+        }
+        String label = Fmt.weekdayShort(grid.dateOf(day).getDayOfWeek()) + " "
+                + Fmt.range(TimeSnap.timeOf(range.start()), TimeSnap.timeOf(range.end()));
+        TimelineGhost.paintLabel(g2, box, new Rectangle(0, 0, grid.getWidth(), grid.getHeight()), label);
+    }
+
+    private void begin(Mode m, Point p) {
+        mode = m;
+        origin = p;
+        period = grid.dateOf(0);
+        pressedDay = grid.metrics().dayAt(p.x);
+        day = pressedDay;
+        grid.selectDay(pressedDay);
     }
 
     private void commit(Handoff h) {
@@ -197,16 +216,6 @@ public final class TimelineDrag {
         return false;
     }
 
-    /**
-     * 진행 중인 누름·끌기를 아무것도 바꾸지 않고 바로 거둔다 (카드는 날아가지 않고 사라진다). 이어지는 끌기·놓기 이벤트는 무시된다.
-     * 주가 바뀌거나 일정이 다시 채워지거나 시간표가 화면에서 떨어질 때 TimelineGrid가 부른다. 진행 중인 것이 없으면 아무 일도 하지 않는다.
-     */
-    void abort() {
-        if (mode != Mode.NONE) {
-            clear();
-        }
-    }
-
     /** 끌기를 끝내고(취소 포함) 모든 상태를 처음으로 돌린다. 원래 블록의 흐림도 푼다 */
     private void clear() {
         clear(false);
@@ -236,18 +245,10 @@ public final class TimelineDrag {
         }
     }
 
-    /** 끄는 동안의 자리 틀·들린 카드·시간 범위 알약을 시간표 위에 그린다 */
-    void paint(Graphics2D g2) {
-        if (!active || range == null || slot == null || slot.shown() == null) {
-            return;
-        }
-        Rectangle box = slot.shown();
-        TimelineGhost.paintFrame(g2, box, card == null ? 1f : Math.min(1f, card.liftValue()));
-        if (card != null) {
-            card.paint(g2);
-        }
-        String label = Fmt.weekdayShort(grid.dateOf(day).getDayOfWeek()) + " "
-                + Fmt.range(TimeSnap.timeOf(range.start()), TimeSnap.timeOf(range.end()));
-        TimelineGhost.paintLabel(g2, box, new Rectangle(0, 0, grid.getWidth(), grid.getHeight()), label);
+    private enum Mode { NONE, MOVE, RESIZE, CREATE }
+
+    /** 놓는 순간의 끌기 결과 (clear가 상태를 지운 뒤에도 넘길 수 있게 따로 담아 둔다) */
+    private record Handoff(Mode mode, TimelineBlock block, int day, TimeSnap.Range range, DragCard card,
+                           Rectangle slot) {
     }
 }

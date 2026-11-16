@@ -22,36 +22,6 @@ import java.util.function.BiConsumer;
  */
 final class MonthDrag {
 
-    /** MonthGrid가 알려 줘야 하는 칸 정보 */
-    interface Host {
-        /** 이 좌표의 일정 줄. 없으면 null */
-        Occurrence itemAt(int x, int y);
-
-        /** 이 좌표에 있는 일정 줄의 화면 영역. 없으면 null */
-        Rectangle itemBounds(int x, int y);
-
-        /** 이 좌표의 칸 번호(0~41). 칸 밖이면 -1 */
-        int cellAt(int x, int y);
-
-        Rectangle cellBounds(int index);
-
-        LocalDate dateAt(int index);
-
-        /** 옮겨진 뒤의 일정(landed, 다시 채운 목록에 있는 것)이 date 칸의 어느 줄에 그려지는지 (보이지 않으면 null) */
-        Rectangle landingRow(LocalDate date, Occurrence landed);
-
-        /** 지금 달력에 채워진 일정 전부 (옮긴 일정을 번호·날짜로 알아볼 때 쓴다) */
-        List<Occurrence> shownItems();
-
-        /** 칩을 그리고 따라다니게 할 달력 컴포넌트 */
-        JComponent view();
-
-        /** 끌기가 시작되었거나 끝났다 (포커스·커서) */
-        void dragging(boolean on);
-
-        void repaintGrid();
-    }
-
     private static final int THRESHOLD = 4;
 
     private final Host host;
@@ -104,17 +74,6 @@ final class MonthDrag {
             glow.moveTo(other ? inset(host.cellBounds(cell)) : null);
             host.repaintGrid();
         }
-    }
-
-    /** 일정 줄이 칩으로 들려 올라 끌기가 시작된다 */
-    private void activate() {
-        active = true;
-        Rectangle row = host.itemBounds(pressAt.x, pressAt.y);
-        MonthChip chip = new MonthChip(item);
-        home = MonthChip.startRect(row);
-        card = new DragCard(host.view(), chip, home, pressAt, MonthPill.arc());
-        card.lift();
-        host.dragging(true);
     }
 
     /** 마우스를 놓았다. 다른 날 칸 위였으면 onDrop을 부르고 칩을 내려앉히고, 아니면 칩이 원래 줄로 돌아간다 */
@@ -192,6 +151,28 @@ final class MonthDrag {
         return settle.hides(o);
     }
 
+    /** 놓일 칸 강조(서서히 옮겨 감 / 사라짐), 놓은 뒤 날아가는 칩, 끌고 있는 칩 */
+    void paint(Graphics2D g2) {
+        Ui.smooth(g2);
+        glow.paint(g2, Tokens.alpha(Tokens.get(Tokens.ACCENT), 0.10f), Tokens.alpha(Tokens.get(Tokens.ACCENT), 0.85f),
+                Ui.px(10));
+        settle.paint(g2);
+        if (active && card != null) {
+            card.paint(g2);
+        }
+    }
+
+    /** 일정 줄이 칩으로 들려 올라 끌기가 시작된다 */
+    private void activate() {
+        active = true;
+        Rectangle row = host.itemBounds(pressAt.x, pressAt.y);
+        MonthChip chip = new MonthChip(item);
+        home = MonthChip.startRect(row);
+        card = new DragCard(host.view(), chip, home, pressAt, MonthPill.arc());
+        card.lift();
+        host.dragging(true);
+    }
+
     private void finish() {
         reset();
         glow.moveTo(null);
@@ -214,14 +195,33 @@ final class MonthDrag {
         return new Rectangle(cell.x + inset, cell.y + inset, cell.width - inset * 2, cell.height - inset * 2);
     }
 
-    /** 놓일 칸 강조(서서히 옮겨 감 / 사라짐), 놓은 뒤 날아가는 칩, 끌고 있는 칩 */
-    void paint(Graphics2D g2) {
-        Ui.smooth(g2);
-        glow.paint(g2, Tokens.alpha(Tokens.get(Tokens.ACCENT), 0.10f), Tokens.alpha(Tokens.get(Tokens.ACCENT), 0.85f),
-                Ui.px(10));
-        settle.paint(g2);
-        if (active && card != null) {
-            card.paint(g2);
-        }
+    /** MonthGrid가 알려 줘야 하는 칸 정보 */
+    interface Host {
+        /** 이 좌표의 일정 줄. 없으면 null */
+        Occurrence itemAt(int x, int y);
+
+        /** 이 좌표에 있는 일정 줄의 화면 영역. 없으면 null */
+        Rectangle itemBounds(int x, int y);
+
+        /** 이 좌표의 칸 번호(0~41). 칸 밖이면 -1 */
+        int cellAt(int x, int y);
+
+        Rectangle cellBounds(int index);
+
+        LocalDate dateAt(int index);
+
+        /** 옮겨진 뒤의 일정(landed, 다시 채운 목록에 있는 것)이 date 칸의 어느 줄에 그려지는지 (보이지 않으면 null) */
+        Rectangle landingRow(LocalDate date, Occurrence landed);
+
+        /** 지금 달력에 채워진 일정 전부 (옮긴 일정을 번호·날짜로 알아볼 때 쓴다) */
+        List<Occurrence> shownItems();
+
+        /** 칩을 그리고 따라다니게 할 달력 컴포넌트 */
+        JComponent view();
+
+        /** 끌기가 시작되었거나 끝났다 (포커스·커서) */
+        void dragging(boolean on);
+
+        void repaintGrid();
     }
 }

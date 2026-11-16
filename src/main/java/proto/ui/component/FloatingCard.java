@@ -8,6 +8,7 @@ import proto.ui.theme.Ui;
 import javax.swing.BorderFactory;
 import javax.swing.JPanel;
 import java.awt.AlphaComposite;
+import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.LayoutManager;
@@ -75,7 +76,7 @@ public abstract class FloatingCard extends JPanel {
         int h = getHeight() - m * 2;
         int arc = Ui.px(14);
         for (int i = 3; i >= 1; i--) {
-            g2.setColor(Tokens.alpha(java.awt.Color.BLACK, 0.035f));
+            g2.setColor(Tokens.alpha(Color.BLACK, 0.035f));
             g2.fillRoundRect(m - i * 2, m - i * 2 + Ui.px(3), w + i * 4, h + i * 4, arc + i * 3, arc + i * 3);
         }
         g2.setColor(Tokens.get(Tokens.SURFACE));

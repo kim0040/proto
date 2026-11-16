@@ -16,20 +16,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * [경계 boundary] 카테고리별 계획 시간 가로 막대 그래프 (F14). 막대는 데이터라서 카테고리 색을 쓰고,
- * 열릴 때 0에서 자라난다.
+ * [경계 boundary] 카테고리별 계획 시간 가로 막대 그래프 (F14). 막대는 데이터라서 카테고리 색을 쓰고, 열릴 때 0에서 자라난다.
  * StatsView가 카테고리별 시간 통계를 보여 줄 때 쓴다. 데이터는 StatsView가 WeeklyStatistics에서 뽑아 Row로 넘긴다.
  */
 public class HorizontalBars extends JComponent {
 
-    /** 막대 한 줄: 카테고리 id, 이름, 분 */
-    public record Row(String categoryId, String name, long minutes) {
-    }
-
     private static final int ROW_H = 44;
+    private static final int GROW_MS = 420;
 
-    private List<Row> rows = new ArrayList<>();
     private final Tween grow = new Tween(1f, this::repaint);
+    private List<Row> rows = new ArrayList<>();
 
     public HorizontalBars() {
         setOpaque(false);
@@ -41,7 +37,7 @@ public class HorizontalBars extends JComponent {
         revalidate();
         if (animate) {
             grow.set(0f);
-            grow.to(1f, 420);
+            grow.to(1f, GROW_MS);
         } else {
             grow.set(1f);
         }
@@ -51,7 +47,7 @@ public class HorizontalBars extends JComponent {
     /** 막대를 0에서 다시 자라게 한다 */
     public void replay() {
         grow.set(0f);
-        grow.to(1f, 420);
+        grow.to(1f, GROW_MS);
     }
 
     @Override
@@ -100,5 +96,9 @@ public class HorizontalBars extends JComponent {
         String v = Fmt.duration(r.minutes());
         g2.setColor(Tokens.get(Tokens.MUTED));
         g2.drawString(v, getWidth() - fm.stringWidth(v), cy - fm.getHeight() / 2 + fm.getAscent());
+    }
+
+    /** 막대 한 줄: 카테고리 id, 이름, 분 */
+    public record Row(String categoryId, String name, long minutes) {
     }
 }
