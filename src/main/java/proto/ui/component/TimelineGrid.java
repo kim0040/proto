@@ -21,6 +21,7 @@ import java.awt.event.MouseEvent;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
@@ -42,10 +43,7 @@ public class TimelineGrid extends JComponent implements Scrollable {
     /** 블록의 가장 낮은 높이(논리 px)와, 겹침을 따질 때 그만큼 차지한다고 보는 분 */
     private static final int MIN_HEIGHT = 22;
     private static final int MIN_MINUTES = 28;
-
-    /** 일정 블록 하나와 놓일 칸·줄 */
-    private record Cell(TimelineBlock block, int day, TimelineLayout.Placement place) {
-    }
+    private static final int TICK_MS = 30_000;
 
     private final TimelineHandler handler;
     private final Supplier<LocalDateTime> clock;
@@ -54,7 +52,7 @@ public class TimelineGrid extends JComponent implements Scrollable {
     private final DragAutoScroll scroller = new DragAutoScroll(this, p -> drag.dragged(p));
     private final HoverGlow slotHover = new HoverGlow(this::repaint, DragMotion.HOVER_IN_MS, DragMotion.HOVER_OUT_MS);
     private final List<Cell> cells = new ArrayList<>();
-    private final Timer tick = new Timer(30_000, e -> repaint());
+    private final Timer tick = new Timer(TICK_MS, e -> repaint());
     private LocalDate weekStart = LocalDate.now();
 
     public TimelineGrid(TimelineHandler handler, Supplier<LocalDateTime> clock) {
@@ -269,52 +267,6 @@ public class TimelineGrid extends JComponent implements Scrollable {
         scroller.stop();
     }
 
-    /** 마우스가 가리키는 빈 15분 칸 (시각 글자 영역이면 null) */
-    private Rectangle slotAt(Point p) {
-        TimelineMetrics m = metrics();
-        if (p.x < m.gutter() || p.x >= getWidth()) {
-            return null;
-        }
-        int day = m.dayAt(p.x);
-        int minute = Math.min(TimeSnap.DAY - TimeSnap.STEP, TimeSnap.floorStep(m.minuteAt(p.y)));
-        int top = m.yOf(minute);
-        return new Rectangle(m.columnX(day) + Ui.px(2), top, m.columnWidth(day) - Ui.px(4),
-                m.yOf(minute + TimeSnap.STEP) - top);
-    }
-
-    /** 빈 곳의 마우스: 누르기·끌기·놓기를 TimelineDrag로 넘기고, 가리키는 빈 칸을 옅게 밝힌다 */
-    private final class GridMouse extends MouseAdapter {
-        @Override
-        public void mousePressed(MouseEvent e) {
-            slotHover.moveTo(null);
-            if (SwingUtilities.isLeftMouseButton(e) && !e.isPopupTrigger()) {
-                drag.pressEmpty(e.getPoint());
-            }
-        }
-
-        @Override
-        public void mouseMoved(MouseEvent e) {
-            slotHover.moveTo(slotAt(e.getPoint()));
-        }
-
-        @Override
-        public void mouseExited(MouseEvent e) {
-            slotHover.moveTo(null);
-        }
-
-        @Override
-        public void mouseDragged(MouseEvent e) {
-            drag.dragged(e.getPoint());
-        }
-
-        @Override
-        public void mouseReleased(MouseEvent e) {
-            if (SwingUtilities.isLeftMouseButton(e)) {
-                drag.released(e.getPoint(), e.getClickCount());
-            }
-        }
-    }
-
     // ---- 그리기 ----
 
     @Override
@@ -331,7 +283,7 @@ public class TimelineGrid extends JComponent implements Scrollable {
 
     /** 오늘 칸 번호 (이번 주가 아니면 -1) */
     private int todayIndex() {
-        long d = java.time.temporal.ChronoUnit.DAYS.between(weekStart, clock.get().toLocalDate());
+        long d = ChronoUnit.DAYS.between(weekStart, clock.get().toLocalDate());
         return d >= 0 && d < TimelineMetrics.DAYS ? (int) d : -1;
     }
 
@@ -379,7 +331,7 @@ public class TimelineGrid extends JComponent implements Scrollable {
     /** 지금 시각 선의 위치: {칸 왼쪽 x, 칸 너비, 선 가운데 y}. 이번 주가 아니면 null */
     private int[] nowSpot() {
         LocalDateTime now = clock.get();
-        int d = (int) java.time.temporal.ChronoUnit.DAYS.between(weekStart, now.toLocalDate());
+        int d = (int) ChronoUnit.DAYS.between(weekStart, now.toLocalDate());
         if (d < 0 || d >= TimelineMetrics.DAYS) {
             return null;
         }
@@ -462,5 +414,55 @@ public class TimelineGrid extends JComponent implements Scrollable {
     @Override
     public boolean getScrollableTracksViewportHeight() {
         return false;
+    }
+
+    /** 마우스가 가리키는 빈 15분 칸 (시각 글자 영역이면 null) */
+    private Rectangle slotAt(Point p) {
+        TimelineMetrics m = metrics();
+        if (p.x < m.gutter() || p.x >= getWidth()) {
+            return null;
+        }
+        int day = m.dayAt(p.x);
+        int minute = Math.min(TimeSnap.DAY - TimeSnap.STEP, TimeSnap.floorStep(m.minuteAt(p.y)));
+        int top = m.yOf(minute);
+        return new Rectangle(m.columnX(day) + Ui.px(2), top, m.columnWidth(day) - Ui.px(4),
+                m.yOf(minute + TimeSnap.STEP) - top);
+    }
+
+    /** 빈 곳의 마우스: 누르기·끌기·놓기를 TimelineDrag로 넘기고, 가리키는 빈 칸을 옅게 밝힌다 */
+    private final class GridMouse extends MouseAdapter {
+        @Override
+        public void mousePressed(MouseEvent e) {
+            slotHover.moveTo(null);
+            if (SwingUtilities.isLeftMouseButton(e) && !e.isPopupTrigger()) {
+                drag.pressEmpty(e.getPoint());
+            }
+        }
+
+        @Override
+        public void mouseMoved(MouseEvent e) {
+            slotHover.moveTo(slotAt(e.getPoint()));
+        }
+
+        @Override
+        public void mouseExited(MouseEvent e) {
+            slotHover.moveTo(null);
+        }
+
+        @Override
+        public void mouseDragged(MouseEvent e) {
+            drag.dragged(e.getPoint());
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent e) {
+            if (SwingUtilities.isLeftMouseButton(e)) {
+                drag.released(e.getPoint(), e.getClickCount());
+            }
+        }
+    }
+
+    /** 일정 블록 하나와 놓일 칸·줄 */
+    private record Cell(TimelineBlock block, int day, TimelineLayout.Placement place) {
     }
 }

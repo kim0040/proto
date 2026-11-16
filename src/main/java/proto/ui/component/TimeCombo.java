@@ -1,12 +1,16 @@
 package proto.ui.component;
 
+import com.formdev.flatlaf.FlatClientProperties;
 import proto.ui.Fmt;
 
 import javax.swing.JComboBox;
 import javax.swing.JTextField;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.time.DateTimeException;
 import java.time.LocalTime;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * [경계 boundary] 30분 단위 목록에서 고르거나 "14:05"처럼 직접 입력하는 시간 콤보.
@@ -15,7 +19,7 @@ import java.time.LocalTime;
  */
 public class TimeCombo extends JComboBox<String> {
 
-    private static final java.util.regex.Pattern COLON = java.util.regex.Pattern.compile("([0-9]{1,2}):([0-9]{1,2})");
+    private static final Pattern COLON = Pattern.compile("([0-9]{1,2}):([0-9]{1,2})");
 
     public TimeCombo(LocalTime initial) {
         super(slots());
@@ -45,22 +49,14 @@ public class TimeCombo extends JComboBox<String> {
 
     /** 읽을 수 없는 입력이면 칸 테두리를 오류색으로 표시한다 */
     public void markInvalid(boolean invalid) {
-        putClientProperty(com.formdev.flatlaf.FlatClientProperties.OUTLINE,
-                invalid ? com.formdev.flatlaf.FlatClientProperties.OUTLINE_ERROR : null);
+        putClientProperty(FlatClientProperties.OUTLINE,
+                invalid ? FlatClientProperties.OUTLINE_ERROR : null);
     }
 
     /** 이름을 정한다 ("시작 시간", "끝 시간" 등 — 화면 읽기 프로그램이 읽는다) */
     public TimeCombo named(String name) {
         getAccessibleContext().setAccessibleName(name);
         return this;
-    }
-
-    private static String[] slots() {
-        String[] items = new String[48];
-        for (int i = 0; i < items.length; i++) {
-            items[i] = Fmt.time(LocalTime.of(i / 2, (i % 2) * 30));
-        }
-        return items;
     }
 
     /** 입력을 시간으로 읽는다. "9:00", "0900", "930"도 받는다. 읽을 수 없으면 null */
@@ -74,21 +70,13 @@ public class TimeCombo extends JComboBox<String> {
         setSelectedItem(Fmt.time(t));
     }
 
-    /** 읽을 수 있는 입력이면 "HH:mm" 모양으로 정리한다 */
-    private void normalize() {
-        LocalTime t = time();
-        if (t != null) {
-            getEditor().setItem(Fmt.time(t));
-        }
-    }
-
     /**
      * 글을 시간으로 읽는다. "9", "09:00", "9:5", "930", "0930", "21:30"은 받고
      * "25:00", "ab", "", "9:00:", "14:05::", "9:000"은 null (예외 없이)
      */
     static LocalTime parse(String raw) {
         String s = raw == null ? "" : raw.strip().replace("：", ":");
-        java.util.regex.Matcher colon = COLON.matcher(s);
+        Matcher colon = COLON.matcher(s);
         try {
             if (colon.matches()) {
                 return LocalTime.of(Integer.parseInt(colon.group(1)), Integer.parseInt(colon.group(2)));
@@ -98,8 +86,24 @@ public class TimeCombo extends JComboBox<String> {
                 return LocalTime.of(v / 100, v % 100);
             }
             return s.matches("[0-9]{1,2}") ? LocalTime.of(Integer.parseInt(s), 0) : null;
-        } catch (NumberFormatException | java.time.DateTimeException e) {
+        } catch (NumberFormatException | DateTimeException e) {
             return null;
+        }
+    }
+
+    private static String[] slots() {
+        String[] items = new String[48];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = Fmt.time(LocalTime.of(i / 2, (i % 2) * 30));
+        }
+        return items;
+    }
+
+    /** 읽을 수 있는 입력이면 "HH:mm" 모양으로 정리한다 */
+    private void normalize() {
+        LocalTime t = time();
+        if (t != null) {
+            getEditor().setItem(Fmt.time(t));
         }
     }
 }

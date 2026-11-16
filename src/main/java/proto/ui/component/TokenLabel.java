@@ -47,21 +47,6 @@ public class TokenLabel extends JLabel {
         return colorToken == null ? super.getForeground() : Tokens.get(colorToken);
     }
 
-    private boolean plainText() {
-        String t = getText();
-        return t != null && !t.isEmpty() && !t.regionMatches(true, 0, "<html", 0, 5);
-    }
-
-    /** 글꼴에 없는 글자(이모지 등)가 있으면 JLabel의 기본 그리기 대신 Glyphs로 대체 글꼴을 섞어 직접 그린다. 폭을 재는 것도 같은 방법으로 해서 말줄임과 크기가 맞게 한다. */
-    private boolean usesFallback() {
-        return plainText() && Glyphs.needsFallback(getFont(), getText());
-    }
-
-    private int iconSpace() {
-        Icon icon = getIcon();
-        return icon == null ? 0 : icon.getIconWidth() + getIconTextGap();
-    }
-
     @Override
     public String getToolTipText(MouseEvent e) {
         String explicit = getToolTipText();
@@ -113,5 +98,20 @@ public class TokenLabel extends JLabel {
         };
         Glyphs.draw(g2, shown, tx, (getHeight() - fm.getHeight()) / 2 + fm.getAscent());
         g2.dispose();
+    }
+
+    private boolean plainText() {
+        String t = getText();
+        return t != null && !t.isEmpty() && !t.regionMatches(true, 0, "<html", 0, 5);
+    }
+
+    /** 글꼴에 없는 글자(이모지 등)가 있으면 JLabel의 기본 그리기 대신 Glyphs로 대체 글꼴을 섞어 직접 그린다. 폭을 재는 것도 같은 방법으로 해서 말줄임과 크기가 맞게 한다. */
+    private boolean usesFallback() {
+        return plainText() && Glyphs.needsFallback(getFont(), getText());
+    }
+
+    private int iconSpace() {
+        Icon icon = getIcon();
+        return icon == null ? 0 : icon.getIconWidth() + getIconTextGap();
     }
 }

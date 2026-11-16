@@ -30,6 +30,7 @@ public final class ScrollGlide {
         handle = Motion.run(durationMs, f -> step(from, y, f), () -> handle = null);
     }
 
+    /** 움직이던 이동을 그 자리에서 그만둔다 */
     public void stop() {
         if (handle != null) {
             handle.cancel();

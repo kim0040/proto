@@ -5,13 +5,19 @@ import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
+import javax.accessibility.AccessibleContext;
+import javax.accessibility.AccessibleRole;
 import javax.swing.AbstractAction;
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
+import javax.swing.KeyStroke;
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -36,15 +42,15 @@ public class MiniCalendar extends JPanel {
     private static final int CELL = 36;
     private static final int SIDEBAR_ROW = 28;
 
+    private final boolean sidebar;
+    private final Consumer<LocalDate> onPick;
+    private final TokenLabel title;
+    private final Grid grid = new Grid();
+    private Consumer<LocalDate> onMonth = m -> { };
+    private Runnable onEscape = () -> { };
     private LocalDate month;
     private LocalDate selected;
     private LocalDate today;
-    private final boolean sidebar;
-    private final Consumer<LocalDate> onPick;
-    private Consumer<LocalDate> onMonth = m -> { };
-    private final TokenLabel title;
-    private final Grid grid = new Grid();
-    private Runnable onEscape = () -> { };
     private Set<LocalDate> marked = Set.of();
     private LocalDate rangeFrom;
     private LocalDate rangeTo;
@@ -64,7 +70,7 @@ public class MiniCalendar extends JPanel {
         this.title = new TokenLabel("", sidebar ? Fonts.semibold(Fonts.SMALL) : Fonts.semibold(Fonts.BODY), Tokens.TEXT);
         setOpaque(false);
         int pad = sidebar ? 0 : 12;
-        setBorder(javax.swing.BorderFactory.createEmptyBorder(Ui.px(pad), Ui.px(pad), Ui.px(pad), Ui.px(pad)));
+        setBorder(BorderFactory.createEmptyBorder(Ui.px(pad), Ui.px(pad), Ui.px(pad), Ui.px(pad)));
         add(header(), BorderLayout.NORTH);
         add(grid, BorderLayout.CENTER);
         refreshTitle();
@@ -134,8 +140,8 @@ public class MiniCalendar extends JPanel {
         next.addActionListener(e -> shift(1));
         title.setHorizontalAlignment(sidebar ? TokenLabel.LEFT : TokenLabel.CENTER);
         if (sidebar) {
-            title.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, Ui.px(8), 0, 0));
-            JPanel arrows = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT, 0, 0));
+            title.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(8), 0, 0));
+            JPanel arrows = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
             arrows.setOpaque(false);
             arrows.add(prev);
             arrows.add(next);
@@ -171,6 +177,50 @@ public class MiniCalendar extends JPanel {
             Listeners.repaintOnFocus(this);
             bindKeys();
             bindMouse();
+        }
+
+        @Override
+        public AccessibleContext getAccessibleContext() {
+            if (accessibleContext == null) {
+                accessibleContext = new AccessibleJComponent() {
+                    @Override
+                    public String getAccessibleName() {
+                        return cursor == null ? "날짜 선택" : Fmt.dateLong(cursor);
+                    }
+
+                    @Override
+                    public AccessibleRole getAccessibleRole() {
+                        return AccessibleRole.TABLE;
+                    }
+                };
+            }
+            return accessibleContext;
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            int row = rowHeight();
+            return new Dimension(sidebar ? Ui.px(SIDEBAR_ROW) * 7 : row * 7, row * 7);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            Ui.smooth(g2);
+            int w = colWidth();
+            int h = rowHeight();
+            g2.setFont(Fonts.medium(Fonts.CAPTION));
+            FontMetrics fm = g2.getFontMetrics();
+            g2.setColor(Tokens.get(Tokens.MUTED));
+            for (int col = 0; col < 7; col++) {
+                String s = Fmt.weekdayShort(DayOfWeek.of(col + 1));
+                g2.drawString(s, col * w + (w - fm.stringWidth(s)) / 2, (h - fm.getHeight()) / 2 + fm.getAscent());
+            }
+            paintRangeBand(g2, w, h);
+            for (int i = 0; i < 42; i++) {
+                paintDay(g2, i, (i % 7) * w, (i / 7 + 1) * h, w, h);
+            }
+            g2.dispose();
         }
 
         /** 누르면 그 날짜를 고르고, 마우스가 올라간 칸은 강조한다 (메서드 30줄 규칙 때문에 생성자에서 나눔) */
@@ -218,7 +268,7 @@ public class MiniCalendar extends JPanel {
         }
 
         private void bind(String name, int key, Runnable action) {
-            getInputMap(WHEN_FOCUSED).put(javax.swing.KeyStroke.getKeyStroke(key, 0), "proto-" + name);
+            getInputMap(WHEN_FOCUSED).put(KeyStroke.getKeyStroke(key, 0), "proto-" + name);
             getActionMap().put("proto-" + name, new AbstractAction() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
@@ -242,30 +292,6 @@ public class MiniCalendar extends JPanel {
             onPick.accept(cursor);
         }
 
-        @Override
-        public javax.accessibility.AccessibleContext getAccessibleContext() {
-            if (accessibleContext == null) {
-                accessibleContext = new AccessibleJComponent() {
-                    @Override
-                    public String getAccessibleName() {
-                        return cursor == null ? "날짜 선택" : Fmt.dateLong(cursor);
-                    }
-
-                    @Override
-                    public javax.accessibility.AccessibleRole getAccessibleRole() {
-                        return javax.accessibility.AccessibleRole.TABLE;
-                    }
-                };
-            }
-            return accessibleContext;
-        }
-
-        @Override
-        public Dimension getPreferredSize() {
-            int row = rowHeight();
-            return new Dimension(sidebar ? Ui.px(SIDEBAR_ROW) * 7 : row * 7, row * 7);
-        }
-
         /** 칸 높이. 기본 모양은 정사각 칸(36), 사이드바 모양은 28 */
         private int rowHeight() {
             return Ui.px(sidebar ? SIDEBAR_ROW : CELL);
@@ -286,26 +312,6 @@ public class MiniCalendar extends JPanel {
             LocalDate first = month.withDayOfMonth(1);
             LocalDate gridStart = first.minusDays(first.getDayOfWeek().getValue() - 1L);
             return gridStart.plusDays(index);
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            Ui.smooth(g2);
-            int w = colWidth();
-            int h = rowHeight();
-            g2.setFont(Fonts.medium(Fonts.CAPTION));
-            FontMetrics fm = g2.getFontMetrics();
-            g2.setColor(Tokens.get(Tokens.MUTED));
-            for (int col = 0; col < 7; col++) {
-                String s = Fmt.weekdayShort(DayOfWeek.of(col + 1));
-                g2.drawString(s, col * w + (w - fm.stringWidth(s)) / 2, (h - fm.getHeight()) / 2 + fm.getAscent());
-            }
-            paintRangeBand(g2, w, h);
-            for (int i = 0; i < 42; i++) {
-                paintDay(g2, i, (i % 7) * w, (i / 7 + 1) * h, w, h);
-            }
-            g2.dispose();
         }
 
         /** 보고 있는 날짜 범위를 줄마다 옅은 둥근 띠로 깐다 (날짜 칸 아래에 그린다) */
@@ -387,11 +393,11 @@ public class MiniCalendar extends JPanel {
             boolean cursorHere = isFocusOwner() && dateAt(index).equals(cursor);
             if (cursorHere) {
                 g2.setColor(Tokens.alpha(Tokens.get(Tokens.ACCENT), 0.7f));
-                g2.setStroke(new java.awt.BasicStroke(Ui.px(2f)));
+                g2.setStroke(new BasicStroke(Ui.px(2f)));
                 g2.drawOval(left - 1, top - 1, dia + 1, dia + 1);
             } else if (!sidebar && isToday && !isSelected) {
                 g2.setColor(Tokens.get(Tokens.ACCENT));
-                g2.setStroke(new java.awt.BasicStroke(Ui.px(1.4f)));
+                g2.setStroke(new BasicStroke(Ui.px(1.4f)));
                 g2.drawOval(left, top, dia - 1, dia - 1);
             }
         }

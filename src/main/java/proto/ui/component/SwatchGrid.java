@@ -29,10 +29,6 @@ import java.util.function.Supplier;
  */
 public class SwatchGrid extends JComponent {
 
-    /** 견본 하나: 저장에 쓰는 id, 화면·툴팁에 쓰는 이름, 지금 색을 알려 주는 함수 */
-    public record Swatch(String id, String label, Supplier<Color> color) {
-    }
-
     private static final int CELL = 32;
     private static final int SIZE = 24;
 
@@ -56,6 +52,65 @@ public class SwatchGrid extends JComponent {
         setToolTipText("");
         installInput();
         Listeners.repaintOnFocus(this);
+    }
+
+    /** 고른 견본이 바뀔 때 id를 받는다 (같은 것을 다시 눌러도 불린다) */
+    public void addChangeListener(Consumer<String> listener) {
+        listeners.add(listener);
+    }
+
+    /** 고른 견본을 id로 정한다 (리스너는 부르지 않는다) */
+    public void setSelected(String id) {
+        int i = indexOf(id);
+        if (i >= 0) {
+            selected = i;
+            focused = i;
+            repaint();
+        }
+    }
+
+    public String selectedId() {
+        return swatches.get(selected).id();
+    }
+
+    @Override
+    public Dimension getPreferredSize() {
+        int rows = (swatches.size() + columns - 1) / columns;
+        return new Dimension(Ui.px(CELL) * Math.min(columns, swatches.size()), Ui.px(CELL) * rows);
+    }
+
+    @Override
+    public String getToolTipText(MouseEvent e) {
+        int i = indexAt(e.getX(), e.getY());
+        return i < 0 ? null : swatches.get(i).label();
+    }
+
+    @Override
+    public AccessibleContext getAccessibleContext() {
+        if (accessibleContext == null) {
+            accessibleContext = new AccessibleJComponent() {
+                @Override
+                public AccessibleRole getAccessibleRole() {
+                    return AccessibleRole.LIST;
+                }
+
+                @Override
+                public String getAccessibleName() {
+                    return swatches.get(focused).label() + (focused == selected ? " (선택됨)" : "");
+                }
+            };
+        }
+        return accessibleContext;
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        Ui.smooth(g2);
+        for (int i = 0; i < swatches.size(); i++) {
+            paintCell(g2, i);
+        }
+        g2.dispose();
     }
 
     private void installInput() {
@@ -114,25 +169,6 @@ public class SwatchGrid extends JComponent {
         listeners.forEach(l -> l.accept(swatches.get(index).id()));
     }
 
-    /** 고른 견본이 바뀔 때 id를 받는다 (같은 것을 다시 눌러도 불린다) */
-    public void addChangeListener(Consumer<String> listener) {
-        listeners.add(listener);
-    }
-
-    /** 고른 견본을 id로 정한다 (리스너는 부르지 않는다) */
-    public void setSelected(String id) {
-        int i = indexOf(id);
-        if (i >= 0) {
-            selected = i;
-            focused = i;
-            repaint();
-        }
-    }
-
-    public String selectedId() {
-        return swatches.get(selected).id();
-    }
-
     private int indexOf(String id) {
         for (int i = 0; i < swatches.size(); i++) {
             if (swatches.get(i).id().equals(id)) {
@@ -157,28 +193,6 @@ public class SwatchGrid extends JComponent {
         int row = y / Ui.px(CELL);
         int i = row * columns + col;
         return x >= 0 && y >= 0 && col < columns && i < swatches.size() ? i : -1;
-    }
-
-    @Override
-    public Dimension getPreferredSize() {
-        int rows = (swatches.size() + columns - 1) / columns;
-        return new Dimension(Ui.px(CELL) * Math.min(columns, swatches.size()), Ui.px(CELL) * rows);
-    }
-
-    @Override
-    public String getToolTipText(MouseEvent e) {
-        int i = indexAt(e.getX(), e.getY());
-        return i < 0 ? null : swatches.get(i).label();
-    }
-
-    @Override
-    protected void paintComponent(Graphics g) {
-        Graphics2D g2 = (Graphics2D) g.create();
-        Ui.smooth(g2);
-        for (int i = 0; i < swatches.size(); i++) {
-            paintCell(g2, i);
-        }
-        g2.dispose();
     }
 
     private void paintCell(Graphics2D g2, int i) {
@@ -233,21 +247,7 @@ public class SwatchGrid extends JComponent {
         g2.draw(check);
     }
 
-    @Override
-    public AccessibleContext getAccessibleContext() {
-        if (accessibleContext == null) {
-            accessibleContext = new AccessibleJComponent() {
-                @Override
-                public AccessibleRole getAccessibleRole() {
-                    return AccessibleRole.LIST;
-                }
-
-                @Override
-                public String getAccessibleName() {
-                    return swatches.get(focused).label() + (focused == selected ? " (선택됨)" : "");
-                }
-            };
-        }
-        return accessibleContext;
+    /** 견본 하나: 저장에 쓰는 id, 화면·툴팁에 쓰는 이름, 지금 색을 알려 주는 함수 */
+    public record Swatch(String id, String label, Supplier<Color> color) {
     }
 }

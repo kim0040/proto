@@ -17,6 +17,7 @@ public final class ColorLabels {
     private ColorLabels() {
     }
 
+    /** 색 키의 한국어 이름. 모르는 키는 그대로 돌려준다 */
     public static String of(String key) {
         return NAMES.getOrDefault(key, key);
     }

@@ -16,14 +16,17 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * [경계 boundary] 요일별 일정 수 세로 막대 그래프 (F14). 월~일 7칸, 열릴 때 아래에서 자라난다.
+ * [경계 boundary] 요일별 일정 수 세로 막대 그래프. 월~일 7칸, 열릴 때 아래에서 자라난다.
  * StatsView가 요일별 일정 수(F14)를 보여 줄 때 쓴다. 숫자는 WeeklyStatistics#countByDay에서 온다.
  */
 public class WeekdayColumns extends JComponent {
 
+    private static final int DAYS = 7;
+    private static final int GROW_MS = 420;
+
+    private final Tween grow = new Tween(1f, this::repaint);
     private Map<DayOfWeek, Integer> counts = new HashMap<>();
     private DayOfWeek highlight;
-    private final Tween grow = new Tween(1f, this::repaint);
 
     public WeekdayColumns() {
         setOpaque(false);
@@ -35,7 +38,7 @@ public class WeekdayColumns extends JComponent {
         highlight = today;
         if (animate) {
             grow.set(0f);
-            grow.to(1f, 420);
+            grow.to(1f, GROW_MS);
         } else {
             grow.set(1f);
         }
@@ -45,7 +48,7 @@ public class WeekdayColumns extends JComponent {
     /** 막대를 0에서 다시 자라게 한다 */
     public void replay() {
         grow.set(0f);
-        grow.to(1f, 420);
+        grow.to(1f, GROW_MS);
     }
 
     @Override
@@ -58,12 +61,12 @@ public class WeekdayColumns extends JComponent {
         Graphics2D g2 = (Graphics2D) g.create();
         Ui.smooth(g2);
         int max = Math.max(1, counts.values().stream().mapToInt(Integer::intValue).max().orElse(1));
-        int colW = getWidth() / 7;
+        int colW = getWidth() / DAYS;
         int labelH = Ui.px(24);
         int top = Ui.px(22);
         int base = getHeight() - labelH;
         int barW = Math.min(Ui.px(28), colW - Ui.px(16));
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < DAYS; i++) {
             DayOfWeek d = DayOfWeek.of(i + 1);
             int n = counts.getOrDefault(d, 0);
             float local = Math.max(0f, Math.min(1f, grow.value() * 1.3f - i * 0.05f));

@@ -5,6 +5,8 @@ import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
+import javax.accessibility.AccessibleContext;
+import javax.accessibility.AccessibleRole;
 import javax.swing.JComponent;
 import java.awt.BasicStroke;
 import java.awt.Cursor;
@@ -39,36 +41,6 @@ final class AllDayButton extends JComponent {
         install(action);
     }
 
-    /** 마우스(올림 강조, 놓으면 동작)와 키(Enter·Space) 연결 */
-    private void install(Runnable action) {
-        addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                hover.to(1f, 50);
-            }
-
-            @Override
-            public void mouseExited(MouseEvent e) {
-                hover.to(0f, 120);
-            }
-
-            @Override
-            public void mouseReleased(MouseEvent e) {
-                if (contains(e.getPoint()) && e.getButton() == MouseEvent.BUTTON1) {
-                    action.run();
-                }
-            }
-        });
-        addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_ENTER || e.getKeyCode() == KeyEvent.VK_SPACE) {
-                    action.run();
-                }
-            }
-        });
-    }
-
     /** 숨은 일정이 n개라는 "+n" 버튼 */
     static AllDayButton more(int n, Runnable action) {
         return new AllDayButton("+" + n, false, "하루 종일 일정 " + n + "개 더 보기", action);
@@ -80,12 +52,12 @@ final class AllDayButton extends JComponent {
     }
 
     @Override
-    public javax.accessibility.AccessibleContext getAccessibleContext() {
+    public AccessibleContext getAccessibleContext() {
         if (accessibleContext == null) {
             accessibleContext = new AccessibleJComponent() {
                 @Override
-                public javax.accessibility.AccessibleRole getAccessibleRole() {
-                    return javax.accessibility.AccessibleRole.PUSH_BUTTON;
+                public AccessibleRole getAccessibleRole() {
+                    return AccessibleRole.PUSH_BUTTON;
                 }
             };
         }
@@ -120,6 +92,36 @@ final class AllDayButton extends JComponent {
             g2.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, arc, arc);
         }
         g2.dispose();
+    }
+
+    /** 마우스(올림 강조, 놓으면 동작)와 키(Enter·Space) 연결 */
+    private void install(Runnable action) {
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                hover.to(1f, 50);
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                hover.to(0f, 120);
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (contains(e.getPoint()) && e.getButton() == MouseEvent.BUTTON1) {
+                    action.run();
+                }
+            }
+        });
+        addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER || e.getKeyCode() == KeyEvent.VK_SPACE) {
+                    action.run();
+                }
+            }
+        });
     }
 
     private void paintChevron(Graphics2D g2) {

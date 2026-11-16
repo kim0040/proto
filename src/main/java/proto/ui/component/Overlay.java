@@ -28,6 +28,7 @@ public class Overlay extends JComponent {
     private static final int TOAST_MS = 2500;
     private static final int ACTION_TOAST_MS = 6000;
     private static final int TOAST_MAX_WIDTH = 560;
+    private static final int MIN_CARD_WIDTH = 240;
 
     private final List<ToastCard> toasts = new ArrayList<>();
     private final List<ReminderCard> reminders = new ArrayList<>();
@@ -182,8 +183,8 @@ public class Overlay extends JComponent {
     }
 
     /**
-     * 가장 최근 카드부터 아래에서 위로 쌓는다. 접힌 상태면 3장, 펼치면 화면에 들어가는 만큼 보인다. 왜 아래에서 위로: 가장 최근 카드가 맨 아래(눈에 가장 잘 띄는 곳)에 오게 하려는 것이다. 한
-     * 장도 화면에 안 들어가는 높이여도 맨 아래 한 장은 보여 준다 (shown == 0).
+     * 가장 최근 카드부터 아래에서 위로 쌓는다 (가장 최근 카드가 눈에 가장 잘 띄는 맨 아래에 오게). 접힌 상태면 3장, 펼치면 화면에 들어가는 만큼 보이고,
+     * 한 장도 안 들어가는 높이여도 맨 아래 한 장은 보여 준다 (shown == 0).
      */
     private void layoutReminders(int m, List<Rectangle> taken) {
         int y = getHeight() - Ui.px(EDGE) + m;
@@ -202,7 +203,7 @@ public class Overlay extends JComponent {
             if (!c.isVisible()) {
                 continue;
             }
-            int w = Math.min(d.width, Math.max(Ui.px(240), getWidth() - Ui.px(EDGE) * 2 + m * 2));
+            int w = Math.min(d.width, Math.max(Ui.px(MIN_CARD_WIDTH), getWidth() - Ui.px(EDGE) * 2 + m * 2));
             y -= d.height;
             c.setBounds(getWidth() - w - Ui.px(EDGE) + m, y, w, d.height);
             taken.add(inner(c.getBounds(), m));
@@ -237,7 +238,7 @@ public class Overlay extends JComponent {
         for (ToastCard t : toasts) {
             Dimension d = t.getPreferredSize();
             int limit = Math.min(Ui.px(TOAST_MAX_WIDTH) + m * 2, getWidth() - Ui.px(EDGE) * 2 + m * 2);
-            int w = Math.min(d.width, Math.max(Ui.px(240), limit));
+            int w = Math.min(d.width, Math.max(Ui.px(MIN_CARD_WIDTH), limit));
             y -= d.height;
             Rectangle r = new Rectangle((getWidth() - w) / 2, y, w, d.height);
             for (Rectangle other : taken) {

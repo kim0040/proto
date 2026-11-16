@@ -22,6 +22,9 @@ public final class EventPaint {
     private static final float HOVER_TINT = 0.12f;
     private static final float HOVER_SOLID = 0.10f;
     private static final float DONE_FADE = 0.45f;
+    /** 대비가 모자랄 때 글자·바탕을 한 번에 옮기는 비율과 최대 횟수 */
+    private static final float CONTRAST_STEP = 0.04f;
+    private static final int CONTRAST_TRIES = 25;
 
     private EventPaint() {
     }
@@ -91,8 +94,8 @@ public final class EventPaint {
         Color text = CategoryColors.onColor(base);
         Color toward = text.equals(Color.WHITE) ? Color.BLACK : Color.WHITE;
         Color fill = base;
-        for (int i = 1; i <= 25 && contrast(text, fill) < MIN_CONTRAST; i++) {
-            fill = Tokens.blend(base, toward, i * 0.04f);
+        for (int i = 1; i <= CONTRAST_TRIES && contrast(text, fill) < MIN_CONTRAST; i++) {
+            fill = Tokens.blend(base, toward, i * CONTRAST_STEP);
         }
         return fill;
     }
@@ -101,8 +104,8 @@ public final class EventPaint {
     static Color ensure(Color fg, Color bg) {
         Color toward = ThemeManager.isDark() ? Color.WHITE : Color.BLACK;
         Color out = fg;
-        for (int i = 1; i <= 25 && contrast(out, bg) < MIN_CONTRAST; i++) {
-            out = Tokens.blend(fg, toward, i * 0.04f);
+        for (int i = 1; i <= CONTRAST_TRIES && contrast(out, bg) < MIN_CONTRAST; i++) {
+            out = Tokens.blend(fg, toward, i * CONTRAST_STEP);
         }
         return out;
     }

@@ -16,17 +16,16 @@ import java.awt.RenderingHints;
 
 /**
  * [경계 boundary] 일정 상태(예정/진행 중/지연/완료)를 보여 주는 작은 글자 알약. 상태가 바뀌면 색이 부드럽게 섞인다.
- * OccurrenceRow가 일정 줄 오른쪽에 둔다. 상태(F6) 자체는 StateCalculator가 계산한 값을 받아(RowHandler#stateOf 경유) 이 클래스는 그 상태에 맞는 색과 글자만 보여
- * 준다.
+ * OccurrenceRow가 일정 줄 오른쪽에 둔다. 상태(F6) 자체는 StateCalculator가 계산한 값을 받아(RowHandler#stateOf 경유) 이 클래스는 그 상태에 맞는 색과 글자만 보여 준다.
  */
 public class StatePill extends JComponent {
 
     private static final int FADE_MS = 240;
     private static final int FIXED_CHARS_WIDTH = 46;
 
-    private ScheduleState state;
     private final ColorTween fg = new ColorTween(Color.GRAY, this::repaint);
     private final ColorTween bg = new ColorTween(Color.LIGHT_GRAY, this::repaint);
+    private ScheduleState state;
 
     public StatePill(ScheduleState state) {
         this.state = state;
@@ -62,16 +61,6 @@ public class StatePill extends JComponent {
         }
     }
 
-    static Color stateColor(ScheduleState s, String part) {
-        String name = switch (s) {
-            case SCHEDULED -> "scheduled";
-            case IN_PROGRESS -> "progress";
-            case DELAYED -> "delayed";
-            case DONE -> "done";
-        };
-        return Tokens.get("proto.state." + name + "." + part);
-    }
-
     /** 좁은 줄에서도 알약이 0×0으로 사라지지 않게 최소 크기를 원래 크기로 둔다 */
     @Override
     public Dimension getMinimumSize() {
@@ -99,5 +88,15 @@ public class StatePill extends JComponent {
         int y = (getHeight() - fm.getHeight()) / 2 + fm.getAscent();
         g2.drawString(state.label(), x, y);
         g2.dispose();
+    }
+
+    static Color stateColor(ScheduleState s, String part) {
+        String name = switch (s) {
+            case SCHEDULED -> "scheduled";
+            case IN_PROGRESS -> "progress";
+            case DELAYED -> "delayed";
+            case DONE -> "done";
+        };
+        return Tokens.get("proto.state." + name + "." + part);
     }
 }

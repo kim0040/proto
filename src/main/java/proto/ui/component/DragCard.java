@@ -20,11 +20,6 @@ import java.awt.geom.Rectangle2D;
  */
 final class DragCard {
 
-    /** 카드 안쪽 모습을 그리는 쪽. 좌표는 0,0에서 w×h */
-    interface Content {
-        void paint(Graphics2D g2, int w, int h);
-    }
-
     private final JComponent host;
     private final Content content;
     private final Rectangle2D.Float base;
@@ -79,14 +74,6 @@ final class DragCard {
         return new Rectangle(Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height));
     }
 
-    /** 가운데를 기준으로 들림 정도 k에 맞춰 키운 모양 */
-    private Rectangle2D.Float scaled(float k) {
-        float s = 1f + DragMotion.LIFT_SCALE * k;
-        float w = base.width * s;
-        float h = base.height * s;
-        return new Rectangle2D.Float(base.x - (w - base.width) / 2f, base.y - (h - base.height) / 2f, w, h);
-    }
-
     /**
      * 카드를 end 자리로 날려 보내며 들림을 푼다 (그림자가 옅어지고 크기가 제자리로). done은 도착한 뒤 한 번 부른다.
      * ease가 스프링이면 도착 자리를 아주 조금 넘었다 돌아온다.
@@ -138,7 +125,20 @@ final class DragCard {
         g2.dispose();
     }
 
+    /** 가운데를 기준으로 들림 정도 k에 맞춰 키운 모양 */
+    private Rectangle2D.Float scaled(float k) {
+        float s = 1f + DragMotion.LIFT_SCALE * k;
+        float w = base.width * s;
+        float h = base.height * s;
+        return new Rectangle2D.Float(base.x - (w - base.width) / 2f, base.y - (h - base.height) / 2f, w, h);
+    }
+
     private static float clamp(float v, float lo, float hi) {
         return Math.max(lo, Math.min(hi, v));
+    }
+
+    /** 카드 안쪽 모습을 그리는 쪽. 좌표는 0,0에서 w×h */
+    interface Content {
+        void paint(Graphics2D g2, int w, int h);
     }
 }

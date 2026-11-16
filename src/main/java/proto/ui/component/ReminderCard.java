@@ -19,19 +19,10 @@ import java.awt.FlowLayout;
 
 /**
  * [경계 boundary] 알림 시각이 된 일정을 알리는 카드 (F10, F15): [5분 뒤 다시] [완료 처리] [닫기].
- * MainFrame#reminderDue가 만들어 Overlay에 올린다 (F10, F15). 버튼은 카드가 직접 처리하지 않고 Actions(MainFrame이 UiActions로 연결)에 맡기며,
+ * MainFrame#reminderDue가 만들어 Overlay에 올린다. 버튼은 카드가 직접 처리하지 않고 Actions(MainFrame이 UiActions로 연결)에 맡기며,
  * Actions가 true를 돌려줄 때(처리 성공, 또는 이미 지워진 일정)만 카드를 닫는다.
  */
 public class ReminderCard extends FloatingCard {
-
-    /** 카드 버튼이 부르는 동작 */
-    public interface Actions {
-        /** [5분 뒤 다시]. 카드를 닫아도 되면 true */
-        boolean snooze(Occurrence occurrence);
-
-        /** [완료 처리]. 카드를 닫아도 되면 true */
-        boolean complete(Occurrence occurrence);
-    }
 
     private final Occurrence occurrence;
 
@@ -107,5 +98,14 @@ public class ReminderCard extends FloatingCard {
         p.add(Box.createHorizontalStrut(Ui.px(2)));
         p.add(dismiss);
         return p;
+    }
+
+    /** 카드 버튼이 부르는 동작 */
+    public interface Actions {
+        /** [5분 뒤 다시]. 카드를 닫아도 되면 true */
+        boolean snooze(Occurrence occurrence);
+
+        /** [완료 처리]. 카드를 닫아도 되면 true */
+        boolean complete(Occurrence occurrence);
     }
 }

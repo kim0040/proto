@@ -13,11 +13,11 @@ import java.util.List;
 
 /**
  * [경계 boundary] 놓은 카드가 제자리에 내려앉거나(성공) 원래 자리로 돌아가는(취소) 모션을 맡는다 (들린 카드 → 새 블록 / 원래 블록).
- * TimelineGrid가 놓는 순간 expect로 들고 있던 카드와 새 자리(날짜·시작·제목)를 알리고, 옮기기 결과에 따라 confirm(성공) 또는 revert(취소·실패·바뀐 것 없음)를 부른다.
- * 결과를 기다리는 동안(예: 반복 일정 범위를 묻는 창) 카드는 놓은 자리에 들린 채 머문다. setWeek가 블록을 다시 만든 뒤 attach로 같은 일정의 블록을 찾는다.
- * 같은 일정은 MovedItem으로 일정 번호와 날짜부터 맞춘다 ("이 일정만" 옮겨 새 번호가 생겼을 때만 새 날짜·시작·제목으로). 맞는 블록이 없으면 카드를 조용히 치운다.
- * 성공: 카드의 지금 모양에서 새 블록 자리로 200ms 스프링(오버슈트 1.5%)으로 내려앉고 그림자가 옅어진다. 취소: 카드가 160ms 동안 원래 블록 자리로 돌아가고 원래 블록이 다시 선명해진다.
- * 배치(doLayout)는 place를 거쳐 움직이는 중의 위치를 쓴다. 애니메이션이 꺼져 있으면 기다리지 않고 바로 새 자리에 놓는다. 자리 틀은 110ms 동안 서서히 사라진다.
+ * TimelineGrid가 놓는 순간 expect로 카드와 새 자리(날짜·시작·제목)를 알리고, 옮기기 결과에 따라 confirm(성공) 또는 revert(취소·실패·바뀐 것 없음)를 부른다.
+ * 결과를 기다리는 동안(예: 반복 일정 범위를 묻는 창) 카드는 놓은 자리에 들린 채 머문다. setWeek가 블록을 다시 만들면 attach로 같은 일정의 블록을 찾고,
+ * 맞는 블록이 없으면 카드를 조용히 치운다 (같은 일정은 MovedItem으로 일정 번호와 날짜부터 맞춘다).
+ * 성공하면 카드가 새 블록 자리로 200ms 스프링(오버슈트 1.5%)으로 내려앉고 그림자가 옅어진다. 취소하면 160ms 동안 원래 블록 자리로 돌아가고 원래 블록이 다시 선명해진다.
+ * 배치(doLayout)는 place를 거쳐 움직이는 중의 위치를 쓴다. 애니메이션이 꺼져 있으면 바로 새 자리에 놓는다. 자리 틀은 110ms 동안 서서히 사라진다.
  */
 final class TimelineSettle {
 
@@ -126,6 +126,38 @@ final class TimelineSettle {
         return current != null ? current : end;
     }
 
+    /** 점검용: 내려앉을(내려앉는 중인) 블록의 일정. 없으면 null */
+    Occurrence landing() {
+        return target == null ? null : target.occurrence();
+    }
+
+    /** 블록 밑에: 내려앉는 블록의 그림자 */
+    void paintUnder(Graphics2D g2) {
+        if (target != null && shadow.value() > 0.01f) {
+            float k = Math.min(1f, shadow.value());
+            float blur = DragMotion.BLUR_REST + (DragMotion.BLUR_LIFT - DragMotion.BLUR_REST) * k;
+            LiftShadow.paint(g2, target.getBounds(), Ui.px(6), blur, k);
+        }
+    }
+
+    /** 블록 위에: 사라지는 자리 틀과 결과를 기다리거나 돌아가는 카드 */
+    void paintOver(Graphics2D g2) {
+        if (slot != null && fade.value() > 0.01f) {
+            TimelineGhost.paintFrame(g2, slot, Math.min(1f, fade.value()));
+        }
+        if (card != null) {
+            card.paint(g2);
+        }
+    }
+
+    /** 카드 없이 자리 틀만 서서히 지운다 (새 일정 만들기·Esc로 취소한 빈 곳 끌기) */
+    void fadeSlot(Rectangle box) {
+        reset();
+        slot = new Rectangle(box);
+        fade.set(1f);
+        fade.to(0f, DragMotion.FADE_MS, DragMotion.IN);
+    }
+
     /** 카드가 있던 모양에서 새 블록 자리로 내려앉기 시작한다 */
     private void begin(Rectangle end) {
         expiry.stop();
@@ -185,37 +217,5 @@ final class TimelineSettle {
         reverting = false;
         fade.set(0f);
         shadow.set(0f);
-    }
-
-    /** 점검용: 내려앉을(내려앉는 중인) 블록의 일정. 없으면 null */
-    Occurrence landing() {
-        return target == null ? null : target.occurrence();
-    }
-
-    /** 블록 밑에: 내려앉는 블록의 그림자 */
-    void paintUnder(Graphics2D g2) {
-        if (target != null && shadow.value() > 0.01f) {
-            float k = Math.min(1f, shadow.value());
-            float blur = DragMotion.BLUR_REST + (DragMotion.BLUR_LIFT - DragMotion.BLUR_REST) * k;
-            LiftShadow.paint(g2, target.getBounds(), Ui.px(6), blur, k);
-        }
-    }
-
-    /** 블록 위에: 사라지는 자리 틀과 결과를 기다리거나 돌아가는 카드 */
-    void paintOver(Graphics2D g2) {
-        if (slot != null && fade.value() > 0.01f) {
-            TimelineGhost.paintFrame(g2, slot, Math.min(1f, fade.value()));
-        }
-        if (card != null) {
-            card.paint(g2);
-        }
-    }
-
-    /** 카드 없이 자리 틀만 서서히 지운다 (새 일정 만들기·Esc로 취소한 빈 곳 끌기) */
-    void fadeSlot(Rectangle box) {
-        reset();
-        slot = new Rectangle(box);
-        fade.set(1f);
-        fade.to(0f, DragMotion.FADE_MS, DragMotion.IN);
     }
 }

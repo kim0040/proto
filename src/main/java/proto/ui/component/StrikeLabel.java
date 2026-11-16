@@ -8,22 +8,25 @@ import proto.ui.theme.Ui;
 import javax.swing.JComponent;
 import javax.swing.ToolTipManager;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.event.MouseEvent;
 
 /**
- * [경계 boundary] 한 줄 제목 라벨. 완료되면 글자색이 흐려지며 취소선이 그어진다 (애니메이션 포함).
- * OccurrenceRow의 제목·메모 줄에 쓴다 (F5). 완료 상태(done)가 0→1로 바뀌는 동안 글자색이 흐려지고 취소선이 왼쪽에서 오른쪽으로 그어진다.
+ * [경계 boundary] 한 줄 제목 라벨. 완료되면 글자색이 흐려지고 취소선이 왼쪽에서 오른쪽으로 그어진다 (done이 0→1로 바뀌는 동안 애니메이션).
+ * OccurrenceRow의 제목·메모 줄에 쓴다 (F5).
  */
 public class StrikeLabel extends JComponent {
 
+    private static final int DONE_MS = 220;
+
+    private final Tween done = new Tween(0f, this::repaint);
     private String text = "";
     private String colorToken = Tokens.TEXT;
-    private final Tween done = new Tween(0f, this::repaint);
 
-    public StrikeLabel(java.awt.Font font) {
+    public StrikeLabel(Font font) {
         setFont(font);
         setOpaque(false);
         ToolTipManager.sharedInstance().registerComponent(this);
@@ -51,7 +54,7 @@ public class StrikeLabel extends JComponent {
     public void setDone(boolean value, boolean animate) {
         float target = value ? 1f : 0f;
         if (animate) {
-            done.to(target, 220);
+            done.to(target, DONE_MS);
         } else {
             done.set(target);
         }

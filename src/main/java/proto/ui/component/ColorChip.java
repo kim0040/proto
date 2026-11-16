@@ -61,11 +61,6 @@ public class ColorChip extends JComponent {
         return categoryId;
     }
 
-    private void setHover(boolean value) {
-        hover = value;
-        repaint();
-    }
-
     @Override
     public Dimension getPreferredSize() {
         return new Dimension(Ui.px(SIZE + 8), Ui.px(SIZE + 8));
@@ -105,5 +100,10 @@ public class ColorChip extends JComponent {
             };
         }
         return accessibleContext;
+    }
+
+    private void setHover(boolean value) {
+        hover = value;
+        repaint();
     }
 }

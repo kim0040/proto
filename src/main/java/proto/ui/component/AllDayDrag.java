@@ -31,11 +31,6 @@ final class AllDayDrag {
     private Point origin;
     private LocalDate period;
     private boolean active;
-
-    /** 지금 끄는 중인지 (눌렀다가 문턱을 넘어 실제로 움직이기 시작한 뒤) */
-    boolean isActive() {
-        return active;
-    }
     private boolean aborted;
     private int day;
     private DragCard card;
@@ -44,6 +39,11 @@ final class AllDayDrag {
 
     AllDayDrag(AllDayRow row) {
         this.row = row;
+    }
+
+    /** 지금 끄는 중인지 (눌렀다가 문턱을 넘어 실제로 움직이기 시작한 뒤) */
+    boolean isActive() {
+        return active;
     }
 
     /** 칩을 눌렀다 (끌기 후보) */

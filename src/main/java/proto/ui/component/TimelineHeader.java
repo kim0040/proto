@@ -59,40 +59,6 @@ public class TimelineHeader extends JPanel {
         repaint();
     }
 
-    /** 머리글 위의 어느 글자를 눌러도 눌린 것으로 받도록 모든 자식에 같은 리스너를 단다 (라벨이 마우스를 가로채서) */
-    private static void listen(Component c, MouseAdapter l) {
-        c.addMouseListener(l);
-        if (c instanceof Container box) {
-            for (Component child : box.getComponents()) {
-                listen(child, l);
-            }
-        }
-    }
-
-    private final class HeaderClick extends MouseAdapter {
-        @Override
-        public void mousePressed(MouseEvent e) {
-            if (!SwingUtilities.isLeftMouseButton(e)) {
-                return;
-            }
-            int x = SwingUtilities.convertMouseEvent(e.getComponent(), e, TimelineHeader.this).getX();
-            LocalDate day = dayAt(x);
-            if (day != null) {
-                selected = day;
-                repaint();
-                onSelect.accept(day);
-            }
-        }
-    }
-
-    private LocalDate dayAt(int x) {
-        return days[0] == null ? null : days[metrics().dayAt(x)];
-    }
-
-    private TimelineMetrics metrics() {
-        return new TimelineMetrics(gutter, getWidth(), Ui.px(48), 0);
-    }
-
     @Override
     public void doLayout() {
         TimelineMetrics m = metrics();
@@ -125,5 +91,39 @@ public class TimelineHeader extends JPanel {
         g2.setColor(Tokens.get(Tokens.BORDER));
         g2.fillRect(0, getHeight() - 1, getWidth(), 1);
         g2.dispose();
+    }
+
+    /** 머리글 위의 어느 글자를 눌러도 눌린 것으로 받도록 모든 자식에 같은 리스너를 단다 (라벨이 마우스를 가로채서) */
+    private static void listen(Component c, MouseAdapter l) {
+        c.addMouseListener(l);
+        if (c instanceof Container box) {
+            for (Component child : box.getComponents()) {
+                listen(child, l);
+            }
+        }
+    }
+
+    private LocalDate dayAt(int x) {
+        return days[0] == null ? null : days[metrics().dayAt(x)];
+    }
+
+    private TimelineMetrics metrics() {
+        return new TimelineMetrics(gutter, getWidth(), Ui.px(48), 0);
+    }
+
+    private final class HeaderClick extends MouseAdapter {
+        @Override
+        public void mousePressed(MouseEvent e) {
+            if (!SwingUtilities.isLeftMouseButton(e)) {
+                return;
+            }
+            int x = SwingUtilities.convertMouseEvent(e.getComponent(), e, TimelineHeader.this).getX();
+            LocalDate day = dayAt(x);
+            if (day != null) {
+                selected = day;
+                repaint();
+                onSelect.accept(day);
+            }
+        }
     }
 }

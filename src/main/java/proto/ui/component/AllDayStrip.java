@@ -5,11 +5,13 @@ import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
+import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import java.awt.Component;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -20,7 +22,7 @@ import java.util.List;
 public class AllDayStrip extends JPanel {
 
     private final RowHandler handler;
-    private final List<AllDayChip> chips = new java.util.ArrayList<>();
+    private final List<AllDayChip> chips = new ArrayList<>();
 
     public AllDayStrip(RowHandler handler) {
         this.handler = handler;
@@ -57,7 +59,7 @@ public class AllDayStrip extends JPanel {
     private TokenLabel title(int count) {
         TokenLabel label = new TokenLabel("하루 종일 " + count, Fonts.medium(Fonts.CAPTION), Tokens.MUTED);
         label.setAlignmentX(LEFT_ALIGNMENT);
-        label.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, 0, Ui.px(4), 0));
+        label.setBorder(BorderFactory.createEmptyBorder(0, 0, Ui.px(4), 0));
         return label;
     }
 

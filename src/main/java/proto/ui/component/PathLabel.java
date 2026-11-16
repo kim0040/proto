@@ -12,9 +12,8 @@ import java.awt.Dimension;
 import java.awt.event.MouseEvent;
 
 /**
- * [경계 boundary] 파일 경로를 한 줄로 보여 주는 라벨. 길면 가운데를 "…"로 줄여 폴더 이름(끝)이 남고,
- * 마우스를 올리면 전체 경로가 나온다. 역슬래시와 한글 폴더 이름도 그대로 그린다.
- * SettingsView가 데이터 폴더 경로를 보여 줄 때 쓴다. 폴더 이름이 길어도 끝부분이 남도록 가운데를 줄인다.
+ * [경계 boundary] 파일 경로를 한 줄로 보여 주는 라벨. 길면 가운데를 "…"로 줄여 폴더 이름(끝)이 남고, 마우스를 올리면 전체 경로가 나온다.
+ * SettingsView가 데이터 폴더 경로를 보여 줄 때 쓴다. 역슬래시와 한글 폴더 이름도 그대로 그린다.
  */
 public class PathLabel extends TokenLabel {
 
