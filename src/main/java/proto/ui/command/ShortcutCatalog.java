@@ -50,6 +50,7 @@ public final class ShortcutCatalog {
                         entry("명령 메뉴 (보기·날짜·테마 등 무엇이든)", mod("K")),
                         entry("검색창", mod("F")),
                         entry("설정", mod(",")),
+                        entry("사이드바 숨기기·보이기", mod("\\")),
                         entry("이 안내 보기", "?"))));
     }
 

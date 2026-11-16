@@ -21,6 +21,7 @@ public final class UiSettings {
     private static final String FREE_FROM = "freeFrom";
     private static final String FREE_TO = "freeTo";
     private static final String ACCENT = "accent";
+    private static final String SIDEBAR_HIDDEN = "sidebarHidden";
 
     private UiSettings() {
     }
@@ -54,6 +55,15 @@ public final class UiSettings {
 
     public static void setReminderSound(boolean on) {
         PREFS.putBoolean(SOUND, on);
+    }
+
+    /** 사이드바를 숨겨 두었는지 (⌘\ 또는 사이드바의 숨기기 버튼). 다음 실행 때도 그대로 열린다 */
+    public static boolean sidebarHidden() {
+        return PREFS.getBoolean(SIDEBAR_HIDDEN, false);
+    }
+
+    public static void setSidebarHidden(boolean hidden) {
+        PREFS.putBoolean(SIDEBAR_HIDDEN, hidden);
     }
 
     /** 앱 강조색 (처음에는 파랑, 저장된 이름이 이상하면 파랑) */

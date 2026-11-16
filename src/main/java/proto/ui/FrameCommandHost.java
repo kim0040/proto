@@ -26,15 +26,27 @@ final class FrameCommandHost implements CommandHost {
     private final Runnable goToday;
     private final Consumer<LocalDate> goToDate;
     private final Consumer<String> filterCategory;
+    private final Runnable toggleSidebar;
     private Occurrence target;
 
     FrameCommandHost(UiContext ctx, Consumer<Mode> showMode, Runnable goToday, Consumer<LocalDate> goToDate,
-                     Consumer<String> filterCategory) {
+                     Consumer<String> filterCategory, Runnable toggleSidebar) {
         this.ctx = ctx;
         this.showMode = showMode;
         this.goToday = goToday;
         this.goToDate = goToDate;
         this.filterCategory = filterCategory;
+        this.toggleSidebar = toggleSidebar;
+    }
+
+    @Override
+    public void toggleSidebar() {
+        toggleSidebar.run();
+    }
+
+    @Override
+    public boolean sidebarHidden() {
+        return UiSettings.sidebarHidden();
     }
 
     /** 명령 메뉴를 열기 직전에 불러, 그때 포커스가 놓여 있던 일정을 "선택한 일정"으로 기억한다 (메뉴가 열리면 포커스가 검색 칸으로 옮겨가므로) */

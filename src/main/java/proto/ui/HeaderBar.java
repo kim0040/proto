@@ -31,6 +31,7 @@ import java.util.function.Consumer;
 
 /**
  * [경계 boundary] 본문 위쪽 줄: 보기 제목과 날짜, 이전/오늘/다음 버튼, 검색창(입력 후 150ms 뒤 적용), 명령 메뉴를 여는 "⌘K" 버튼.
+ * 사이드바를 숨기면 제목 왼쪽에 "사이드바 보이기" 버튼이 나타난다.
  * MainFrame이 만들어 본문 위쪽에 붙이고, 버튼과 검색어는 MainFrame이 넘겨 준 동작(shift·goToday·search)으로 전달된다 (F2 조회 이동, F8 검색).
  * 좁은 화면(SizeClass.compact)에서는 자리를 아끼려고 검색창을 아이콘 하나로 접었다가 눌렀을 때 펼치고, "⌘K" 버튼은 숨긴다 (⌘K 키는 그대로 동작한다).
  */
@@ -50,13 +51,15 @@ public final class HeaderBar extends JPanel {
     private final Timer debounce;
     private final Consumer<String> onSearch;
     private final JButton commandButton = Buttons.compact(Buttons.secondary(Ui.shortcut("K")));
+    /** 사이드바를 숨겼을 때만 제목 왼쪽에 보이는 "사이드바 보이기" 버튼 */
+    private final JButton sidebarButton = Buttons.icon("panel-left", "사이드바 보이기 (" + Ui.shortcut("\\") + ")", Tokens.TEXT);
     private boolean compact;
     private boolean searchAllowed = true;
     private boolean expanded;
     private Motion.Handle expandMotion;
 
     public HeaderBar(Runnable onPrev, Runnable onToday, Runnable onNext, Consumer<String> onSearch,
-                     Runnable onCommand) {
+                     Runnable onCommand, Runnable onShowSidebar) {
         super(new BorderLayout(Ui.px(16), 0));
         setOpaque(false);
         setBorder(BorderFactory.createEmptyBorder(Ui.px(Ui.isMac() ? 34 : 22), Ui.px(32), Ui.px(16), Ui.px(32)));
@@ -67,8 +70,23 @@ public final class HeaderBar extends JPanel {
         commandButton.setToolTipText("명령 메뉴 (" + Ui.shortcut("K") + ")");
         commandButton.getAccessibleContext().setAccessibleName("명령 메뉴 열기");
         commandButton.addActionListener(e -> onCommand.run());
+        sidebarButton.addActionListener(e -> onShowSidebar.run());
+        add(sidebarSlot(), BorderLayout.WEST);
         add(titles(), BorderLayout.CENTER);
         add(right(onPrev, onToday, onNext), BorderLayout.EAST);
+    }
+
+    /** 사이드바를 숨겼으면 제목 왼쪽에 "사이드바 보이기" 버튼을 보인다 */
+    public void setSidebarHidden(boolean hidden) {
+        // 버튼을 감싼 칸째로 숨겨야 BorderLayout이 제목 앞의 간격도 함께 뺀다
+        sidebarButton.getParent().setVisible(hidden);
+        revalidate();
+        repaint();
+    }
+
+    /** "사이드바 보이기" 버튼으로 포커스를 옮긴다 (사이드바 안에 있던 포커스가 사이드바와 함께 사라지지 않게) */
+    public void focusSidebarButton() {
+        sidebarButton.requestFocusInWindow();
     }
 
     /** 화면 크기 등급에 맞춰 여백과 검색창 모양(좁으면 아이콘 버튼)을 바꾼다 */
@@ -131,6 +149,15 @@ public final class HeaderBar extends JPanel {
     /** 검색어를 지운다 */
     public void clearSearch() {
         search.setText("");
+    }
+
+    /** 버튼을 제목 줄 높이에 맞춰 위쪽에 둔다 (BorderLayout의 WEST는 높이를 꽉 채우므로 한 번 감싼다). 처음에는 숨겨 둔다 */
+    private JPanel sidebarSlot() {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setOpaque(false);
+        p.add(sidebarButton, BorderLayout.NORTH);
+        p.setVisible(false);
+        return p;
     }
 
     private JPanel titles() {

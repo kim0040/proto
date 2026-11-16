@@ -30,7 +30,8 @@ import java.util.function.Consumer;
 /**
  * [경계 boundary] 왼쪽 사이드바: 앱 이름, 새 일정, 보기 이동, 빈 시간 찾기, 작은 월 달력(SidebarMonth), 카테고리 필터, 설정 열기.
  * MainFrame이 만들고, 넓은 화면에서는 SidebarHost가 본문 왼쪽에 붙이며 좁은 화면에서는 SidebarDrawer 안에 담겨 펼쳐진다.
- * 버튼은 직접 일하지 않고 생성자로 받은 동작(onNav, onCategory, onDate)이나 UiActions에 맡긴다 (F1 새 일정, F7 카테고리 필터·편집, F12 빈 시간 찾기).
+ * 앱 이름 오른쪽의 버튼(⌘\)은 사이드바를 숨긴다.
+ * 버튼은 직접 일하지 않고 생성자로 받은 동작(onNav, onCategory, onDate, onHide)이나 UiActions에 맡긴다 (F1 새 일정, F7 카테고리 필터·편집, F12 빈 시간 찾기).
  * 선택된 항목은 옆 막대 대신 둥근 알약이 미끄러지며 표시한다. 세로 공간이 모자라 카테고리 목록이 눌리면 달력을 숨긴다.
  */
 public final class Sidebar extends TokenPanel {
@@ -45,20 +46,25 @@ public final class Sidebar extends TokenPanel {
     private final Consumer<String> onCategory;
     private final Consumer<LocalDate> onDate;
     private final Runnable beforeAction;
+    private final Runnable onHide;
     private final SidebarMonth month;
     private final PillList nav = new PillList();
     private final PillList categories = new PillList();
     private final PillList settings = new PillList();
 
-    /** beforeAction은 새 일정·빈 시간·카테고리 편집 같은 동작 직전에 불린다 (서랍으로 열려 있으면 닫으려고) */
+    /**
+     * beforeAction은 새 일정·빈 시간·카테고리 편집 같은 동작 직전에 불린다 (서랍으로 열려 있으면 닫으려고).
+     * onHide는 사이드바 숨기기 버튼을 눌렀을 때 불린다
+     */
     public Sidebar(UiContext ctx, Consumer<Mode> onNav, Consumer<String> onCategory, Consumer<LocalDate> onDate,
-                   Runnable beforeAction) {
+                   Runnable beforeAction, Runnable onHide) {
         super(new BorderLayout(), Tokens.SIDEBAR);
         this.ctx = ctx;
         this.onNav = onNav;
         this.onCategory = onCategory;
         this.onDate = onDate;
         this.beforeAction = beforeAction;
+        this.onHide = onHide;
         this.month = new SidebarMonth(ctx, day -> {
             beforeAction.run();
             onDate.accept(day);
@@ -146,11 +152,7 @@ public final class Sidebar extends TokenPanel {
         JPanel p = new JPanel();
         p.setOpaque(false);
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        TokenLabel brand = new TokenLabel("일정 관리", Fonts.bold(Fonts.TITLE), Tokens.TEXT);
-        brand.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(8), Ui.px(18), 0));
-        brand.setIcon(AppIcon.icon(26));
-        brand.setIconTextGap(Ui.px(10));
-        brand.setAlignmentX(0f);
+        JPanel brand = brandRow();
         JButton add = newButton();
         nav.setAlignmentX(0f);
         month.setAlignmentX(0f);
@@ -169,6 +171,24 @@ public final class Sidebar extends TokenPanel {
         p.add(tools);
         p.add(month);
         return p;
+    }
+
+    /** 앱 아이콘과 이름, 그 오른쪽 끝의 사이드바 숨기기 버튼 */
+    private JPanel brandRow() {
+        TokenLabel name = new TokenLabel("일정 관리", Fonts.bold(Fonts.TITLE), Tokens.TEXT);
+        name.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(8), 0, 0));
+        name.setIcon(AppIcon.icon(26));
+        name.setIconTextGap(Ui.px(10));
+        JButton hide = Buttons.icon("panel-left", "사이드바 숨기기 (" + Ui.shortcut("\\") + ")");
+        hide.addActionListener(e -> onHide.run());
+        JPanel row = new JPanel(new BorderLayout());
+        row.setOpaque(false);
+        row.setBorder(BorderFactory.createEmptyBorder(0, 0, Ui.px(18), 0));
+        row.add(name, BorderLayout.CENTER);
+        row.add(hide, BorderLayout.EAST);
+        row.setAlignmentX(0f);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
+        return row;
     }
 
     private void buildNav() {

@@ -54,6 +54,15 @@ public interface CommandHost {
 
     void showShortcuts();
 
+    /** 사이드바를 숨기거나 다시 보인다 (테스트용 가짜 호스트는 아무것도 하지 않아도 된다) */
+    default void toggleSidebar() {
+    }
+
+    /** 지금 사이드바를 숨겨 두었는지 (명령 이름을 "숨기기"/"보이기"로 고르려고) */
+    default boolean sidebarHidden() {
+        return false;
+    }
+
     boolean canUndo();
 
     boolean canRedo();

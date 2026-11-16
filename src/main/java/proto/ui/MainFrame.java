@@ -37,7 +37,9 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.UIManager;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.KeyboardFocusManager;
 import java.awt.Taskbar;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
@@ -94,19 +96,19 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         ctx.setWindow(() -> this);
         ctx.setOverlay(overlay);
         ctx.setRefresher(() -> refreshCurrent(false));
-        views.put(Mode.TODAY, new TodayView(ctx));
-        views.put(Mode.WEEK, new WeekView(ctx));
-        views.put(Mode.MONTH, new MonthView(ctx));
-        views.put(Mode.STATS, new StatsView(ctx));
+        createViews();
         configureWindow();
         // 창 크기 등급(SizeClass)은 사이드바·헤더·보기를 만들기 전에 정해 두어야 처음부터 알맞은 모양으로 그려진다.
         ctx.breakpoints().prime(getWidth(), getHeight());
         drawer = new SidebarDrawer(() -> rail().focusMenu());
-        sidebar = new Sidebar(ctx, this::navigateFromSidebar, this::selectCategory, this::goToDate, drawer::closeNow);
-        rail = new SidebarRail(ctx, this::navigate, this::openDrawer);
+        sidebar = new Sidebar(ctx, this::navigateFromSidebar, this::selectCategory, this::goToDate, drawer::closeNow,
+                this::toggleSidebar);
+        rail = new SidebarRail(ctx, this::navigate, this::openDrawer, this::toggleSidebar);
         sidebarHost = new SidebarHost(sidebar, rail, ctx.size());
-        header = new HeaderBar(() -> shift(-1), this::goToday, () -> shift(1), this::search, this::openCommandMenu);
-        commandHost = new FrameCommandHost(ctx, this::navigate, this::goToday, this::goToDate, this::selectCategory);
+        header = new HeaderBar(() -> shift(-1), this::goToday, () -> shift(1), this::search, this::openCommandMenu,
+                this::toggleSidebar);
+        commandHost = new FrameCommandHost(ctx, this::navigate, this::goToday, this::goToDate, this::selectCategory,
+                this::toggleSidebar);
         commands = new CommandCatalog(commandHost);
         buildLayout();
         installShortcuts();
@@ -114,9 +116,17 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         ctx.breakpoints().attach(getRootPane());
         ctx.breakpoints().onChange(sc -> applySize(sc, isShowing()));
         applySize(ctx.size(), false);
+        restoreSidebarHidden();
         switchTo(UiSettings.startMode(), false);
         UIManager.addPropertyChangeListener(lafListener);
         saveBounds.setRepeats(false);
+    }
+
+    private void createViews() {
+        views.put(Mode.TODAY, new TodayView(ctx));
+        views.put(Mode.WEEK, new WeekView(ctx));
+        views.put(Mode.MONTH, new MonthView(ctx));
+        views.put(Mode.STATS, new StatsView(ctx));
     }
 
     /** controller 리스너로 등록한다 (Main이 만든 controller에 한 번만) */
@@ -245,6 +255,12 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         drawer.closeNow();
     }
 
+    /** 스크린샷 도구가 쓰는 사이드바 숨기기/보이기. 사용자 설정(UiSettings)에는 남기지 않는다 */
+    public void setSidebarHiddenForCapture(boolean hidden) {
+        sidebarHost.setHidden(hidden, false);
+        header.setSidebarHidden(hidden);
+    }
+
     public UiContext context() {
         return ctx;
     }
@@ -268,6 +284,31 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         views.values().forEach(v -> v.applySize(sc));
         if (current != null) {
             refreshCurrent(false);
+        }
+    }
+
+    /** 저장해 둔 "사이드바 숨김"을 처음 화면에 맞춘다 (애니메이션 없이) */
+    private void restoreSidebarHidden() {
+        boolean hidden = UiSettings.sidebarHidden();
+        sidebarHost.setHidden(hidden, false);
+        header.setSidebarHidden(hidden);
+    }
+
+    /**
+     * 사이드바를 숨기거나 다시 보인다 (⌘\, 사이드바의 숨기기 버튼, 위쪽 줄의 보이기 버튼, 명령 메뉴). 다음 실행 때도 기억한다.
+     * 사이드바 안에 포커스가 있었으면 위쪽 줄의 보이기 버튼으로 옮겨서 키보드 사용자가 길을 잃지 않게 한다
+     */
+    private void toggleSidebar() {
+        boolean hide = !sidebarHost.isHidden();
+        Component focus = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+        boolean focusInside = focus != null && (SwingUtilities.isDescendingFrom(focus, sidebarHost)
+                || SwingUtilities.isDescendingFrom(focus, sidebar));
+        drawer.closeNow();
+        UiSettings.setSidebarHidden(hide);
+        sidebarHost.setHidden(hide, true);
+        header.setSidebarHidden(hide);
+        if (hide && focusInside) {
+            header.focusSidebarButton();
         }
     }
 
@@ -511,6 +552,7 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         bind(KeyEvent.VK_3, mask, () -> navigate(Mode.MONTH));
         bind(KeyEvent.VK_4, mask, () -> navigate(Mode.STATS));
         bind(KeyEvent.VK_COMMA, mask, () -> ctx.actions().openSettings());
+        bind(KeyEvent.VK_BACK_SLASH, mask, this::toggleSidebar);
         new EditShortcuts(ctx, getRootPane(), this::keysFree).install();
         installPlainKeys();
     }

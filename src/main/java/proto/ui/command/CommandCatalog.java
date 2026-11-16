@@ -16,7 +16,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * [경계 boundary] 명령 메뉴의 항목 목록을 만든다: 보기 이동, 날짜로 이동, 새 일정, 카테고리 보기, 테마, 설정, 되돌리기·다시 실행, 단축키 보기.
+ * [경계 boundary] 명령 메뉴의 항목 목록을 만든다: 보기 이동, 날짜로 이동, 새 일정, 카테고리 보기, 테마, 사이드바 숨기기·보이기, 설정, 되돌리기·다시 실행, 단축키 보기.
  * PaletteLayer가 메뉴를 열 때 하나 만들고, 글을 입력할 때마다 results를 부른다. 항목이 하는 일은 모두 CommandHost에 맡긴다 (F1, F2, F7, F12).
  * 입력한 글이 날짜로 읽히면(controller의 날짜 해석) "그 날짜로 이동" 항목이 맨 위에 나오고, 글이 있으면 맨 아래에 "이 제목으로 새 일정"이 늘 붙는다.
  * 되돌리기·다시 실행은 할 수 있을 때만 나온다.
@@ -136,6 +136,9 @@ public final class CommandCatalog {
                 theme("테마: 밝게", "sun", Choice.LIGHT, now, "light 라이트 밝은"),
                 theme("테마: 어둡게", "moon", Choice.DARK, now, "dark 다크 어두운"),
                 theme("테마: 시스템 설정 따르기", "monitor", Choice.SYSTEM, now, "system auto 자동"),
+                Command.of(G_APP, host.sidebarHidden() ? "사이드바 보이기" : "사이드바 숨기기", "panel-left",
+                        Ui.shortcut("\\"), "sidebar hide show toggle 사이드바 숨기기 보이기 접기 펼치기",
+                        host::toggleSidebar),
                 Command.of(G_APP, "설정 열기", "settings", Ui.shortcut(","), "settings preferences 환경설정 색 강조색",
                         host::openSettings),
                 Command.of(G_APP, "단축키 보기", "keyboard", "?", "shortcuts keys help 도움말 키",

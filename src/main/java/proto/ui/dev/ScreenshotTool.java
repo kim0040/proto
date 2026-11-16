@@ -231,6 +231,19 @@ public final class ScreenshotTool {
         return list.isEmpty() ? null : list.get(0);
     }
 
+    /** 사이드바를 숨긴 화면 (넓은 창의 이번 주, 좁은 창의 오늘) */
+    private static void captureSidebarHidden(MainFrame frame, Path out, String theme)
+            throws InterruptedException, InvocationTargetException, IOException {
+        run(() -> frame.setSidebarHiddenForCapture(true));
+        resize(frame, 1100, 760);
+        run(() -> frame.showMode(Mode.WEEK));
+        save(frame.getRootPane(), out.resolve(theme + "-sidebar-hidden-1100.png"));
+        resize(frame, 900, 640);
+        run(() -> frame.showMode(Mode.TODAY));
+        save(frame.getRootPane(), out.resolve(theme + "-sidebar-hidden-900.png"));
+        run(() -> frame.setSidebarHiddenForCapture(false));
+    }
+
     /** 서랍, 주간 아젠다, 알림 더미 같은 크기 등급에 따라 달라지는 장면 */
     private static void captureEdgeScenes(MainFrame frame, Path out, String theme)
             throws InterruptedException, InvocationTargetException, IOException {
@@ -243,6 +256,7 @@ public final class ScreenshotTool {
         run(frame::closeDrawerForCapture);
         run(() -> frame.showMode(Mode.WEEK));
         save(frame.getRootPane(), out.resolve(theme + "-week-agenda-900.png"));
+        captureSidebarHidden(frame, out, theme);
         Occurrence o = firstOccurrence(ctx, ctx.schedules().today());
         if (o != null) {
             captureReminders(frame, out, theme, o);

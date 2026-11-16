@@ -23,8 +23,12 @@ public final class SidebarHost extends TokenPanel {
     private final Sidebar full;
     private final SidebarRail rail;
     private float width;
+    /** 숨기지 않았을 때의 너비 (크기 등급에 따라 전체 사이드바 또는 아이콘 띠의 너비) */
+    private float shownWidth;
     private int fullWidth;
     private boolean compact;
+    /** 사용자가 사이드바를 숨겼는지. 숨기면 너비가 0까지 줄어들어 본문이 창 왼쪽 끝까지 넓어진다 */
+    private boolean hidden;
     private Motion.Handle handle;
 
     public SidebarHost(Sidebar full, SidebarRail rail, SizeClass initial) {
@@ -33,7 +37,8 @@ public final class SidebarHost extends TokenPanel {
         this.rail = rail;
         this.compact = initial.compact();
         this.fullWidth = Ui.px(compact ? COMPACT_FULL_WIDTH : initial.sidebarWidth());
-        this.width = Ui.px(initial.sidebarWidth());
+        this.shownWidth = Ui.px(initial.sidebarWidth());
+        this.width = shownWidth;
         add(rail);
         if (!compact) {
             attachFull();
@@ -43,17 +48,34 @@ public final class SidebarHost extends TokenPanel {
 
     /** 새 크기 등급에 맞춰 너비와 내용을 바꾼다. animate가 true이고 애니메이션이 켜져 있으면 미끄러진다 */
     public void apply(SizeClass sc, boolean animate) {
-        if (handle != null) {
-            handle.cancel();
-        }
         compact = sc.compact();
+        shownWidth = Ui.px(sc.sidebarWidth());
         if (!compact) {
             fullWidth = Ui.px(sc.sidebarWidth());
             full.setLogicalWidth(sc.sidebarWidth());
             attachFull();
         }
+        slideTo(hidden ? 0 : shownWidth, animate);
+    }
+
+    /** 사이드바를 숨기거나 다시 보인다. 숨기면 지금 보이던 것(전체 사이드바 또는 아이콘 띠)이 왼쪽으로 접혀 들어간다 */
+    public void setHidden(boolean value, boolean animate) {
+        hidden = value;
+        if (!compact) {
+            attachFull();
+        }
+        slideTo(hidden ? 0 : shownWidth, animate);
+    }
+
+    public boolean isHidden() {
+        return hidden;
+    }
+
+    private void slideTo(float to, boolean animate) {
+        if (handle != null) {
+            handle.cancel();
+        }
         float from = width;
-        float to = Ui.px(sc.sidebarWidth());
         if (!animate || !Motion.enabled() || from == to) {
             setWidth(to);
             finish();
@@ -89,11 +111,15 @@ public final class SidebarHost extends TokenPanel {
     public void doLayout() {
         int h = getHeight();
         int railW = Ui.px(RAIL_WIDTH);
-        boolean showFull = full.getParent() == this && width > (railW + fullWidth) / 2f;
+        // 넓은 화면에서는 늘 전체 사이드바를 보인다 (숨기거나 다시 보일 때도 전체 사이드바가 접히고 펼쳐진다).
+        // 넓은 화면에서 좁은 화면으로 바뀌는 중에는 너비가 중간 아래로 내려가면 아이콘 띠로 바꾼다
+        boolean attached = full.getParent() == this;
+        boolean showFull = attached && (!compact || width > (railW + fullWidth) / 2f);
+        boolean gone = width < 1;
         full.setBounds(0, 0, fullWidth, h);
-        full.setVisible(showFull);
+        full.setVisible(showFull && !gone);
         rail.setBounds(0, 0, railW, h);
-        rail.setVisible(!showFull);
+        rail.setVisible(!showFull && !gone);
         full.validate();
         rail.validate();
     }
