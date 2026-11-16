@@ -6,11 +6,10 @@ import java.time.LocalTime;
 
 /**
  * [엔티티 entity] 반복이 펼쳐진 "하루치" 일정 (읽기 전용 스냅샷).
- * RepeatExpander가 Schedule을 기간 안의 날짜마다 하나씩 만들어 준다 (F2, F9). ScheduleController가 이것을 화면에 넘긴다.
- * 화면은 이 객체를 보여 주기만 하고, 바꿀 때는 controller에 이 객체를 넘긴다.
- * 레코드라 만든 뒤에는 바뀌지 않는다. 그래서 반복 일정을 날짜마다 따로 보여 줘도 원본 Schedule은 안전하다.
- * 상태(F6)와 알림(F10) 계산(StateCalculator, ReminderChecker)도 이 값을 읽기만 한다.
- * 하루 종일(allDay)이면 시작·끝은 언제나 00:00~23:59, 알림은 NONE으로 맞춰지고, 끝 시각(endDateTime)은 다음 날 0시로 본다.
+ * RepeatExpander가 Schedule을 기간 안의 날짜마다 하나씩 만들고(F2, F9), ScheduleController가 화면에 넘긴다.
+ * 화면은 보여 주기만 하고, 바꿀 때는 이 객체를 controller에 넘긴다. 상태(F6)·알림(F10) 계산도 읽기만 한다.
+ * 레코드라 만든 뒤에는 바뀌지 않으므로, 반복 일정을 날짜마다 따로 보여 줘도 원본 Schedule은 안전하다.
+ * 하루 종일(allDay)이면 시작·끝은 00:00~23:59, 알림은 NONE으로 맞춰지고 끝 시각(endDateTime)은 다음 날 0시로 본다.
  * 그래서 상태는 그날 전에는 예정, 그날 하루 동안 진행 중, 다음 날 0시부터는 (미완료면) 지연이다.
  *
  * @param scheduleId 원래 Schedule의 id
@@ -33,7 +32,7 @@ public record Occurrence(
         boolean allDay,
         String colorKey) {
 
-    /** 하루 종일이면 시간과 알림을 정해진 값으로 맞춘다 (Schedule과 같은 규칙). */
+    /** 하루 종일이면 시간과 알림을 정해진 값으로 맞춘다 (Schedule과 같은 규칙) */
     public Occurrence {
         if (allDay) {
             startTime = Schedule.ALL_DAY_START;
@@ -68,7 +67,7 @@ public record Occurrence(
                 s.isCompletedOn(date), s.isAllDay(), s.getColorKey());
     }
 
-    /** 날짜와 시작 시간을 합친 시작 시각. 상태 계산(F6)과 알림(F10)이 "지금"과 비교할 때 쓴다. */
+    /** 날짜와 시작 시간을 합친 시작 시각. 상태 계산(F6)과 알림(F10)이 "지금"과 비교할 때 쓴다 */
     public LocalDateTime startDateTime() {
         return LocalDateTime.of(date, startTime);
     }
@@ -81,15 +80,12 @@ public record Occurrence(
         return allDay ? date.plusDays(1).atStartOfDay() : LocalDateTime.of(date, endTime);
     }
 
-    /** 반복 규칙이 NONE이 아니면 true. */
+    /** 반복 규칙이 NONE이 아니면 true */
     public boolean isRepeating() {
         return repeatRule != RepeatRule.NONE;
     }
 
-    /**
-     * 같은 일정의 같은 날짜인지 (알림 중복 방지 키 등에 사용)
-     * "일정id@날짜" 모양이다. 반복 일정은 id가 같아도 날짜가 다르면 다른 키가 된다.
-     */
+    /** 알림 중복 방지 등에 쓰는 "일정id@날짜" 키. 반복 일정은 id가 같아도 날짜가 다르면 다른 키가 된다 */
     public String key() {
         return scheduleId + "@" + date;
     }

@@ -3,12 +3,12 @@ package proto.entity;
 import java.util.Objects;
 
 /**
- * [엔티티 entity] 일정 카테고리 (F7). id는 바뀌지 않고 이름만 바뀐다.
- * F7(카테고리 관리)에서 쓴다. 일정은 이 카테고리의 id만 들고 있고(Schedule#categoryId), 이름은 여기서 찾는다.
- * CategoryController가 만들고 고치며, CategoryRepository가 CSV로 저장한다. 화면은 이름만 보여 준다.
+ * [엔티티 entity] 일정 카테고리 (F7). id는 바뀌지 않고 이름과 색만 바뀐다.
+ * 일정은 카테고리의 id만 들고 있고(Schedule#categoryId), 이름은 여기서 찾는다.
+ * CategoryController가 만들고 고치며 CategoryRepository가 CSV로 저장한다.
  * "개인" 카테고리는 id가 PERSONAL_ID로 고정이며 삭제할 수 없다.
- * 색은 CategoryPalette의 키 하나(blue, orange …)로 들고 있다. 비어 있거나 모르는 키는 받지 않고 그 id의 기본 색으로 바꿔 넣으므로
- * getColorKey()는 언제나 팔레트에 있는 키를 돌려준다. 실제 색(RGB)은 화면이 키마다 정한다.
+ * 색은 CategoryPalette의 키 하나(blue, orange …)로 들고, 비어 있거나 모르는 키는 그 id의 기본 색으로 바꿔 넣는다.
+ * 그래서 getColorKey()는 언제나 팔레트에 있는 키를 돌려준다. 실제 색(RGB)은 화면이 정한다.
  */
 public class Category {
 
@@ -58,7 +58,7 @@ public class Category {
         return colorKey;
     }
 
-    /** 색을 바꾼다. null이거나 팔레트에 없는 키면 그 id의 기본 색으로 바꾼다 (검사해서 거절하는 일은 CategoryController가 한다). */
+    /** 색을 바꾼다. null이거나 팔레트에 없는 키면 그 id의 기본 색으로 바꾼다 (거절하는 일은 CategoryController가 한다). */
     public void setColorKey(String colorKey) {
         this.colorKey = CategoryPalette.normalize(colorKey, id);
     }

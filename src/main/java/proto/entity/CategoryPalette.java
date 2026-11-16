@@ -4,11 +4,11 @@ import java.util.List;
 
 /**
  * [엔티티 entity] 카테고리에 고를 수 있는 색 12개의 이름표(키)와, 색을 고른 적 없는 카테고리의 기본 색을 정한다 (F7).
- * Category가 색 키를 검사할 때, CategoryRepository·CategoryJsonMapper가 색 칸이 없거나 모르는 값일 때, CategoryController가
- * 새 카테고리에 안 쓴 색을 고를 때 쓴다. 키는 저장 파일에 그대로 들어가므로 이름과 순서를 바꾸면 안 된다.
- * 실제 색(RGB)은 화면(ui.theme)이 키마다 정한다. entity는 다른 패키지를 모르기 때문에 이 규칙을 logic이 아니라 여기에 둔다.
- * 기본 색은 예전 화면(CategoryColors)의 8색 규칙과 똑같다: 수업 blue, 과제 orange, 팀플 teal, 개인 green,
- * 나머지는 id의 FNV-1a 해시를 8로 나눈 나머지 번째 색. 그래서 색을 고르기 전의 사용자 화면 색이 바뀌지 않는다.
+ * Category가 색 키를 검사할 때, CategoryRepository·CategoryJsonMapper가 색 칸이 없거나 모르는 값을 만날 때,
+ * CategoryController가 새 카테고리에 안 쓴 색을 고를 때 쓴다. 키는 저장 파일에 그대로 들어가므로 이름과 순서를 바꾸면 안 된다.
+ * 실제 색(RGB)은 화면(ui.theme)이 정한다. entity는 다른 패키지를 모르기 때문에 이 규칙을 logic이 아니라 여기에 둔다.
+ * 기본 색은 예전 화면의 8색 규칙과 같다 (수업 blue, 과제 orange, 팀플 teal, 개인 green, 나머지는 id 해시로 하나).
+ * 그래서 색을 고르기 전의 사용자 화면 색이 바뀌지 않는다.
  */
 public final class CategoryPalette {
 
@@ -56,12 +56,12 @@ public final class CategoryPalette {
     }
 
     /** 같은 id는 언제나 같은 값이 나오는 FNV-1a 해시. 마지막에 위쪽 비트를 아래로 섞는다 (예전 CategoryColors와 같은 식). */
-    private static int stableHash(String s) {
-        int h = 0x811C9DC5;
-        for (int i = 0; i < s.length(); i++) {
-            h ^= s.charAt(i);
-            h *= 0x01000193;
+    private static int stableHash(String text) {
+        int hash = 0x811C9DC5;
+        for (int i = 0; i < text.length(); i++) {
+            hash ^= text.charAt(i);
+            hash *= 0x01000193;
         }
-        return h ^ (h >>> 15);
+        return hash ^ (hash >>> 15);
     }
 }

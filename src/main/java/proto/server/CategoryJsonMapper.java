@@ -9,19 +9,19 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * [서버 대비 — 현재 사용 안 함] 카테고리 목록과 JSON 스냅샷을 서로 바꾼다.
- * [저장소 repository] 루트는 {"categories":[{"id","name","color"}, ...]}이다. 이름은 앞뒤 공백을 떼고 1~20자다.
+ * [저장소 repository] 카테고리 목록과 JSON 스냅샷을 서로 바꾼다. 서버 대비 코드(현재 사용 안 함).
+ * 루트는 {"categories":[{"id","name","color"}, ...]}이다. SyncingCategoryStore가 서버와 주고받을 때만 쓴다.
+ * CategoryRepository의 CSV 규칙(이름은 앞뒤 공백을 뗀 1~20자, 대소문자 무시 중복 금지)을 서버 데이터에도 똑같이 적용해서,
+ * 규칙을 어긴 카테고리가 로컬로 들어오지 않게 한다.
  * color는 나중에 더한 선택 필드다. 없거나 null이거나 모르는 키면 그 id의 기본 색으로 읽고, 문자열이 아니면 거절한다.
  * 보낼 때는 언제나 넣는다 (예전 서버·클라이언트는 모르는 필드를 무시한다).
- * SyncingCategoryStore가 서버와 주고받을 때만 쓴다. CategoryRepository의 CSV 규칙(이름 1~20자, 대소문자 무시 중복 금지)을
- * 서버 데이터에도 똑같이 적용해서, 규칙을 어긴 카테고리가 로컬로 들어오지 않게 한다.
  */
 public final class CategoryJsonMapper {
 
     private CategoryJsonMapper() {
     }
 
-    /** 카테고리 목록 전체를 JSON 문자열 하나로 만든다. */
+    /** 카테고리 목록 전체를 JSON 문자열 하나로 만든다 */
     public static String writeSnapshot(List<Category> categories) {
         List<Object> items = new ArrayList<>();
         for (Category category : categories) {

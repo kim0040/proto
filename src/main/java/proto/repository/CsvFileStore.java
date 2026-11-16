@@ -13,8 +13,8 @@ import java.time.format.DateTimeFormatter;
 
 /**
  * [저장소 repository] CSV 텍스트 파일을 UTF-8로 읽고, 중간에 끊겨도 기존 파일이 깨지지 않게 통째로 바꿔 쓴다.
- * F11(자동 저장)에서 쓴다. ScheduleRepository와 CategoryRepository가 저장할 때 writeAtomically, 불러올 때 read, 문제가 있을 때 backup을 부른다.
- * 파일 입출력은 이 클래스에 모아 두었다. 그래서 "저장 도중에 꺼져도 파일이 반쯤만 써지지 않는다"는 약속을 한 곳에서 지킨다.
+ * ScheduleRepository와 CategoryRepository가 저장할 때 writeAtomically, 불러올 때 read, 문제가 있을 때 backup을 부른다 (F11).
+ * 파일 입출력을 이 클래스에 모아 두어 "저장 도중에 꺼져도 파일이 반쯤만 써지지 않는다"는 약속을 한 곳에서 지킨다.
  * 읽다가 문제가 생긴 파일은 덮어쓰기 전에 같은 폴더에 원본 그대로 보관(백업)한다.
  */
 public final class CsvFileStore {
@@ -29,15 +29,15 @@ public final class CsvFileStore {
     private CsvFileStore() {
     }
 
-    /** 파일 전체를 UTF-8 글자로 읽는다. 파일이 없거나 읽을 수 없으면 IOException이다. */
+    /** 파일 전체를 UTF-8 글자로 읽는다. 파일이 없거나 읽을 수 없으면 IOException이다 */
     public static String read(Path file) throws IOException {
         return Files.readString(file, StandardCharsets.UTF_8);
     }
 
     /**
      * 같은 폴더의 임시 파일에 먼저 다 쓴 뒤 그 파일을 원래 이름으로 옮겨서 교체한다. 폴더가 없으면 만든다.
-     * 왜 이렇게 하나: 원래 파일을 바로 열어 쓰다가 전원이 꺼지거나 오류가 나면 파일이 반쯤만 남아 일정을 잃는다.
-     * 임시 파일에 다 쓴 뒤 옮기면 파일이 "옛 내용 전체" 아니면 "새 내용 전체"이다. 옮기기가 끝내 실패하면 IOException이고, 임시 파일은 항상 지운다.
+     * 원래 파일을 바로 열어 쓰다가 전원이 꺼지면 파일이 반쯤만 남아 일정을 잃는다. 임시 파일에 다 쓴 뒤 옮기면
+     * 파일은 "옛 내용 전체" 아니면 "새 내용 전체"이다. 옮기기가 끝내 실패하면 IOException이고, 임시 파일은 항상 지운다.
      */
     public static void writeAtomically(Path file, String content) throws IOException {
         writeAtomically(file, content, CsvFileStore::moveReplacing);
@@ -60,7 +60,7 @@ public final class CsvFileStore {
     }
 
     /**
-     * 불러올 때 문제가 있었던 파일을 덮어쓰기 전에 원본 그대로 보관한다. 이름에 시각을 넣어서 여러 번 백업해도 서로 덮어쓰지 않는다.
+     * 불러올 때 문제가 있었던 파일을 덮어쓰기 전에 원본 그대로 보관한다. 이름에 시각을 넣어 여러 번 백업해도 서로 덮어쓰지 않는다.
      *
      * @throws IOException 백업 이름을 1000번 시도해도 정하지 못했거나 복사에 실패했을 때
      */
@@ -68,8 +68,8 @@ public final class CsvFileStore {
         String name = file.getFileName().toString();
         String base = name.endsWith(".csv") ? name.substring(0, name.length() - 4) : name;
         String stamp = base + "-backup-" + now.format(BACKUP_STAMP);
-        for (int n = 0; n < MAX_BACKUP_TRIES; n++) {
-            Path target = backupPath(file, stamp, n);
+        for (int number = 0; number < MAX_BACKUP_TRIES; number++) {
+            Path target = backupPath(file, stamp, number);
             if (Files.exists(target)) {
                 continue;
             }
@@ -82,11 +82,11 @@ public final class CsvFileStore {
         throw new IOException("백업 파일 이름을 정하지 못했어요");
     }
 
-    private static Path backupPath(Path file, String stamp, int n) {
-        return file.resolveSibling(stamp + (n == 0 ? "" : "-" + n) + ".csv");
+    private static Path backupPath(Path file, String stamp, int number) {
+        return file.resolveSibling(stamp + (number == 0 ? "" : "-" + number) + ".csv");
     }
 
-    /** ATOMIC_MOVE는 "옮기는 도중의 반쯤 옮겨진 상태가 보이지 않게" 해 준다. 같은 폴더에서는 거의 항상 되지만 일부 파일 시스템은 못 하므로 그때만 보통 옮기기로 바꾼다. */
+    /** ATOMIC_MOVE는 반쯤 옮겨진 상태가 보이지 않게 해 준다. 일부 파일 시스템은 못 하므로 그때만 보통 옮기기로 바꾼다 */
     private static void moveReplacing(Path from, Path to) throws IOException {
         try {
             Files.move(from, to, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -95,7 +95,7 @@ public final class CsvFileStore {
         }
     }
 
-    /** 재시도하는 이유: 윈도우에서는 다른 프로그램이 파일을 열고 있으면 교체가 일시적으로 막힐 수 있고, 잠시 기다리면 풀리는 경우가 많다. */
+    /** 재시도하는 이유: 윈도우에서는 다른 프로그램이 파일을 열고 있으면 교체가 잠시 막힐 수 있고, 기다리면 풀리는 경우가 많다 */
     private static void moveWithRetry(Path from, Path to, FileMover mover) throws IOException {
         IOException last = null;
         for (int attempt = 0; attempt <= MAX_MOVE_RETRIES; attempt++) {

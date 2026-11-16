@@ -8,9 +8,8 @@ import java.util.Optional;
 
 /**
  * [저장소 repository] 카테고리 목록을 읽고 고치고 저장하는 통로.
- * F7, F11에서 쓴다. CategoryController와 Main(StoreFactory가 만든 것)이 이 인터페이스만 보고,
- * 실제로는 CategoryRepository(CSV)나 SyncingCategoryStore(서버 동기화)가 구현한다. 그래서 저장 방식을 바꿔도 control·ui는 그대로이다.
- * 오늘은 {@link CategoryRepository}(CSV)가 이 역할을 하고, controller와 Main은 구현 클래스가 아니라 이 인터페이스만 본다.
+ * CategoryController와 Main(StoreFactory가 만든 것)은 구현 클래스가 아니라 이 인터페이스만 본다.
+ * 실제로는 {@link CategoryRepository}(CSV)나 SyncingCategoryStore(서버 동기화)가 구현하므로, 저장 방식을 바꿔도 control·ui는 그대로이다.
  */
 public interface CategoryStore {
 

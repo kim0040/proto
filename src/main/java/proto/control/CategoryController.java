@@ -19,11 +19,11 @@ import java.util.function.Supplier;
 
 /**
  * [제어 control] 카테고리 추가·이름 변경·색 변경·삭제를 처리한다 (F7).
- * F7(카테고리 관리)의 창구이다. CategoryDialog가 부르고, CategoryStore에 저장하며, 결과를 CategoryListener와 ScheduleController를 거쳐 화면에 알린다.
- * 카테고리를 지우면 일정이 "카테고리 없음" 상태가 되지 않도록 그 일정들을 "개인"으로 옮기는 규칙을 이 클래스가 지킨다.
- * 삭제하면 그 카테고리의 일정은 "개인"으로 옮기고, 일정 되돌리기 기록을 지운 뒤 카테고리와 일정 리스너 양쪽에 알린다.
- * 색은 팔레트 12색(CategoryPalette의 키) 중 하나이다. 새 카테고리는 아직 아무도 쓰지 않은 첫 색을 받고,
- * 색을 바꾸면 일정 블록도 다시 그려야 하므로 카테고리와 일정 리스너 양쪽에 알린다. 색 변경은 일정 되돌리기 기록과 상관없다.
+ * CategoryDialog가 부르고, CategoryStore에 저장하며, 결과를 CategoryListener와 ScheduleController를 거쳐 화면에 알린다.
+ * 카테고리를 지우면 일정이 "카테고리 없음" 상태가 되지 않도록 그 일정들을 "개인"으로 옮기고,
+ * 일정 되돌리기 기록을 지운 뒤 카테고리와 일정 리스너 양쪽에 알린다.
+ * 색은 팔레트 12색(CategoryPalette의 키) 중 하나이다. 새 카테고리는 아직 아무도 쓰지 않은 첫 색을 받는다.
+ * 색을 바꾸면 일정 블록도 다시 그려야 하므로 양쪽 리스너에 알리며, 일정 되돌리기 기록과는 상관없다.
  *
  * <p>모든 public 메소드는 Swing 이벤트 스레드(EDT)에서 불러야 한다 (화면이 이미 EDT에서 부른다).</p>
  */
@@ -45,12 +45,12 @@ public class CategoryController {
         this.scheduleController = scheduleController;
     }
 
-    /** 카테고리 변화를 받으려고 자신을 등록한다 (CategoryDialog 등). */
+    /** 카테고리 변화를 받으려고 자신을 등록한다 (CategoryDialog 등) */
     public void addListener(CategoryListener listener) {
         listeners.add(listener);
     }
 
-    /** 등록했던 리스너를 뺀다. 등록하지 않은 것이면 아무 일도 없다. */
+    /** 등록했던 리스너를 뺀다. 등록하지 않은 것이면 아무 일도 없다 */
     public void removeListener(CategoryListener listener) {
         listeners.remove(listener);
     }
@@ -64,8 +64,7 @@ public class CategoryController {
     }
 
     /**
-     * id의 이름. 없는 id면 "개인" 이름.
-     * 화면이 일정 옆에 카테고리 이름을 보여 줄 때 쓴다. 지워진 카테고리를 가리키는 일정이 있어도 화면이 깨지지 않도록 "개인"으로 대신한다.
+     * id의 이름. 지워진 카테고리를 가리키는 일정이 있어도 화면이 깨지지 않도록, 없는 id면 "개인" 이름을 돌려준다.
      */
     public String nameOf(String categoryId) {
         return categories.findById(categoryId)
@@ -76,7 +75,6 @@ public class CategoryController {
 
     /**
      * id의 색 키 (CategoryPalette.KEYS 중 하나). 없는 id면 nameOf처럼 "개인"의 색, "개인"도 없으면 그 id의 기본 색.
-     * 화면은 이 키를 테마 색으로 바꿔 일정 블록·점을 칠한다.
      */
     public String colorOf(String categoryId) {
         return categories.findById(categoryId)
@@ -160,12 +158,11 @@ public class CategoryController {
     }
 
     /**
-     * 삭제. 남은 일정은 "개인"으로 옮기고 저장(F11), 두 리스너(카테고리, 일정)에 모두 알린다.
-     * 일정 파일을 먼저 저장하고, 그 저장이 실패하면 옮긴 것을 되돌리고 카테고리도 지우지 않는다.
-     * 일정 저장 뒤 카테고리 파일 저장만 실패하면 삭제는 유지하고 저장 실패만 알린다
-     * (다음 실행 때 없는 카테고리의 일정은 "개인"으로 옮겨지므로 어긋나지 않는다).
-     * "개인"은 지울 수 없다. 카테고리가 없거나 "개인"이면 바로 실패를 돌려준다.
-     * 왜 일정 파일을 먼저 저장하나: 일정을 옮기고 나서 카테고리만 지워지면, 일정이 없는 카테고리를 가리키게 되는 일이 가장 위험해서이다.
+     * 삭제. 남은 일정은 "개인"으로 옮기고 저장(F11)한 뒤 두 리스너(카테고리, 일정)에 모두 알린다.
+     * 카테고리가 없거나 "개인"이면 바로 실패를 돌려준다.
+     * 일정 파일을 먼저 저장하는 이유: 일정이 없는 카테고리를 가리키게 되는 일이 가장 위험해서이다.
+     * 그 저장이 실패하면 옮긴 것을 되돌리고 카테고리도 지우지 않는다. 카테고리 파일 저장만 실패하면 삭제는 유지하고
+     * 저장 실패만 알린다 (다음 실행 때 없는 카테고리의 일정은 "개인"으로 옮겨지므로 어긋나지 않는다).
      */
     public OperationResult delete(String categoryId) {
         if (Category.PERSONAL_ID.equals(categoryId)) {
@@ -222,13 +219,13 @@ public class CategoryController {
         notifyCategoriesChanged();
     }
 
-    /** 이 카테고리의 일정들을 to로 옮기고, 옮긴 일정들을 돌려준다 (되돌릴 때 쓴다) */
+    /** fromId 카테고리의 일정들을 toId로 옮기고, 옮긴 일정들을 돌려준다 (저장이 실패하면 되돌리는 데 쓴다) */
     private List<Schedule> moveSchedules(String fromId, String toId) {
         List<Schedule> moved = new ArrayList<>();
-        for (Schedule s : schedules.getAll()) {
-            if (s.getCategoryId().equals(fromId)) {
-                s.setCategoryId(toId);
-                moved.add(s);
+        for (Schedule schedule : schedules.getAll()) {
+            if (schedule.getCategoryId().equals(fromId)) {
+                schedule.setCategoryId(toId);
+                moved.add(schedule);
             }
         }
         return moved;
@@ -250,12 +247,12 @@ public class CategoryController {
         return true;
     }
 
+    private void notifyCategoriesChanged() {
+        EventThread.run(() -> listeners.forEach(CategoryListener::categoriesChanged));
+    }
+
     /** IOException을 던질 수 있는 저장 동작 */
     private interface FileSave {
         void run() throws IOException;
-    }
-
-    private void notifyCategoriesChanged() {
-        EventThread.run(() -> listeners.forEach(CategoryListener::categoriesChanged));
     }
 }

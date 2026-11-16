@@ -13,7 +13,7 @@ import java.util.UUID;
 
 /**
  * [논리 application logic] 처음 실행할 때 보여 줄 예시 일정 5개를 지금 시각 기준으로 만든다 (F11).
- * F11(자동 저장)의 첫 실행에서 쓴다. ScheduleRepository가 schedules.csv 파일이 없을 때 이 예시들을 넣고 바로 저장한다.
+ * ScheduleRepository가 schedules.csv 파일이 없을 때(첫 실행) 이 예시들을 넣고 바로 저장한다 (F11).
  * 카테고리 id("class", "team", "assignment")는 기본 카테고리 목록과 맞춰 둔 값이다.
  * 오늘의 상태가 골고루 보이도록 완료·지연·예정이 섞여 있고, 메모에 쉼표와 줄바꿈이 들어간 일정도 있다.
  */
@@ -30,7 +30,7 @@ public final class SampleScheduleFactory {
     /**
      * 08:00~20:00 사이면 오늘 일정을 지금 시각 앞뒤로 놓는다: 끝나고 완료한 수업, 끝났지만 미완료(지연)인 일정,
      * 오늘 이따가 할 일정 2개(그중 매주 "팀플 회의"), 내일 일정 1개. 그 밖의 시각이면 고정 시각 예시를 쓴다.
-     * 지금이 08:00 이전이거나 20:00 이후이면 "앞뒤로 놓기"가 어색하므로(전날이나 다음 날로 넘어갈 수 있다) 아래의 고정 시각 예시로 돌린다.
+     * 이른 아침·늦은 밤에는 앞뒤로 놓으면 전날이나 다음 날로 넘어갈 수 있어서 고정 시각 예시를 쓴다.
      */
     public static List<Schedule> create(LocalDateTime now) {
         LocalTime time = now.toLocalTime();
@@ -71,8 +71,8 @@ public final class SampleScheduleFactory {
                 RepeatRule.NONE, ReminderOption.THIRTY_MINUTES);
     }
 
-    private static LocalTime hour(int h) {
-        return LocalTime.of(h, 0);
+    private static LocalTime hour(int hour) {
+        return LocalTime.of(hour, 0);
     }
 
     private static Schedule sample(String title, LocalDate date, LocalTime start, LocalTime end,
