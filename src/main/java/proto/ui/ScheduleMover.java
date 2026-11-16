@@ -12,10 +12,10 @@ import java.time.LocalTime;
 import java.util.Optional;
 
 /**
- * [경계 boundary] 일정의 날짜·시간만 바꿔 옮기는 동작 (끌어서 옮기기, 크기 바꾸기, 키보드 이동, 미루기). 시간표 말고 다른 보기에서도 쓸 수 있게 따로 두었다 (F3).
- * 최신 값을 다시 읽어(fresh) 날짜·시작·끝만 갈아 끼운 입력값을 만들고 ScheduleController#update에 맡긴다. 반복 일정이면 범위(이 일정만/앞으로 전부)를 먼저 묻는다.
- * 겹치는 일정이 있어도 막지 않고 알림 글에만 덧붙인다. 성공 알림에는 "되돌리기" 버튼이 붙는다. 바뀐 게 없으면 아무것도 하지 않는다. controller 호출과 알림은 모두 이 클래스와 UiActions를 거친다.
- * 하루 종일 일정은 시간이 없으므로 날짜만 바뀐다: 넘어온 시작·끝은 무시하고, 시간 방향 미세 이동(Alt+↑/↓)은 아무것도 하지 않는다. 하루 종일 표시(allDay)는 옮긴 뒤에도 그대로 남는다.
+ * [경계 boundary] 일정의 날짜·시간만 바꿔 옮기는 동작 (끌어서 옮기기, 크기 바꾸기, 키보드 이동, 미루기). 시간표 말고 다른 보기에서도 쓰려고 따로 두었다 (F3).
+ * 최신 값을 다시 읽어(fresh) 날짜·시작·끝만 갈아 끼운 입력값을 만들어 ScheduleController#update에 맡긴다. 반복 일정이면 범위(이 일정만/앞으로 전부)를 먼저 묻는다.
+ * 겹치는 일정이 있어도 막지 않고 알림 글에만 덧붙인다. 성공 알림에는 "되돌리기" 버튼이 붙고, 바뀐 게 없으면 아무것도 하지 않는다.
+ * 하루 종일 일정은 날짜만 바뀐다: 넘어온 시작·끝은 무시하고 시간 방향 미세 이동(Alt+↑/↓)은 하지 않으며, 하루 종일 표시(allDay)는 그대로 남는다.
  */
 public final class ScheduleMover {
 
@@ -31,31 +31,6 @@ public final class ScheduleMover {
      */
     public boolean move(Occurrence o, LocalDate date, LocalTime start, LocalTime end) {
         return move(o, date, start, end, null);
-    }
-
-    /** move와 같지만 성공 알림 글을 done으로 바꾼다 (done이 null이면 기본 글). 미루기처럼 "내일로 미뤘어요"를 알릴 때 쓴다 */
-    private boolean move(Occurrence o, LocalDate date, LocalTime start, LocalTime end, String done) {
-        Optional<Occurrence> fresh = ctx.actions().fresh(o);
-        if (fresh.isEmpty()) {
-            return false;
-        }
-        Occurrence latest = fresh.get();
-        if (latest.allDay()) {
-            // 하루 종일: 날짜만 본다. 시작·끝으로 넘어온 값은 쓰지 않는다
-            start = latest.startTime();
-            end = latest.endTime();
-        }
-        if (latest.date().equals(date) && latest.startTime().equals(start) && latest.endTime().equals(end)) {
-            return false;
-        }
-        ScheduleDraft draft = withSlot(ctx.schedules().draftOf(latest), date, start, end);
-        Optional<EditScope> scope = chooseScope(latest);
-        if (scope.isEmpty()) {
-            return false;
-        }
-        boolean overlaps = !ctx.schedules().findConflicts(draft, latest, scope.get()).isEmpty();
-        String text = done != null ? done : isResize(latest, date, start) ? "시간을 바꿨어요" : "일정을 옮겼어요";
-        return save(latest, draft, scope.get(), overlaps, text);
     }
 
     /**
@@ -105,5 +80,30 @@ public final class ScheduleMover {
         }
         ctx.actions().toastUndoable(overlaps ? done + " · 다른 일정과 시간이 겹쳐요" : done);
         return true;
+    }
+
+    /** move와 같지만 성공 알림 글을 done으로 바꾼다 (done이 null이면 기본 글). 미루기처럼 "내일로 미뤘어요"를 알릴 때 쓴다 */
+    private boolean move(Occurrence o, LocalDate date, LocalTime start, LocalTime end, String done) {
+        Optional<Occurrence> fresh = ctx.actions().fresh(o);
+        if (fresh.isEmpty()) {
+            return false;
+        }
+        Occurrence latest = fresh.get();
+        if (latest.allDay()) {
+            // 하루 종일: 날짜만 본다. 시작·끝으로 넘어온 값은 쓰지 않는다
+            start = latest.startTime();
+            end = latest.endTime();
+        }
+        if (latest.date().equals(date) && latest.startTime().equals(start) && latest.endTime().equals(end)) {
+            return false;
+        }
+        ScheduleDraft draft = withSlot(ctx.schedules().draftOf(latest), date, start, end);
+        Optional<EditScope> scope = chooseScope(latest);
+        if (scope.isEmpty()) {
+            return false;
+        }
+        boolean overlaps = !ctx.schedules().findConflicts(draft, latest, scope.get()).isEmpty();
+        String text = done != null ? done : isResize(latest, date, start) ? "시간을 바꿨어요" : "일정을 옮겼어요";
+        return save(latest, draft, scope.get(), overlaps, text);
     }
 }

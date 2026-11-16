@@ -53,16 +53,6 @@ final class SheetMotion {
         running = Motion.run(ENTER_MS, LINEAR, this::enterFrame, () -> { });
     }
 
-    private void enterFrame(float t) {
-        float before = scrim;
-        scrim = Math.min(1f, t * ENTER_MS / SCRIM_IN_MS);
-        float e = ENTER.interpolate(t);
-        opacity = e;
-        scale = START_SCALE + (1f - START_SCALE) * e;
-        rise = 1f - e;
-        listener.changed(before != scrim);
-    }
-
     /** 사라지기 시작한다. 나타나는 중이었으면 지금 값에서 이어서 사라진다. 다 사라지면 done을 부른다 */
     void exit(Runnable done) {
         stop();
@@ -90,13 +80,6 @@ final class SheetMotion {
             shake = 0f;
             listener.changed(false);
         });
-    }
-
-    private void stop() {
-        if (running != null) {
-            running.cancel();
-            running = null;
-        }
     }
 
     /** 스크림 진하기 (0~1) */
@@ -127,5 +110,22 @@ final class SheetMotion {
     /** 움직임이 끝나 평소 모습 그대로인지 (변환 없이 그려도 되는지) */
     boolean atRest() {
         return opacity >= 0.999f && scale >= 0.9995f && rise <= 0.0005f && shake == 0f;
+    }
+
+    private void enterFrame(float t) {
+        float before = scrim;
+        scrim = Math.min(1f, t * ENTER_MS / SCRIM_IN_MS);
+        float e = ENTER.interpolate(t);
+        opacity = e;
+        scale = START_SCALE + (1f - START_SCALE) * e;
+        rise = 1f - e;
+        listener.changed(before != scrim);
+    }
+
+    private void stop() {
+        if (running != null) {
+            running.cancel();
+            running = null;
+        }
     }
 }

@@ -2,18 +2,20 @@ package proto.ui.dialog;
 
 import proto.ui.component.Buttons;
 import proto.ui.component.TokenLabel;
+import proto.ui.component.WidthPanel;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import java.awt.BorderLayout;
-import java.awt.FlowLayout;
 import java.awt.Component;
+import java.awt.FlowLayout;
 import java.util.List;
 
 /**
@@ -22,6 +24,10 @@ import java.util.List;
  * Esc와 바깥(스크림) 클릭은 언제나 취소(-1)이다: 취소는 늘 안전한 답이기 때문이다. 열릴 때 포커스는 기본 버튼에 있다.
  */
 public class ConfirmDialog extends BaseDialog {
+
+    /** 시트 본문 폭과, 그 안에서 글이 줄바꿈되는 폭 (논리 px) */
+    private static final int BODY_WIDTH = 400;
+    private static final int TEXT_WIDTH = 352;
 
     /** 버튼 모양 */
     public enum Kind { PRIMARY, DANGER, DANGER_OUTLINE, SECONDARY, GHOST }
@@ -35,7 +41,7 @@ public class ConfirmDialog extends BaseDialog {
     public ConfirmDialog(Component owner, String title, String message, String detail, JComponent extra,
                          List<Choice> choices) {
         super(owner, title);
-        JPanel body = new proto.ui.component.WidthPanel(new BorderLayout(), 400);
+        JPanel body = new WidthPanel(new BorderLayout(), BODY_WIDTH);
         body.add(texts(message, detail, extra), BorderLayout.CENTER);
         setBody(body, buttons(choices), 24);
     }
@@ -50,12 +56,12 @@ public class ConfirmDialog extends BaseDialog {
         JPanel p = new JPanel();
         p.setOpaque(false);
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        TokenLabel title = new TokenLabel("<html><body style='width:" + Ui.px(352) + "px'>" + html(message)
+        TokenLabel title = new TokenLabel("<html><body style='width:" + Ui.px(TEXT_WIDTH) + "px'>" + html(message)
                 + "</body></html>", Fonts.semibold(Fonts.LEAD), Tokens.TEXT);
         title.setAlignmentX(LEFT_ALIGNMENT);
         p.add(title);
         if (detail != null && !detail.isBlank()) {
-            TokenLabel d = new TokenLabel("<html><body style='width:" + Ui.px(352) + "px'>" + html(detail)
+            TokenLabel d = new TokenLabel("<html><body style='width:" + Ui.px(TEXT_WIDTH) + "px'>" + html(detail)
                     + "</body></html>", Fonts.regular(Fonts.BODY), Tokens.MUTED);
             d.setAlignmentX(LEFT_ALIGNMENT);
             d.setBorder(BorderFactory.createEmptyBorder(Ui.px(8), 0, 0, 0));
@@ -63,7 +69,7 @@ public class ConfirmDialog extends BaseDialog {
         }
         if (extra != null) {
             extra.setAlignmentX(LEFT_ALIGNMENT);
-            p.add(javax.swing.Box.createVerticalStrut(Ui.px(12)));
+            p.add(Box.createVerticalStrut(Ui.px(12)));
             p.add(extra);
         }
         return p;

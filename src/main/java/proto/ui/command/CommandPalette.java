@@ -18,10 +18,14 @@ import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.border.AbstractBorder;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -32,6 +36,7 @@ import java.util.function.Function;
  */
 final class CommandPalette extends JPanel {
 
+    private static final int WIDTH = 300;
     private final Function<String, List<Command>> source;
     private final JTextField field = new JTextField();
     private final PaletteResults results;
@@ -40,7 +45,7 @@ final class CommandPalette extends JPanel {
     private final Runnable onClose;
     private final Runnable onResize;
 
-    CommandPalette(Function<String, List<Command>> source, java.util.function.Consumer<Command> onRun, Runnable onClose,
+    CommandPalette(Function<String, List<Command>> source, Consumer<Command> onRun, Runnable onClose,
                    Runnable onResize) {
         super(new BorderLayout());
         this.source = source;
@@ -60,6 +65,20 @@ final class CommandPalette extends JPanel {
         refresh();
     }
 
+    /** 열릴 때 입력칸에 포커스를 준다 */
+    void focusField() {
+        field.requestFocusInWindow();
+    }
+
+    /** 입력칸 (테스트와 화면 캡처가 쓴다) */
+    JTextField field() {
+        return field;
+    }
+
+    PaletteResults results() {
+        return results;
+    }
+
     private void configureField() {
         field.setFont(Fonts.regular(Fonts.LEAD));
         field.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, "명령이나 날짜를 입력하세요  (예: 내일, 11월 20일, 설정)");
@@ -67,7 +86,7 @@ final class CommandPalette extends JPanel {
         field.putClientProperty(FlatClientProperties.STYLE, "background:$proto.surface; borderWidth:0; focusWidth:0;"
                 + " innerFocusWidth:0; margin:2,18,2,18");
         field.setBorder(BorderFactory.createEmptyBorder(Ui.px(14), Ui.px(18), Ui.px(14), Ui.px(18)));
-        field.setPreferredSize(new Dimension(Ui.px(300), Ui.px(54)));
+        field.setPreferredSize(new Dimension(Ui.px(WIDTH), Ui.px(54)));
         field.getAccessibleContext().setAccessibleName("명령 검색");
         // Tab·Shift+Tab은 결과 이동으로 쓴다. 끄지 않으면 Swing이 먼저 포커스를 뒤 화면으로 넘겨 버린다
         field.setFocusTraversalKeysEnabled(false);
@@ -144,36 +163,22 @@ final class CommandPalette extends JPanel {
         empty.setVisible(none);
         scroll.setVisible(!none);
         field.getAccessibleContext().setAccessibleDescription(none ? "결과 없음" : "결과 " + found.size() + "개");
-        scroll.setPreferredSize(new Dimension(Ui.px(300), results.viewportHeight() + Ui.px(12)));
+        scroll.setPreferredSize(new Dimension(Ui.px(WIDTH), results.viewportHeight() + Ui.px(12)));
         revalidate();
         onResize.run();
-    }
-
-    /** 열릴 때 입력칸에 포커스를 준다 */
-    void focusField() {
-        field.requestFocusInWindow();
-    }
-
-    /** 입력칸 (테스트와 화면 캡처가 쓴다) */
-    JTextField field() {
-        return field;
-    }
-
-    PaletteResults results() {
-        return results;
     }
 
     /** 입력칸과 목록 사이의 위쪽 1px 옅은 선 (테마가 바뀌면 새 색으로 그린다) */
     private static final class TopLine extends AbstractBorder {
         @Override
-        public void paintBorder(java.awt.Component c, java.awt.Graphics g, int x, int y, int width, int height) {
+        public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
             g.setColor(Tokens.get(Tokens.BORDER));
             g.fillRect(x, y, width, 1);
         }
 
         @Override
-        public java.awt.Insets getBorderInsets(java.awt.Component c) {
-            return new java.awt.Insets(1, 0, 0, 0);
+        public Insets getBorderInsets(Component c) {
+            return new Insets(1, 0, 0, 0);
         }
     }
 }

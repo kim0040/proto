@@ -12,27 +12,34 @@ import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
-import javax.swing.Box;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
+import java.awt.Dimension;
 import java.awt.Font;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
 /**
  * [경계 boundary] 주간 통계 보기 (F14): 큰 숫자 3개(전체·완료율·지연), 카테고리별 계획 시간 막대, 요일별 일정 수.
- * MainFrame이 만들고, refresh 때 ScheduleController#weeklyStatistics(WeeklyStatistics)로 숫자를 받아 그리기만 한다. 통계 계산은 logic 패키지의
- * 몫이고 이 화면은 계산하지 않는다.
+ * MainFrame이 만들고, refresh 때 ScheduleController#weeklyStatistics(WeeklyStatistics)로 숫자를 받아 그리기만 한다 (통계 계산은 logic 패키지의 몫).
  * 검색·카테고리 필터는 적용되지 않는다 (usesFilters가 false).
  */
 public class StatsView implements ContentView {
+
+    /** 큰 숫자 사이 가로 간격과, 구역 사이 세로 간격 (논리 px). 좁거나 낮은 화면에서는 줄인다 */
+    private static final int NUMBER_GAP = 64;
+    private static final int NUMBER_GAP_COMPACT = 36;
+    private static final int SECTION_GAP = 34;
+    private static final int SECTION_GAP_DENSE = 22;
 
     private final UiContext ctx;
     private final JPanel root = new JPanel(new CardLayout());
@@ -43,8 +50,8 @@ public class StatsView implements ContentView {
     private final WeekdayColumns columns = new WeekdayColumns();
     private final EmptyState empty;
     private final ScrollPanel body = new ScrollPanel(null);
-    private final List<Box.Filler> gaps = new java.util.ArrayList<>();
-    private final List<Box.Filler> sectionGaps = new java.util.ArrayList<>();
+    private final List<Box.Filler> gaps = new ArrayList<>();
+    private final List<Box.Filler> sectionGaps = new ArrayList<>();
 
     public StatsView(UiContext ctx) {
         this.ctx = ctx;
@@ -59,87 +66,20 @@ public class StatsView implements ContentView {
         return new TokenLabel("0", Fonts.bold(Fonts.DISPLAY + 6), Tokens.TEXT);
     }
 
-    private JComponent buildContent() {
-        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-        body.add(numbers());
-        body.add(sectionGap());
-        body.add(section("카테고리별 계획 시간", bars));
-        body.add(sectionGap());
-        body.add(section("요일별 일정 수", columns));
-        applySize(ctx.size());
-        JScrollPane scroll = new JScrollPane(body);
-        scroll.setBorder(BorderFactory.createEmptyBorder());
-        scroll.setOpaque(false);
-        scroll.getViewport().setOpaque(false);
-        return scroll;
-    }
-
-    private JPanel numbers() {
-        JPanel p = new JPanel();
-        p.setOpaque(false);
-        p.setLayout(new BoxLayout(p, BoxLayout.X_AXIS));
-        p.setAlignmentX(0f);
-        p.add(stat(total, "전체 일정"));
-        p.add(numberGap());
-        p.add(stat(rate, "완료율"));
-        p.add(numberGap());
-        p.add(stat(delayed, "지연"));
-        p.add(Box.createHorizontalGlue());
-        return p;
-    }
-
-    private Box.Filler numberGap() {
-        Box.Filler f = (Box.Filler) Box.createHorizontalStrut(Ui.px(64));
-        gaps.add(f);
-        return f;
-    }
-
-    private Box.Filler sectionGap() {
-        Box.Filler f = (Box.Filler) Box.createVerticalStrut(Ui.px(34));
-        sectionGaps.add(f);
-        return f;
-    }
-
     /** 세로로 길거나 낮은 화면, 좁은 화면에서는 여백과 큰 숫자를 한 단계 줄여 한 화면에 더 담는다. 차트는 세로로 쌓인다 */
     @Override
     public void applySize(SizeClass sc) {
-        int g = sc.gutter();
+        int gutter = sc.gutter();
         int trim = sc.verticalTrim();
-        body.setBorder(BorderFactory.createEmptyBorder(Ui.px(8 - trim / 2), Ui.px(g), Ui.px(32 - trim * 2),
-                Ui.px(g)));
-        gaps.forEach(f -> resize(f, sc.compact() ? 36 : 64, 0));
-        sectionGaps.forEach(f -> resize(f, 0, sc.dense() ? 22 : 34));
+        body.setBorder(BorderFactory.createEmptyBorder(Ui.px(8 - trim / 2), Ui.px(gutter), Ui.px(32 - trim * 2),
+                Ui.px(gutter)));
+        gaps.forEach(f -> resize(f, sc.compact() ? NUMBER_GAP_COMPACT : NUMBER_GAP, 0));
+        sectionGaps.forEach(f -> resize(f, 0, sc.dense() ? SECTION_GAP_DENSE : SECTION_GAP));
         Font font = Fonts.bold(sc.dense() ? Fonts.DISPLAY : Fonts.DISPLAY + 6);
         for (TokenLabel l : List.of(total, rate, delayed)) {
             l.setFont(font);
         }
         body.revalidate();
-    }
-
-    private static void resize(Box.Filler f, int w, int h) {
-        java.awt.Dimension d = new java.awt.Dimension(Ui.px(w), Ui.px(h));
-        f.changeShape(d, d, d);
-    }
-
-    private static JPanel stat(TokenLabel number, String label) {
-        JPanel p = new JPanel();
-        p.setOpaque(false);
-        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        number.setAlignmentX(0f);
-        TokenLabel l = new TokenLabel(label, Fonts.medium(Fonts.SMALL), Tokens.MUTED);
-        l.setAlignmentX(0f);
-        p.add(number);
-        p.add(l);
-        return p;
-    }
-
-    private static JPanel section(String title, JComponent content) {
-        JPanel p = new JPanel(new BorderLayout(0, Ui.px(14)));
-        p.setOpaque(false);
-        p.setAlignmentX(0f);
-        p.add(new TokenLabel(title, Fonts.semibold(Fonts.LEAD), Tokens.TEXT), BorderLayout.NORTH);
-        p.add(content, BorderLayout.CENTER);
-        return p;
     }
 
     @Override
@@ -199,5 +139,72 @@ public class StatsView implements ContentView {
                         .thenComparing(Map.Entry.comparingByKey(Comparator.naturalOrder())))
                 .map(e -> new HorizontalBars.Row(e.getKey(), ctx.categories().nameOf(e.getKey()), e.getValue()))
                 .toList();
+    }
+
+    private JComponent buildContent() {
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.add(numbers());
+        body.add(sectionGap());
+        body.add(section("카테고리별 계획 시간", bars));
+        body.add(sectionGap());
+        body.add(section("요일별 일정 수", columns));
+        applySize(ctx.size());
+        JScrollPane scroll = new JScrollPane(body);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        return scroll;
+    }
+
+    private JPanel numbers() {
+        JPanel p = new JPanel();
+        p.setOpaque(false);
+        p.setLayout(new BoxLayout(p, BoxLayout.X_AXIS));
+        p.setAlignmentX(0f);
+        p.add(stat(total, "전체 일정"));
+        p.add(numberGap());
+        p.add(stat(rate, "완료율"));
+        p.add(numberGap());
+        p.add(stat(delayed, "지연"));
+        p.add(Box.createHorizontalGlue());
+        return p;
+    }
+
+    private Box.Filler numberGap() {
+        Box.Filler gap = (Box.Filler) Box.createHorizontalStrut(Ui.px(NUMBER_GAP));
+        gaps.add(gap);
+        return gap;
+    }
+
+    private Box.Filler sectionGap() {
+        Box.Filler gap = (Box.Filler) Box.createVerticalStrut(Ui.px(SECTION_GAP));
+        sectionGaps.add(gap);
+        return gap;
+    }
+
+    private static void resize(Box.Filler filler, int w, int h) {
+        Dimension d = new Dimension(Ui.px(w), Ui.px(h));
+        filler.changeShape(d, d, d);
+    }
+
+    private static JPanel stat(TokenLabel number, String label) {
+        JPanel p = new JPanel();
+        p.setOpaque(false);
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        number.setAlignmentX(0f);
+        TokenLabel l = new TokenLabel(label, Fonts.medium(Fonts.SMALL), Tokens.MUTED);
+        l.setAlignmentX(0f);
+        p.add(number);
+        p.add(l);
+        return p;
+    }
+
+    private static JPanel section(String title, JComponent content) {
+        JPanel p = new JPanel(new BorderLayout(0, Ui.px(14)));
+        p.setOpaque(false);
+        p.setAlignmentX(0f);
+        p.add(new TokenLabel(title, Fonts.semibold(Fonts.LEAD), Tokens.TEXT), BorderLayout.NORTH);
+        p.add(content, BorderLayout.CENTER);
+        return p;
     }
 }

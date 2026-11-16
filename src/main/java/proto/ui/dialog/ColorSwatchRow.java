@@ -25,8 +25,9 @@ import java.util.function.Supplier;
 
 /**
  * [경계 boundary] 일정 하나만의 색을 고르는 한 줄 색 점 목록: 맨 앞 "카테고리 색"(이 일정만의 색 없음) + 팔레트 색 12개.
- * ScheduleDialog의 "색" 줄이다. 한 칸에 포커스가 있고 ←/→/Home/End로 고르면 바로 그 색이 선택된다(라디오 버튼 묶음처럼). 마우스로 눌러도 되고, 점에 마우스를 올리면 색 이름이 툴팁으로 뜬다.
- * 고른 점에는 체크 표시가 붙는다(색 위에서 글자색 대비가 맞는 색으로). "카테고리 색" 점은 지금 고른 카테고리의 색 테두리로 그려서, 카테고리를 바꾸면 따라 바뀐다.
+ * ScheduleDialog의 "색" 줄이다. 포커스가 있을 때 ←/→/Home/End로 고르면 바로 그 색이 선택되고(라디오 버튼 묶음처럼), 마우스로 눌러도 된다.
+ * 점에 마우스를 올리면 색 이름이 툴팁으로 뜨고, 고른 점에는 색 위에서 대비가 맞는 체크 표시가 붙는다.
+ * "카테고리 색" 점은 지금 고른 카테고리의 색으로 그려서, 카테고리를 바꾸면 따라 바뀐다.
  */
 public final class ColorSwatchRow extends JComponent {
 
@@ -68,6 +69,49 @@ public final class ColorSwatchRow extends JComponent {
     /** 카테고리가 바뀌어 "카테고리 색" 점의 색이 달라졌을 때 */
     public void categoryChanged() {
         repaint();
+    }
+
+    @Override
+    public String getToolTipText(MouseEvent e) {
+        int i = indexAt(e.getX());
+        return i < 0 ? null : ColorMenu.nameOf(keys.get(i));
+    }
+
+    @Override
+    public Dimension getPreferredSize() {
+        return new Dimension(keys.size() * Ui.px(DOT + GAP) - Ui.px(GAP) + Ui.px(PAD) * 2, Ui.px(DOT + 8));
+    }
+
+    @Override
+    public Dimension getMaximumSize() {
+        return getPreferredSize();
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        Ui.smooth(g2);
+        int d = Ui.px(DOT);
+        int y = (getHeight() - d) / 2;
+        for (int i = 0; i < keys.size(); i++) {
+            paintDot(g2, i, Ui.px(PAD) + i * Ui.px(DOT + GAP), y, d);
+        }
+        g2.dispose();
+    }
+
+    @Override
+    public AccessibleContext getAccessibleContext() {
+        if (accessibleContext == null) {
+            accessibleContext = new AccessibleJComponent() {
+                @Override
+                public AccessibleRole getAccessibleRole() {
+                    return AccessibleRole.LIST;
+                }
+            };
+            accessibleContext.setAccessibleName("일정 색");
+            accessibleContext.setAccessibleDescription(ColorMenu.nameOf(value()));
+        }
+        return accessibleContext;
     }
 
     private void installMouse() {
@@ -126,34 +170,6 @@ public final class ColorSwatchRow extends JComponent {
         return onDot && i < keys.size() ? i : -1;
     }
 
-    @Override
-    public String getToolTipText(MouseEvent e) {
-        int i = indexAt(e.getX());
-        return i < 0 ? null : ColorMenu.nameOf(keys.get(i));
-    }
-
-    @Override
-    public Dimension getPreferredSize() {
-        return new Dimension(keys.size() * Ui.px(DOT + GAP) - Ui.px(GAP) + Ui.px(PAD) * 2, Ui.px(DOT + 8));
-    }
-
-    @Override
-    public Dimension getMaximumSize() {
-        return getPreferredSize();
-    }
-
-    @Override
-    protected void paintComponent(Graphics g) {
-        Graphics2D g2 = (Graphics2D) g.create();
-        Ui.smooth(g2);
-        int d = Ui.px(DOT);
-        int y = (getHeight() - d) / 2;
-        for (int i = 0; i < keys.size(); i++) {
-            paintDot(g2, i, Ui.px(PAD) + i * Ui.px(DOT + GAP), y, d);
-        }
-        g2.dispose();
-    }
-
     private void paintDot(Graphics2D g2, int index, int x, int y, int d) {
         String key = keys.get(index);
         Color color = key == null ? categoryColor.get() : CategoryColors.ofKey(key);
@@ -191,17 +207,17 @@ public final class ColorSwatchRow extends JComponent {
     }
 
     private static double contrast(Color a, Color b) {
-        double x = luminance(a);
-        double y = luminance(b);
-        return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+        double la = luminance(a);
+        double lb = luminance(b);
+        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
     }
 
     private static double luminance(Color c) {
-        double[] v = {c.getRed() / 255.0, c.getGreen() / 255.0, c.getBlue() / 255.0};
+        double[] rgb = {c.getRed() / 255.0, c.getGreen() / 255.0, c.getBlue() / 255.0};
         for (int i = 0; i < 3; i++) {
-            v[i] = v[i] <= 0.03928 ? v[i] / 12.92 : Math.pow((v[i] + 0.055) / 1.055, 2.4);
+            rgb[i] = rgb[i] <= 0.03928 ? rgb[i] / 12.92 : Math.pow((rgb[i] + 0.055) / 1.055, 2.4);
         }
-        return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+        return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
     }
 
     private void paintCheck(Graphics2D g2, Color color, int x, int y, int d) {
@@ -212,20 +228,5 @@ public final class ColorSwatchRow extends JComponent {
         int u = Ui.px(3);
         g2.drawLine(cx - u - 1, cy, cx - 1, cy + u - 1);
         g2.drawLine(cx - 1, cy + u - 1, cx + u + 1, cy - u + 1);
-    }
-
-    @Override
-    public AccessibleContext getAccessibleContext() {
-        if (accessibleContext == null) {
-            accessibleContext = new AccessibleJComponent() {
-                @Override
-                public AccessibleRole getAccessibleRole() {
-                    return AccessibleRole.LIST;
-                }
-            };
-            accessibleContext.setAccessibleName("일정 색");
-            accessibleContext.setAccessibleDescription(ColorMenu.nameOf(value()));
-        }
-        return accessibleContext;
     }
 }

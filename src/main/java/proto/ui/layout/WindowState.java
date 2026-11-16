@@ -41,16 +41,6 @@ public final class WindowState {
         return saved.isPresent() && PREFS.getBoolean(MAX, false) && ScreenFit.mostlyVisible(r);
     }
 
-    private static Optional<Rectangle> saved(Dimension min) {
-        int w = PREFS.getInt(W, -1);
-        int h = PREFS.getInt(H, -1);
-        if (w <= 0 || h <= 0) {
-            return Optional.empty();
-        }
-        return Optional.of(new Rectangle(PREFS.getInt(X, 0), PREFS.getInt(Y, 0), Math.max(w, min.width),
-                Math.max(h, min.height)));
-    }
-
     /** 최대화가 아닐 때의 크기·위치를 기억해 둔다. 최대화 중의 위치는 기억하지 않아서, 다음에 최대화를 풀면 원래 크기로 돌아간다. */
     public void remember(JFrame frame) {
         if ((frame.getExtendedState() & JFrame.MAXIMIZED_BOTH) == 0 && frame.isShowing()) {
@@ -67,5 +57,15 @@ public final class WindowState {
         PREFS.putInt(W, r.width);
         PREFS.putInt(H, r.height);
         PREFS.putBoolean(MAX, (frame.getExtendedState() & JFrame.MAXIMIZED_BOTH) != 0);
+    }
+
+    private static Optional<Rectangle> saved(Dimension min) {
+        int w = PREFS.getInt(W, -1);
+        int h = PREFS.getInt(H, -1);
+        if (w <= 0 || h <= 0) {
+            return Optional.empty();
+        }
+        return Optional.of(new Rectangle(PREFS.getInt(X, 0), PREFS.getInt(Y, 0), Math.max(w, min.width),
+                Math.max(h, min.height)));
     }
 }

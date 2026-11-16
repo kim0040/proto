@@ -32,6 +32,7 @@ final class PaletteResults extends JComponent implements Scrollable {
     private static final int ITEM_H = 38;
     private static final int HEAD_H = 30;
     private static final int PAD = 6;
+    private static final int WIDTH = 300;
 
     /** 한 줄: 묶음 제목이거나 명령 */
     private record Row(String header, Command command) {
@@ -113,6 +114,75 @@ final class PaletteResults extends JComponent implements Scrollable {
         select(i);
     }
 
+    /** 스크롤 없이 보여 줄 높이: 항목 8줄까지 */
+    int viewportHeight() {
+        return Math.min(totalHeight(), Ui.px(ITEM_H * 8 + HEAD_H));
+    }
+
+    @Override
+    public Dimension getPreferredSize() {
+        return new Dimension(Ui.px(WIDTH), totalHeight());
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        Ui.smooth(g2);
+        int y = 0;
+        for (int i = 0; i < rows.size(); i++) {
+            int h = heightOf(i);
+            Row r = rows.get(i);
+            if (r.command() == null) {
+                paintHeader(g2, r.header(), y, h);
+            } else {
+                paintItem(g2, r.command(), i == selected, y, h);
+            }
+            y += h;
+        }
+        g2.dispose();
+    }
+
+    // ---- Scrollable ----
+
+    @Override
+    public Dimension getPreferredScrollableViewportSize() {
+        return new Dimension(Ui.px(WIDTH), viewportHeight());
+    }
+
+    @Override
+    public int getScrollableUnitIncrement(Rectangle visible, int orientation, int direction) {
+        return Ui.px(ITEM_H);
+    }
+
+    @Override
+    public int getScrollableBlockIncrement(Rectangle visible, int orientation, int direction) {
+        return Math.max(visible.height - Ui.px(ITEM_H), Ui.px(ITEM_H));
+    }
+
+    @Override
+    public boolean getScrollableTracksViewportWidth() {
+        return true;
+    }
+
+    @Override
+    public boolean getScrollableTracksViewportHeight() {
+        return false;
+    }
+
+    @Override
+    public AccessibleContext getAccessibleContext() {
+        if (accessibleContext == null) {
+            accessibleContext = new AccessibleJComponent() {
+                @Override
+                public AccessibleRole getAccessibleRole() {
+                    return AccessibleRole.LIST;
+                }
+            };
+            accessibleContext.setAccessibleName("명령 목록");
+        }
+        return accessibleContext;
+    }
+
     /** from에서 step 방향으로 다음 명령 줄 (끝을 넘으면 반대쪽 끝) */
     private int nextCommand(int from, int step) {
         int n = rows.size();
@@ -168,34 +238,6 @@ final class PaletteResults extends JComponent implements Scrollable {
             h += heightOf(i);
         }
         return h;
-    }
-
-    /** 스크롤 없이 보여 줄 높이: 항목 8줄까지 */
-    int viewportHeight() {
-        return Math.min(totalHeight(), Ui.px(ITEM_H * 8 + HEAD_H));
-    }
-
-    @Override
-    public Dimension getPreferredSize() {
-        return new Dimension(Ui.px(300), totalHeight());
-    }
-
-    @Override
-    protected void paintComponent(Graphics g) {
-        Graphics2D g2 = (Graphics2D) g.create();
-        Ui.smooth(g2);
-        int y = 0;
-        for (int i = 0; i < rows.size(); i++) {
-            int h = heightOf(i);
-            Row r = rows.get(i);
-            if (r.command() == null) {
-                paintHeader(g2, r.header(), y, h);
-            } else {
-                paintItem(g2, r.command(), i == selected, y, h);
-            }
-            y += h;
-        }
-        g2.dispose();
     }
 
     private void paintHeader(Graphics2D g2, String text, int y, int h) {
@@ -278,46 +320,5 @@ final class PaletteResults extends JComponent implements Scrollable {
             s = s.substring(0, s.length() - 1);
         }
         return s + "…";
-    }
-
-    // ---- Scrollable ----
-
-    @Override
-    public Dimension getPreferredScrollableViewportSize() {
-        return new Dimension(Ui.px(300), viewportHeight());
-    }
-
-    @Override
-    public int getScrollableUnitIncrement(Rectangle visible, int orientation, int direction) {
-        return Ui.px(ITEM_H);
-    }
-
-    @Override
-    public int getScrollableBlockIncrement(Rectangle visible, int orientation, int direction) {
-        return Math.max(visible.height - Ui.px(ITEM_H), Ui.px(ITEM_H));
-    }
-
-    @Override
-    public boolean getScrollableTracksViewportWidth() {
-        return true;
-    }
-
-    @Override
-    public boolean getScrollableTracksViewportHeight() {
-        return false;
-    }
-
-    @Override
-    public AccessibleContext getAccessibleContext() {
-        if (accessibleContext == null) {
-            accessibleContext = new AccessibleJComponent() {
-                @Override
-                public AccessibleRole getAccessibleRole() {
-                    return AccessibleRole.LIST;
-                }
-            };
-            accessibleContext.setAccessibleName("명령 목록");
-        }
-        return accessibleContext;
     }
 }

@@ -3,19 +3,21 @@ package proto.ui;
 import proto.control.CategoryController;
 import proto.control.ReminderTimer;
 import proto.control.ScheduleController;
+import proto.ui.theme.CategoryColors;
 import proto.ui.theme.ThemeManager;
+import proto.ui.theme.Ui;
 
 import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 
 /**
- * [경계 boundary] 화면 시작점. Main이 controller들을 만든 뒤 Swing 이벤트 스레드(EDT)에서 부른다.
- * Main이 SwingUtilities.invokeLater 안에서 launch를 부른다 (화면은 이벤트 스레드에서만 만들어야 한다). 순서가 중요하다:
- * 테마(ThemeManager)를 켜고 → UiContext를 만들고 → MainFrame을 만든 뒤 → 리스너를 연결(attachListeners)하고 → 창을 보인다.
- * 글꼴·테마(FlatLaf)를 켜고 메인 창을 만들어 controller 리스너에 연결한 뒤 보여 준다.
+ * [경계 boundary] 화면 시작점: 글꼴·테마(FlatLaf)를 켜고 메인 창을 만들어 controller 리스너에 연결한 뒤 보여 준다.
+ * Main이 controller들을 만든 뒤 SwingUtilities.invokeLater 안에서 launch를 부른다 (화면은 이벤트 스레드(EDT)에서만 만들어야 한다).
+ * 순서가 중요하다: 테마(ThemeManager)를 켜고 → UiContext를 만들고 → MainFrame을 만든 뒤 → attachListeners로 리스너를 연결하고 → 창을 보인다.
  */
 public final class UiLauncher {
 
@@ -44,7 +46,7 @@ public final class UiLauncher {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        } catch (java.lang.reflect.InvocationTargetException | RuntimeException e) {
+        } catch (InvocationTargetException | RuntimeException e) {
             System.err.println(message);
         }
     }
@@ -66,12 +68,12 @@ public final class UiLauncher {
     public static MainFrame create(ScheduleController schedules, CategoryController categories,
                                    ReminderTimer reminders, Path dataDir) {
         ThemeManager.install();
-        if (!proto.ui.theme.Ui.isMac()) {
+        if (!Ui.isMac()) {
             JFrame.setDefaultLookAndFeelDecorated(true);
             JDialog.setDefaultLookAndFeelDecorated(true);
         }
         UiContext ctx = new UiContext(schedules, categories, reminders, dataDir);
-        proto.ui.theme.CategoryColors.setResolver(categories::colorOf);
+        CategoryColors.setResolver(categories::colorOf);
         return new MainFrame(ctx);
     }
 }

@@ -4,7 +4,7 @@ import proto.ui.AppState.Mode;
 import proto.ui.UiContext;
 import proto.ui.UiSettings;
 import proto.ui.component.Buttons;
-import proto.ui.component.Listeners;
+import proto.ui.component.Hairline;
 import proto.ui.component.PathLabel;
 import proto.ui.component.Segmented;
 import proto.ui.component.SwatchGrid;
@@ -23,28 +23,38 @@ import proto.ui.theme.Ui;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JTextField;
 import java.awt.BorderLayout;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalTime;
+import java.util.Arrays;
 import java.util.List;
 
 /**
  * [경계 boundary] 설정 내용: 화면(테마·강조색·애니메이션·시작 화면), 알림, 빈 시간 찾기, 데이터 폴더, 앱 정보를 묶음별로 보여 주고 바꾸는 즉시 적용·저장한다.
  * 설정 시트(SettingsSheet)가 열릴 때마다 하나 만들어 담는다. 테마·강조색·애니메이션을 바꾸면 시트 뒤의 화면에 바로 반영된다.
- * 예전에는 보기(ContentView) 하나였지만 지금은 지금 보던 화면 위에 뜨는 시트의 내용이라 스크롤은 시트가 맡는다.
+ * 보기가 아니라 지금 화면 위에 뜨는 시트의 내용이라, 스크롤은 시트가 맡는다.
  */
 public class SettingsView {
 
     private static final int MAX_WIDTH = 720;
+    private static final int TIME_FIELD_WIDTH = 104;
+    private static final int TIME_FIELD_HEIGHT = 36;
+    private static final String HOURS_HINT = "빈 시간 찾기를 열면 이 시간대가 먼저 채워져요";
     /** 묶여 나온 jar의 매니페스트(Implementation-Version)에서 읽는다. gradle run·테스트처럼 jar가 아니면 "개발판" */
     private static final String VERSION = versionText();
 
@@ -59,8 +69,7 @@ public class SettingsView {
     private final ToggleSwitch sound = new ToggleSwitch(UiSettings.reminderSound(), "알림 소리");
     private final TimeCombo from = new TimeCombo(UiSettings.freeFrom()).named("활동 시작 시각");
     private final TimeCombo to = new TimeCombo(UiSettings.freeTo()).named("활동 끝 시각");
-    private final TokenLabel hoursHint = new TokenLabel("빈 시간 찾기를 열면 이 시간대가 먼저 채워져요",
-            Fonts.regular(Fonts.SMALL), Tokens.MUTED);
+    private final TokenLabel hoursHint = new TokenLabel(HOURS_HINT, Fonts.regular(Fonts.SMALL), Tokens.MUTED);
 
     public SettingsView(UiContext ctx) {
         this.ctx = ctx;
@@ -69,9 +78,23 @@ public class SettingsView {
         refresh();
     }
 
+    /** 시트에 담을 내용 (스크롤은 시트가 한다) */
+    public JComponent component() {
+        return root;
+    }
+
+    /** 저장된 값으로 스위치·선택을 다시 맞춘다 */
+    public void refresh() {
+        theme.setValue(ThemeManager.choice(), false);
+        accent.setSelected(ThemeManager.accent().key());
+        start.setValue(UiSettings.startMode(), false);
+        animation.setOn(Motion.enabled());
+        sound.setOn(UiSettings.reminderSound());
+    }
+
     /** 강조색 7가지를 지금 테마에 맞는 색으로 보여 주는 견본 목록 */
     private static List<SwatchGrid.Swatch> accentSwatches() {
-        return java.util.Arrays.stream(Accent.values())
+        return Arrays.stream(Accent.values())
                 .map(a -> new SwatchGrid.Swatch(a.key(), a.label(), () -> a.color(ThemeManager.isDark())))
                 .toList();
     }
@@ -147,7 +170,7 @@ public class SettingsView {
         JPanel p = new JPanel(new BorderLayout(Ui.px(24), 0));
         p.setOpaque(false);
         p.setBorder(BorderFactory.createCompoundBorder(
-                new proto.ui.component.Hairline(),
+                new Hairline(),
                 BorderFactory.createEmptyBorder(Ui.px(14), 0, Ui.px(14), 0)));
         p.add(text, BorderLayout.CENTER);
         p.add(right, BorderLayout.EAST);
@@ -163,8 +186,8 @@ public class SettingsView {
     private JComponent hours() {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         p.setOpaque(false);
-        from.setPreferredSize(new Dimension(Ui.px(104), Ui.px(36)));
-        to.setPreferredSize(new Dimension(Ui.px(104), Ui.px(36)));
+        from.setPreferredSize(new Dimension(Ui.px(TIME_FIELD_WIDTH), Ui.px(TIME_FIELD_HEIGHT)));
+        to.setPreferredSize(new Dimension(Ui.px(TIME_FIELD_WIDTH), Ui.px(TIME_FIELD_HEIGHT)));
         p.add(from);
         p.add(Box.createHorizontalStrut(Ui.px(10)));
         p.add(new TokenLabel("–", Fonts.regular(Fonts.BODY), Tokens.MUTED));
@@ -190,7 +213,7 @@ public class SettingsView {
     /** 폴더를 연다. 폴더가 없거나 운영체제가 열지 못하면 토스트로 알리고 앱은 그대로 계속 쓴다 */
     private void openFolder(Path dir) {
         try {
-            if (!java.nio.file.Files.isDirectory(dir)) {
+            if (!Files.isDirectory(dir)) {
                 ctx.actions().error("데이터 폴더가 아직 없어요");
                 return;
             }
@@ -212,11 +235,11 @@ public class SettingsView {
         text.add(new TokenLabel(VERSION.equals("개발판") ? "개발판" : "버전 " + VERSION, Fonts.regular(Fonts.SMALL), Tokens.MUTED));
         JPanel center = new JPanel(new GridBagLayout());
         center.setOpaque(false);
-        java.awt.GridBagConstraints at = new java.awt.GridBagConstraints();
+        GridBagConstraints at = new GridBagConstraints();
         at.weightx = 1;
-        at.anchor = java.awt.GridBagConstraints.WEST;
+        at.anchor = GridBagConstraints.WEST;
         center.add(text, at);
-        javax.swing.Icon icon = AppIcon.icon(64);
+        Icon icon = AppIcon.icon(64);
         if (icon != null) {
             p.add(new JLabel(icon), BorderLayout.WEST);
         }
@@ -236,10 +259,10 @@ public class SettingsView {
         sound.addChangeListener(UiSettings::setReminderSound);
         for (TimeCombo c : List.of(from, to)) {
             c.addActionListener(e -> commitHours());
-            ((javax.swing.JTextField) c.getEditor().getEditorComponent()).addFocusListener(
-                    new java.awt.event.FocusAdapter() {
+            ((JTextField) c.getEditor().getEditorComponent()).addFocusListener(
+                    new FocusAdapter() {
                         @Override
-                        public void focusLost(java.awt.event.FocusEvent e) {
+                        public void focusLost(FocusEvent e) {
                             commitHours();
                         }
                     });
@@ -247,31 +270,15 @@ public class SettingsView {
     }
 
     private void commitHours() {
-        LocalTime f = from.time();
-        LocalTime t = to.time();
-        if (f == null || t == null || !f.isBefore(t)) {
+        LocalTime windowStart = from.time();
+        LocalTime windowEnd = to.time();
+        if (windowStart == null || windowEnd == null || !windowStart.isBefore(windowEnd)) {
             hoursHint.setText("시작은 끝보다 앞서야 해요 (예: 09:00 – 22:00)");
             hoursHint.setColorToken(Tokens.DANGER);
             return;
         }
-        UiSettings.setFreeRange(f, t);
-        hoursHint.setText("빈 시간 찾기를 열면 이 시간대가 먼저 채워져요");
+        UiSettings.setFreeRange(windowStart, windowEnd);
+        hoursHint.setText(HOURS_HINT);
         hoursHint.setColorToken(Tokens.MUTED);
-    }
-
-    // ---- 바깥에서 쓰는 것 ----
-
-    /** 시트에 담을 내용 (스크롤은 시트가 한다) */
-    public JComponent component() {
-        return root;
-    }
-
-    /** 저장된 값으로 스위치·선택을 다시 맞춘다 */
-    public void refresh() {
-        theme.setValue(ThemeManager.choice(), false);
-        accent.setSelected(ThemeManager.accent().key());
-        start.setValue(UiSettings.startMode(), false);
-        animation.setOn(Motion.enabled());
-        sound.setOn(UiSettings.reminderSound());
     }
 }

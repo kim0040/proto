@@ -81,7 +81,7 @@ public final class Fmt {
         return m == 0 ? h + "시간" : h + "시간 " + m + "분";
     }
 
-    /** 짧은 날짜 범위. 연도는 붙이지 않고 월·일만 쓴다. 예: "11월 10일 – 11월 16일"  */
+    /** 짧은 날짜 범위. 연도는 붙이지 않고 월·일만 쓴다. 예: "11월 10일 – 11월 16일" */
     public static String dateRange(LocalDate from, LocalDate to) {
         return monthDay(from) + " – " + monthDay(to);
     }

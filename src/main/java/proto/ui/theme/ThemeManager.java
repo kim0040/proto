@@ -21,6 +21,8 @@ import java.util.prefs.Preferences;
 public final class ThemeManager {
 
     private static final String PREF_KEY = "theme";
+    private static final int THEME_FADE_MS = 260;
+    private static final int ACCENT_FADE_MS = 180;
     /** 휠 한 칸을 부드럽게 이어 주는 스크롤 영역 모양 (proto.ui.component.SmoothScrollPaneUI) */
     private static final String SCROLL_PANE_UI = "proto.ui.component.SmoothScrollPaneUI";
     private static final Preferences PREFS = Preferences.userNodeForPackage(ThemeManager.class);
@@ -45,14 +47,6 @@ public final class ThemeManager {
         installTooltipTiming();
     }
 
-    /** 툴팁은 0.4초 머물러야 뜨고(스쳐 지나갈 때는 안 뜬다), 하나가 떠 있다가 옆으로 옮기면 바로 이어서 뜬다 */
-    private static void installTooltipTiming() {
-        ToolTipManager tips = ToolTipManager.sharedInstance();
-        tips.setInitialDelay(400);
-        tips.setReshowDelay(0);
-        tips.setDismissDelay(8000);
-    }
-
     public static boolean isDark() {
         return dark;
     }
@@ -70,7 +64,7 @@ public final class ThemeManager {
         if (toDark == dark) {
             return;
         }
-        relaf(animated, 260, () -> {
+        relaf(animated, THEME_FADE_MS, () -> {
             dark = toDark;
             setLaf(toDark);
         });
@@ -89,25 +83,11 @@ public final class ThemeManager {
         if (next == accent) {
             return;
         }
-        relaf(animated, 180, () -> {
+        relaf(animated, ACCENT_FADE_MS, () -> {
             accent = next;
             setLaf(dark);
         });
         UiSettings.setAccent(next);
-    }
-
-    /** LaF를 다시 켜서 열린 컴포넌트를 갱신한다. 애니메이션이 켜져 있으면 바뀌기 전 모습에서 새 모습으로 duration ms 동안 섞인다 */
-    private static void relaf(boolean animated, int duration, Runnable change) {
-        boolean fade = animated && Motion.enabled();
-        if (fade) {
-            FlatAnimatedLafChange.duration = duration;
-            FlatAnimatedLafChange.showSnapshot();
-        }
-        change.run();
-        FlatLaf.updateUI();
-        if (fade) {
-            FlatAnimatedLafChange.hideSnapshotWithAnimation();
-        }
     }
 
     /** 저장된 테마 방식 (처음에는 시스템) */
@@ -130,16 +110,6 @@ public final class ThemeManager {
         apply(!dark, true);
     }
 
-    private static void setLaf(boolean toDark) {
-        try {
-            FlatLaf.setGlobalExtraDefaults(accent.defaults(toDark));
-            UIManager.setLookAndFeel(toDark ? new FlatDarkLaf() : new FlatLightLaf());
-            UIManager.put("ScrollPaneUI", SCROLL_PANE_UI);
-        } catch (UnsupportedLookAndFeelException e) {
-            throw new IllegalStateException("테마를 켤 수 없어요", e);
-        }
-    }
-
     /** OS 설정이 어두운 모드인지 (알 수 없으면 false) */
     static boolean systemPrefersDark() {
         String os = System.getProperty("os.name", "").toLowerCase();
@@ -153,6 +123,38 @@ public final class ThemeManager {
             return out != null && out.trim().endsWith("0x0");
         }
         return false;
+    }
+
+    /** 툴팁은 0.4초 머물러야 뜨고(스쳐 지나갈 때는 안 뜬다), 하나가 떠 있다가 옆으로 옮기면 바로 이어서 뜬다 */
+    private static void installTooltipTiming() {
+        ToolTipManager tips = ToolTipManager.sharedInstance();
+        tips.setInitialDelay(400);
+        tips.setReshowDelay(0);
+        tips.setDismissDelay(8000);
+    }
+
+    /** LaF를 다시 켜서 열린 컴포넌트를 갱신한다. 애니메이션이 켜져 있으면 바뀌기 전 모습에서 새 모습으로 duration ms 동안 섞인다 */
+    private static void relaf(boolean animated, int duration, Runnable change) {
+        boolean fade = animated && Motion.enabled();
+        if (fade) {
+            FlatAnimatedLafChange.duration = duration;
+            FlatAnimatedLafChange.showSnapshot();
+        }
+        change.run();
+        FlatLaf.updateUI();
+        if (fade) {
+            FlatAnimatedLafChange.hideSnapshotWithAnimation();
+        }
+    }
+
+    private static void setLaf(boolean toDark) {
+        try {
+            FlatLaf.setGlobalExtraDefaults(accent.defaults(toDark));
+            UIManager.setLookAndFeel(toDark ? new FlatDarkLaf() : new FlatLightLaf());
+            UIManager.put("ScrollPaneUI", SCROLL_PANE_UI);
+        } catch (UnsupportedLookAndFeelException e) {
+            throw new IllegalStateException("테마를 켤 수 없어요", e);
+        }
     }
 
     private static String run(String... cmd) {

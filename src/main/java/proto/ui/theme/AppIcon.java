@@ -17,8 +17,7 @@ import java.util.TreeMap;
 
 /**
  * [경계 boundary] 앱 아이콘 PNG(여러 크기)를 읽어 창, 작업 표시줄/독, 화면 안 작은 로고에 연결한다.
- * MainFrame이 시작할 때 apply로 창에 연결하고, 사이드바가 icon으로 작은 로고를 그린다. 아이콘 파일이 없어도 앱은 정상으로 열린다.
- * 파일이 없으면 아무것도 하지 않고 넘어간다.
+ * MainFrame이 시작할 때 apply로 창에 연결하고, 사이드바가 icon으로 작은 로고를 그린다. 아이콘 파일이 없으면 아무것도 하지 않고 넘어가므로 앱은 정상으로 열린다.
  */
 public final class AppIcon {
 
@@ -28,25 +27,6 @@ public final class AppIcon {
     private static TreeMap<Integer, Image> cache;
 
     private AppIcon() {
-    }
-
-    private static synchronized TreeMap<Integer, Image> load() {
-        if (cache == null) {
-            cache = new TreeMap<>();
-            for (int size : SIZES) {
-                try (InputStream in = AppIcon.class.getResourceAsStream(String.format(PATH, size))) {
-                    if (in != null) {
-                        Image image = ImageIO.read(in);
-                        if (image != null) {
-                            cache.put(size, image);
-                        }
-                    }
-                } catch (IOException e) {
-                    // 읽을 수 없는 크기는 건너뛴다
-                }
-            }
-        }
-        return cache;
     }
 
     /** 읽을 수 있었던 모든 크기 (없으면 빈 목록) */
@@ -73,6 +53,25 @@ public final class AppIcon {
     /** 화면 안에 그릴 px 크기의 로고. 아이콘 파일이 없으면 null */
     public static Icon icon(int px) {
         return load().isEmpty() ? null : new Logo(px);
+    }
+
+    private static synchronized TreeMap<Integer, Image> load() {
+        if (cache == null) {
+            cache = new TreeMap<>();
+            for (int size : SIZES) {
+                try (InputStream in = AppIcon.class.getResourceAsStream(String.format(PATH, size))) {
+                    if (in != null) {
+                        Image image = ImageIO.read(in);
+                        if (image != null) {
+                            cache.put(size, image);
+                        }
+                    }
+                } catch (IOException e) {
+                    // 읽을 수 없는 크기는 건너뛴다
+                }
+            }
+        }
+        return cache;
     }
 
     /** 부드럽게 줄여 그리는 로고 (HiDPI에서는 두 배 크기 원본을 고른다) */

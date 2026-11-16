@@ -84,44 +84,6 @@ public final class PlainKeys implements KeyEventDispatcher {
         return true;
     }
 
-    /** 눌린 키를 단축키로 읽는다 (Ctrl·Alt·⌘가 함께 눌렸으면 한 글자 단축키가 아니다) */
-    private static Optional<PlainKey> keyOf(KeyEvent e) {
-        int others = InputEvent.CTRL_DOWN_MASK | InputEvent.ALT_DOWN_MASK | InputEvent.META_DOWN_MASK
-                | InputEvent.ALT_GRAPH_DOWN_MASK;
-        return PlainKey.of(e.getKeyCode(), e.getKeyChar(), e.isShiftDown(), (e.getModifiersEx() & others) != 0);
-    }
-
-    /**
-     * 글자 단축키는 키를 놓을 때 실행한다. 한글 입력기를 켜 둔 채 C를 누르면 'ㅊ'이 입력기에서 조금 늦게 도착해서, 누르자마자 새 일정 창을 열면
-     * 그 'ㅊ'이 새 창의 제목 칸에 들어가 버린다 (Esc도 글자 확정에 쓰여 창이 안 닫힌다). 놓을 때 열면 글자는 이미 지나간 뒤이다.
-     * 누르고 있는 동안 반복해서 오는 같은 키는 무시한다. 실행했거나 기다리던 키를 놓았으면 true.
-     */
-    private static void endComposition() {
-        Component owner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
-        if (owner != null && owner.getInputContext() != null) {
-            owner.getInputContext().endComposition();
-        }
-    }
-
-    private boolean runPending(KeyEvent e) {
-        if (pendingAction == null || e.getKeyCode() != pendingCode) {
-            return false;
-        }
-        if (e.getID() == KeyEvent.KEY_RELEASED) {
-            Runnable action = pendingAction;
-            pendingAction = null;
-            SwingUtilities.invokeLater(() -> {
-                endComposition();
-                action.run();
-            });
-            return true;
-        }
-        if (e.getID() == KeyEvent.KEY_PRESSED) {
-            e.consume();
-        }
-        return false;
-    }
-
     /**
      * 단축키로 쓴 글자 키는 곧이어 같은 글자의 "입력(KEY_TYPED)" 이벤트가 뒤따른다. 단축키가 입력칸이 있는 창(새 일정 등)을 열면 그 글자가
      * 새 칸에 들어가 버리므로, 뒤따르는 입력 이벤트 하나를 삼킨다. 키를 놓으면(KEY_RELEASED) 더는 기다리지 않는다.
@@ -145,11 +107,6 @@ public final class PlainKeys implements KeyEventDispatcher {
         return false;
     }
 
-    private boolean inThisWindow(KeyEvent e) {
-        Component c = e.getComponent();
-        return c == window || (c != null && SwingUtilities.getWindowAncestor(c) == window);
-    }
-
     /** 이 키를 단축키로 쓰지 말고 포커스 칸에 넘겨야 하는 경우인지 */
     static boolean yieldsTo(Component owner, PlainKey key) {
         if (MenuSelectionManager.defaultManager().getSelectedPath().length > 0) {
@@ -161,6 +118,50 @@ public final class PlainKeys implements KeyEventDispatcher {
             return true;
         }
         return key.isArrow() && usesArrow(owner, key.arrowCode());
+    }
+
+    /** 눌린 키를 단축키로 읽는다 (Ctrl·Alt·⌘가 함께 눌렸으면 한 글자 단축키가 아니다) */
+    private static Optional<PlainKey> keyOf(KeyEvent e) {
+        int others = InputEvent.CTRL_DOWN_MASK | InputEvent.ALT_DOWN_MASK | InputEvent.META_DOWN_MASK
+                | InputEvent.ALT_GRAPH_DOWN_MASK;
+        return PlainKey.of(e.getKeyCode(), e.getKeyChar(), e.isShiftDown(), (e.getModifiersEx() & others) != 0);
+    }
+
+    /** 조합 중인 한글 글자를 확정해, 창이 열린 뒤 그 글자가 새 칸에 끼어들지 않게 한다 */
+    private static void endComposition() {
+        Component owner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+        if (owner != null && owner.getInputContext() != null) {
+            owner.getInputContext().endComposition();
+        }
+    }
+
+    /**
+     * 글자 단축키는 키를 놓을 때 실행한다. 한글 입력기를 켜 둔 채 C를 누르면 'ㅊ'이 입력기에서 조금 늦게 도착해서, 누르자마자 새 일정 창을 열면
+     * 그 'ㅊ'이 새 창의 제목 칸에 들어가 버린다 (Esc도 글자 확정에 쓰여 창이 안 닫힌다). 놓을 때 열면 글자는 이미 지나간 뒤이다.
+     * 누르고 있는 동안 반복해서 오는 같은 키는 무시한다. 실행했거나 기다리던 키를 놓았으면 true.
+     */
+    private boolean runPending(KeyEvent e) {
+        if (pendingAction == null || e.getKeyCode() != pendingCode) {
+            return false;
+        }
+        if (e.getID() == KeyEvent.KEY_RELEASED) {
+            Runnable action = pendingAction;
+            pendingAction = null;
+            SwingUtilities.invokeLater(() -> {
+                endComposition();
+                action.run();
+            });
+            return true;
+        }
+        if (e.getID() == KeyEvent.KEY_PRESSED) {
+            e.consume();
+        }
+        return false;
+    }
+
+    private boolean inThisWindow(KeyEvent e) {
+        Component c = e.getComponent();
+        return c == window || (c != null && SwingUtilities.getWindowAncestor(c) == window);
     }
 
     /** 포커스 칸이 입력 맵에 이 방향키를 이미 갖고 있는지 (달력 칸의 날짜 이동 등) */

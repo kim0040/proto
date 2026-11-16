@@ -65,9 +65,9 @@ public final class CategoryColors {
 
     /** 아무 바탕색 위에서 읽히는 글자색 (WCAG 상대 휘도로 흰색/어두운 글자(#1F1F1F) 중 실제 대비가 큰 쪽) */
     public static Color onColor(Color bg) {
-        double l = luminance(bg);
-        double withWhite = 1.05 / (l + 0.05);
-        double withDark = (l + 0.05) / (DARK_TEXT_LUMINANCE + 0.05);
+        double lum = luminance(bg);
+        double withWhite = 1.05 / (lum + 0.05);
+        double withDark = (lum + 0.05) / (DARK_TEXT_LUMINANCE + 0.05);
         return withWhite >= withDark ? Color.WHITE : DARK_TEXT;
     }
 

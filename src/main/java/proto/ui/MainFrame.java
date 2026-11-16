@@ -13,11 +13,11 @@ import proto.ui.command.PlainKeys;
 import proto.ui.component.Overlay;
 import proto.ui.component.ReminderCard;
 import proto.ui.component.TokenPanel;
+import proto.ui.component.TransitionHost;
+import proto.ui.component.TransitionHost.Dir;
 import proto.ui.layout.SizeClass;
 import proto.ui.layout.WindowState;
 import proto.ui.sheet.SheetHost;
-import proto.ui.component.TransitionHost;
-import proto.ui.component.TransitionHost.Dir;
 import proto.ui.theme.AppIcon;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
@@ -27,16 +27,20 @@ import proto.ui.view.StatsView;
 import proto.ui.view.TodayView;
 import proto.ui.view.WeekView;
 
+import javax.swing.AbstractAction;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLayeredPane;
 import javax.swing.JPanel;
 import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import javax.swing.UIManager;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Taskbar;
 import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.KeyEvent;
@@ -49,11 +53,10 @@ import java.util.EnumMap;
 import java.util.Map;
 
 /**
- * [경계 boundary] 메인 창: 사이드바 + 제목줄 + 보기 영역을 조립하고, controller의 변화 알림(일정·카테고리·알림)을 받아 화면을 맞춘다.
- * 이 앱 화면의 중심이다. Main → UiLauncher가 만들고(attachListeners로 controller에 연결), 사이드바·헤더·보기를 한 창에 조립한다.
- * 화면에서 일어난 일은 ScheduleController 등에 요청하고, 결과는 ScheduleListener·CategoryListener·ReminderListener 메서드로 돌아와 화면을 다시
- * 그린다(F2, F6, F10).
- * "ui → controller만 호출, controller → 리스너로 ui에 알림"이라는 규칙이 이 클래스에서 만난다.
+ * [경계 boundary] 메인 창: 사이드바 + 제목줄 + 보기 영역을 한 창에 조립하고, controller의 변화 알림(일정·카테고리·알림)에 맞춰 화면을 다시 그린다.
+ * UiLauncher가 만들고 attachListeners로 controller에 연결한다. 화면에서 일어난 일은 ScheduleController 등에 요청하고,
+ * 결과는 ScheduleListener·CategoryListener·ReminderListener 메서드로 돌아온다 (F2, F6, F10).
+ * "ui는 controller만 호출하고, controller는 리스너로 ui에 알린다"는 규칙이 이 클래스에서 만난다.
  */
 public final class MainFrame extends JFrame implements ScheduleListener, CategoryListener, ReminderListener {
 
@@ -112,10 +115,145 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         ctx.breakpoints().onChange(sc -> applySize(sc, isShowing()));
         applySize(ctx.size(), false);
         switchTo(UiSettings.startMode(), false);
-        javax.swing.UIManager.addPropertyChangeListener(lafListener);
+        UIManager.addPropertyChangeListener(lafListener);
         saveBounds.setRepeats(false);
     }
 
+    /** controller 리스너로 등록한다 (Main이 만든 controller에 한 번만) */
+    public void attachListeners() {
+        ctx.schedules().addListener(this);
+        ctx.categories().addListener(this);
+        ctx.reminders().addListener(this);
+    }
+
+    /** 창을 정리할 때 controller·전역 리스너와 타이머를 떼어 낸다 */
+    @Override
+    public void dispose() {
+        if (!disposed) {
+            disposed = true;
+            ctx.schedules().removeListener(this);
+            ctx.categories().removeListener(this);
+            ctx.reminders().removeListener(this);
+            UIManager.removePropertyChangeListener(lafListener);
+            if (plainKeys != null) {
+                plainKeys.uninstall();
+            }
+            saveBounds.stop();
+            header.dispose();
+            drawer.closeNow();
+            overlay.clearAll();
+        }
+        super.dispose();
+    }
+
+    /**
+     * 날짜가 바뀌었으면(자정을 넘기거나 절전에서 깨어남) "오늘" 표시들을 새 날짜로 맞춘다.
+     * 왜 필요한가: 창을 열어 둔 채 자정을 넘기거나 노트북이 절전에서 깨어나면 "오늘"이 어제 날짜로 남는다. 창이 다시 활성화될 때와 화면이 갱신될 때 확인한다.
+     */
+    public void checkDate() {
+        LocalDate today = ctx.schedules().today();
+        if (today.equals(knownToday)) {
+            return;
+        }
+        LocalDate old = knownToday;
+        knownToday = today;
+        AppState s = ctx.state();
+        if (old.equals(s.anchor())) {
+            s.setAnchor(today);
+        }
+        if (old.equals(s.selectedDay())) {
+            s.setSelectedDay(today);
+        }
+        refreshCurrent(false);
+    }
+
+    @Override
+    public void schedulesChanged() {
+        if (disposed) {
+            return;
+        }
+        checkDate();
+        pruneReminders();
+        sidebar.refreshMonth();
+        refreshCurrent(true);
+    }
+
+    @Override
+    public void statesChanged() {
+        if (disposed) {
+            return;
+        }
+        checkDate();
+        refreshCurrent(true);
+    }
+
+    @Override
+    public void storageFailed(String message) {
+        ctx.actions().storageError(message);
+    }
+
+    @Override
+    public void categoriesChanged() {
+        String selected = ctx.state().categoryId();
+        boolean stillThere = selected == null
+                || ctx.categories().getCategories().stream().map(Category::getId).anyMatch(selected::equals);
+        if (!stillThere) {
+            ctx.state().setCategoryId(null);
+        }
+        sidebar.refreshCategories();
+        sidebar.refreshMonth();
+        refreshCurrent(false);
+    }
+
+    @Override
+    public void reminderDue(Occurrence occurrence, boolean snoozed) {
+        if (disposed) {
+            return;
+        }
+        overlay.addReminder(occurrence, snoozed, ctx.categories().nameOf(occurrence.categoryId()),
+                new ReminderCard.Actions() {
+                    @Override
+                    public boolean snooze(Occurrence o) {
+                        return ctx.actions().snoozeReminder(o, REMINDER_SNOOZE_MINUTES);
+                    }
+
+                    @Override
+                    public boolean complete(Occurrence o) {
+                        return ctx.actions().completeReminder(o);
+                    }
+                });
+        drawAttention();
+    }
+
+    /** 스크린샷 도구가 쓰는 현재 보기 */
+    public ContentView currentView() {
+        return current;
+    }
+
+    /** 스크린샷 도구가 쓰는 보기 전환 (애니메이션 없이) */
+    public void showMode(Mode mode) {
+        switchTo(mode, false);
+        current.shown();
+    }
+
+    /** 스크린샷 도구가 쓰는 서랍 열기/닫기 (애니메이션 없이) */
+    public void openDrawerForCapture() {
+        openDrawer();
+    }
+
+    public void closeDrawerForCapture() {
+        drawer.closeNow();
+    }
+
+    public UiContext context() {
+        return ctx;
+    }
+
+    public Overlay overlay() {
+        return overlay;
+    }
+
+    // 서랍은 띠(rail)보다 먼저 만들어서, 생성 중에는 rail 필드를 직접 쓸 수 없다. 나중에 불릴 때 읽도록 메서드로 감쌌다.
     private SidebarRail rail() {
         return rail;
     }
@@ -149,9 +287,9 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
     /** 화면에 붙어 있지 않은 보기들도 테마가 바뀌면 새 스타일로 맞춘다 */
     private void refreshHiddenViews() {
         views.values().stream().filter(v -> v != current)
-                .forEach(v -> javax.swing.SwingUtilities.updateComponentTreeUI(v.component()));
+                .forEach(v -> SwingUtilities.updateComponentTreeUI(v.component()));
         if (sidebar.getParent() == null) {
-            javax.swing.SwingUtilities.updateComponentTreeUI(sidebar);
+            SwingUtilities.updateComponentTreeUI(sidebar);
         }
     }
 
@@ -241,54 +379,6 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
     private void boundsChanged() {
         windowState.remember(this);
         saveBounds.restart();
-    }
-
-    /** controller 리스너로 등록한다 (Main이 만든 controller에 한 번만) */
-    public void attachListeners() {
-        ctx.schedules().addListener(this);
-        ctx.categories().addListener(this);
-        ctx.reminders().addListener(this);
-    }
-
-    /** 창을 정리할 때 controller·전역 리스너와 타이머를 떼어 낸다 */
-    @Override
-    public void dispose() {
-        if (!disposed) {
-            disposed = true;
-            ctx.schedules().removeListener(this);
-            ctx.categories().removeListener(this);
-            ctx.reminders().removeListener(this);
-            javax.swing.UIManager.removePropertyChangeListener(lafListener);
-            if (plainKeys != null) {
-                plainKeys.uninstall();
-            }
-            saveBounds.stop();
-            header.dispose();
-            drawer.closeNow();
-            overlay.clearAll();
-        }
-        super.dispose();
-    }
-
-    /**
-     * 날짜가 바뀌었으면(자정을 넘기거나 절전에서 깨어남) "오늘" 표시들을 새 날짜로 맞춘다.
-     * 왜 필요한가: 창을 열어 둔 채 자정을 넘기거나 노트북이 절전에서 깨어나면 "오늘"이 어제 날짜로 남는다. 창이 다시 활성화될 때와 화면이 갱신될 때 확인한다.
-     */
-    public void checkDate() {
-        LocalDate today = ctx.schedules().today();
-        if (today.equals(knownToday)) {
-            return;
-        }
-        LocalDate old = knownToday;
-        knownToday = today;
-        AppState s = ctx.state();
-        if (old.equals(s.anchor())) {
-            s.setAnchor(today);
-        }
-        if (old.equals(s.selectedDay())) {
-            s.setSelectedDay(today);
-        }
-        refreshCurrent(false);
     }
 
     // ---- 이동 ----
@@ -471,82 +561,22 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         String name = "proto-" + key;
         JComponent root = getRootPane();
         root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(key, modifiers), name);
-        root.getActionMap().put(name, new javax.swing.AbstractAction() {
+        root.getActionMap().put(name, new AbstractAction() {
             @Override
             public boolean isEnabled() {
                 return keysFree();
             }
 
             @Override
-            public void actionPerformed(java.awt.event.ActionEvent e) {
+            public void actionPerformed(ActionEvent e) {
                 action.run();
             }
         });
     }
 
-    // ---- controller 알림 ----
-
-    @Override
-    public void schedulesChanged() {
-        if (disposed) {
-            return;
-        }
-        checkDate();
-        pruneReminders();
-        sidebar.refreshMonth();
-        refreshCurrent(true);
-    }
-
-    @Override
-    public void statesChanged() {
-        if (disposed) {
-            return;
-        }
-        checkDate();
-        refreshCurrent(true);
-    }
-
-    @Override
-    public void storageFailed(String message) {
-        ctx.actions().storageError(message);
-    }
-
     /** 일정이 바뀐 뒤, 지워졌거나 완료됐거나 하루 종일로 바뀐(알림 제외 대상) 일정의 알림 카드는 치운다 */
     private void pruneReminders() {
         overlay.pruneReminders(ctx.actions()::reminderStillActive);
-    }
-
-    @Override
-    public void categoriesChanged() {
-        String selected = ctx.state().categoryId();
-        boolean stillThere = selected == null
-                || ctx.categories().getCategories().stream().map(Category::getId).anyMatch(selected::equals);
-        if (!stillThere) {
-            ctx.state().setCategoryId(null);
-        }
-        sidebar.refreshCategories();
-        sidebar.refreshMonth();
-        refreshCurrent(false);
-    }
-
-    @Override
-    public void reminderDue(Occurrence occurrence, boolean snoozed) {
-        if (disposed) {
-            return;
-        }
-        overlay.addReminder(occurrence, snoozed, ctx.categories().nameOf(occurrence.categoryId()),
-                new ReminderCard.Actions() {
-                    @Override
-                    public boolean snooze(Occurrence o) {
-                        return ctx.actions().snoozeReminder(o, REMINDER_SNOOZE_MINUTES);
-                    }
-
-                    @Override
-                    public boolean complete(Occurrence o) {
-                        return ctx.actions().completeReminder(o);
-                    }
-                });
-        drawAttention();
     }
 
     /**
@@ -570,33 +600,5 @@ public final class MainFrame extends JFrame implements ScheduleListener, Categor
         } catch (RuntimeException e) {
             // 지원하지 않는 환경에서는 카드만 보여 준다
         }
-    }
-
-    /** 스크린샷 도구가 쓰는 현재 보기 */
-    public ContentView currentView() {
-        return current;
-    }
-
-    /** 스크린샷 도구가 쓰는 보기 전환 (애니메이션 없이) */
-    public void showMode(Mode mode) {
-        switchTo(mode, false);
-        current.shown();
-    }
-
-    /** 스크린샷 도구가 쓰는 서랍 열기/닫기 (애니메이션 없이) */
-    public void openDrawerForCapture() {
-        openDrawer();
-    }
-
-    public void closeDrawerForCapture() {
-        drawer.closeNow();
-    }
-
-    public UiContext context() {
-        return ctx;
-    }
-
-    public Overlay overlay() {
-        return overlay;
     }
 }

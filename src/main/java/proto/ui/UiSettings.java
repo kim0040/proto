@@ -3,6 +3,7 @@ package proto.ui;
 import proto.ui.AppState.Mode;
 import proto.ui.theme.Accent;
 
+import java.time.DateTimeException;
 import java.time.LocalTime;
 import java.util.prefs.Preferences;
 
@@ -87,7 +88,7 @@ public final class UiSettings {
     private static LocalTime read(String key, LocalTime fallback) {
         try {
             return LocalTime.parse(PREFS.get(key, fallback.toString()));
-        } catch (java.time.DateTimeException e) {
+        } catch (DateTimeException e) {
             return fallback;
         }
     }

@@ -11,9 +11,8 @@ import java.util.Map;
 
 /**
  * [경계 boundary] 글자 폭 재기와 그리기에 쓰는 글꼴 대체(fallback) 도우미.
- * TextUtil(말줄임·줄바꿈), TokenLabel, StrikeLabel, PillList 등 글자 폭을 재거나 그리는 곳이 모두 쓴다. 폭을 잴 때와 그릴 때 같은 글꼴을 써야 말줄임 위치가 어긋나지
- * 않는다.
  * 번들 글꼴(Pretendard)에 없는 글자(이모지 등)는 자바 기본 논리 글꼴(Dialog)로 그려서 네모(□)로 깨지지 않게 한다.
+ * TextUtil(말줄임·줄바꿈), TokenLabel, StrikeLabel, PillList 등 글자 폭을 재거나 그리는 곳이 모두 쓴다. 폭을 잴 때와 그릴 때 같은 글꼴을 써야 말줄임 위치가 어긋나지 않는다.
  */
 public final class Glyphs {
 
@@ -80,12 +79,12 @@ public final class Glyphs {
             int cp = text.codePointAt(i);
             i += Character.charCount(cp);
             boolean joiner = cp == 0x200D || (cp >= 0xFE00 && cp <= 0xFE0F) || (cp >= 0x1F3FB && cp <= 0x1F3FF);
-            boolean fb = joiner ? curFallback && cur.length() > 0 : !primary.canDisplay(cp);
-            if (cur.length() > 0 && fb != curFallback) {
+            boolean isFallback = joiner ? curFallback && cur.length() > 0 : !primary.canDisplay(cp);
+            if (cur.length() > 0 && isFallback != curFallback) {
                 out.add(new Run(cur.toString(), curFallback));
                 cur.setLength(0);
             }
-            curFallback = fb;
+            curFallback = isFallback;
             cur.appendCodePoint(cp);
         }
         if (cur.length() > 0) {

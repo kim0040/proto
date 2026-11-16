@@ -101,6 +101,61 @@ final class SheetLayer extends JComponent {
         }
     }
 
+    /** 닫히는 중에는 이 층이 없는 것처럼 클릭이 아래로 지나간다 */
+    @Override
+    public boolean contains(int x, int y) {
+        return !closing && super.contains(x, y);
+    }
+
+    /** 카드 안 입력칸이 스스로 다시 그릴 때도 이 층을 거쳐 그려야 애니메이션 중 변환(크기·투명도)이 어긋나지 않는다 */
+    @Override
+    public boolean isPaintingOrigin() {
+        return true;
+    }
+
+    @Override
+    public void doLayout() {
+        boolean mac = Ui.isMac();
+        int margin = Ui.px(MARGIN);
+        int top = mac ? Ui.px(MAC_TOP) : margin;
+        Dimension max = SheetBounds.max(getWidth(), getHeight(), Ui.px(SheetBounds.NARROW), Ui.px(SheetBounds.SHORT),
+                margin, top);
+        card.setBounds(SheetBounds.center(getWidth(), getHeight(), sheet.fit(max), top));
+        card.validate();
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        float scrim = motion.scrim();
+        if (scrim <= 0f) {
+            return;
+        }
+        g.setColor(Tokens.alpha(Color.BLACK, (ThemeManager.isDark() ? SCRIM_DARK : SCRIM_LIGHT) * scrim));
+        g.fillRect(0, 0, getWidth(), getHeight());
+    }
+
+    /** 카드 바탕(그림자·면·테두리)과 내용을 움직임 값에 맞춰 그린다. 움직임이 없을 때는 변환 없이 그려 글자가 흐려지지 않는다 */
+    @Override
+    protected void paintChildren(Graphics g) {
+        if (motion.opacity() <= 0.003f) {
+            return;
+        }
+        Graphics2D g2 = (Graphics2D) g.create();
+        if (!motion.atRest()) {
+            Rectangle r = card.getBounds();
+            double cx = r.getCenterX();
+            double cy = r.getCenterY();
+            g2.translate(cx + motion.shakeOffset() * Ui.px(SheetMotion.SHAKE_PX),
+                    cy + motion.rise() * Ui.px(SheetMotion.RISE_PX));
+            g2.scale(motion.scale(), motion.scale());
+            g2.translate(-cx, -cy);
+            g2.setComposite(AlphaComposite.SrcOver.derive(motion.opacity()));
+        }
+        paintCard(g2, card.getBounds());
+        super.paintChildren(g2);
+        g2.dispose();
+    }
+
     private boolean usable(Component c) {
         return c != null && c.isShowing() && c.isEnabled() && c.isFocusable() && isAncestorOf(c);
     }
@@ -138,29 +193,6 @@ final class SheetLayer extends JComponent {
         });
     }
 
-    /** 닫히는 중에는 이 층이 없는 것처럼 클릭이 아래로 지나간다 */
-    @Override
-    public boolean contains(int x, int y) {
-        return !closing && super.contains(x, y);
-    }
-
-    /** 카드 안 입력칸이 스스로 다시 그릴 때도 이 층을 거쳐 그려야 애니메이션 중 변환(크기·투명도)이 어긋나지 않는다 */
-    @Override
-    public boolean isPaintingOrigin() {
-        return true;
-    }
-
-    @Override
-    public void doLayout() {
-        boolean mac = Ui.isMac();
-        int margin = Ui.px(MARGIN);
-        int top = mac ? Ui.px(MAC_TOP) : margin;
-        Dimension max = SheetBounds.max(getWidth(), getHeight(), Ui.px(SheetBounds.NARROW), Ui.px(SheetBounds.SHORT),
-                margin, top);
-        card.setBounds(SheetBounds.center(getWidth(), getHeight(), sheet.fit(max), top));
-        card.validate();
-    }
-
     private void motionChanged(boolean scrimChanged) {
         if (scrimChanged) {
             repaint();
@@ -170,38 +202,6 @@ final class SheetLayer extends JComponent {
         Rectangle r = card.getBounds();
         r.grow(pad, pad);
         repaint(r);
-    }
-
-    @Override
-    protected void paintComponent(Graphics g) {
-        float s = motion.scrim();
-        if (s <= 0f) {
-            return;
-        }
-        g.setColor(Tokens.alpha(Color.BLACK, (ThemeManager.isDark() ? SCRIM_DARK : SCRIM_LIGHT) * s));
-        g.fillRect(0, 0, getWidth(), getHeight());
-    }
-
-    /** 카드 바탕(그림자·면·테두리)과 내용을 움직임 값에 맞춰 그린다. 움직임이 없을 때는 변환 없이 그려 글자가 흐려지지 않는다 */
-    @Override
-    protected void paintChildren(Graphics g) {
-        if (motion.opacity() <= 0.003f) {
-            return;
-        }
-        Graphics2D g2 = (Graphics2D) g.create();
-        if (!motion.atRest()) {
-            Rectangle r = card.getBounds();
-            double cx = r.getCenterX();
-            double cy = r.getCenterY();
-            g2.translate(cx + motion.shakeOffset() * Ui.px(SheetMotion.SHAKE_PX),
-                    cy + motion.rise() * Ui.px(SheetMotion.RISE_PX));
-            g2.scale(motion.scale(), motion.scale());
-            g2.translate(-cx, -cy);
-            g2.setComposite(AlphaComposite.SrcOver.derive(motion.opacity()));
-        }
-        paintCard(g2, card.getBounds());
-        super.paintChildren(g2);
-        g2.dispose();
     }
 
     /** 앱의 카드 모양: 옅은 그림자 몇 겹 + 둥근 면 + 얇은 테두리 */

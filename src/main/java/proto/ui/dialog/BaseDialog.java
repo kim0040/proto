@@ -22,15 +22,17 @@ import java.awt.KeyboardFocusManager;
 import java.awt.SecondaryLoop;
 import java.awt.Toolkit;
 import java.awt.Window;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 
 /**
- * [경계 boundary] 모든 대화상자의 공통 틀: 메인 창 안에 스크림과 함께 뜨는 시트이다. 열기는 showDialog, 닫기는 close(취소 여부)로 통일한다.
- * ScheduleDialog, CategoryDialog, FreeSlotDialog, ConfirmDialog, SettingsSheet가 모두 이 클래스를 상속한다. 호출한 쪽(UiActions 등)은 예전처럼
+ * [경계 boundary] 모든 대화상자의 공통 틀: 메인 창 안에 스크림과 함께 뜨는 시트. 열기는 showDialog, 닫기는 close(취소 여부)로 통일한다.
+ * ScheduleDialog, CategoryDialog, FreeSlotDialog, ConfirmDialog, SettingsSheet가 이 클래스를 상속한다. 호출한 쪽(UiActions 등)은
  * showDialog가 닫힐 때까지 기다렸다가 wasCancelled로 결과를 읽는다.
- * 왜 별도 창(JDialog)이 아닌가: 운영체제 창은 열고 닫을 때 깜박이고 메인 창의 포커스를 빼앗으며 바깥 클릭을 받을 수 없다. 그래서 시트는 메인 창의
+ * 별도 창(JDialog)을 쓰지 않는 이유: 운영체제 창은 열고 닫을 때 깜박이고 메인 창의 포커스를 빼앗으며 바깥 클릭을 받을 수 없다. 그래서 시트는 메인 창의
  * 시트 층(SheetHost)에 올리고, 기다리기는 SecondaryLoop(이벤트를 계속 돌리면서 이 자리에서만 멈춤)로 한다. 시트에서 연 확인 창은 그 위에 쌓인다.
  * 바깥(스크림) 클릭과 Esc는 기본으로 취소이고, 입력이 있는 시트는 onScrimClick·onEscape를 바꿔 막거나 되묻는다.
- * 내용은 스크롤되는 영역에 담기고 창보다 커지지 않는다. 아래 버튼 줄(footer)은 스크롤에서 빼서 늘 보이게 둘 수 있다.
+ * 내용은 창보다 커지지 않는 스크롤 영역에 담기고, 아래 버튼 줄(footer)은 스크롤에서 빼서 늘 보이게 둘 수 있다.
  */
 public class BaseDialog extends JPanel implements Sheet {
 
@@ -80,23 +82,6 @@ public class BaseDialog extends JPanel implements Sheet {
             footer.setBorder(BorderFactory.createEmptyBorder(Ui.px(16), 0, 0, 0));
             add(footer, BorderLayout.SOUTH);
         }
-    }
-
-    /** 스크롤바가 보일 때만 내용 오른쪽에 틈을 둔다. 스크롤바가 입력칸·스위치에 붙어 보이지 않게 한다 */
-    private void keepGapBesideScrollbar(JComponent holder) {
-        // 처음에는 숨겨 두어야, 처음부터 넘치는 내용에서도 "보이게 됨" 알림이 온다
-        scroll.getVerticalScrollBar().setVisible(false);
-        scroll.getVerticalScrollBar().addComponentListener(new java.awt.event.ComponentAdapter() {
-            @Override
-            public void componentShown(java.awt.event.ComponentEvent e) {
-                holder.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, Ui.px(SCROLL_GAP)));
-            }
-
-            @Override
-            public void componentHidden(java.awt.event.ComponentEvent e) {
-                holder.setBorder(null);
-            }
-        });
     }
 
     /** 내용 스크롤 영역 (스크린샷 도구가 맨 아래로 내릴 때 쓴다) */
@@ -203,20 +188,6 @@ public class BaseDialog extends JPanel implements Sheet {
         loop = null;
     }
 
-    /** 부모를 모를 때: 지금 활성 창, 없으면 보이는 첫 창 */
-    private static Component fallbackWindow() {
-        Window active = KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
-        if (active instanceof RootPaneContainer) {
-            return active;
-        }
-        for (Frame f : Frame.getFrames()) {
-            if (f.isShowing() && f instanceof RootPaneContainer) {
-                return f;
-            }
-        }
-        return null;
-    }
-
     /** 내용이 바뀌어 크기를 다시 맞출 때 쓴다 (검증 오류가 나타나는 등). 열리기 전에는 아무것도 하지 않는다 */
     protected void refit() {
         if (host != null && !closed) {
@@ -280,5 +251,36 @@ public class BaseDialog extends JPanel implements Sheet {
             accessibleContext.setAccessibleName(title);
         }
         return accessibleContext;
+    }
+
+    /** 스크롤바가 보일 때만 내용 오른쪽에 틈을 둔다. 스크롤바가 입력칸·스위치에 붙어 보이지 않게 한다 */
+    private void keepGapBesideScrollbar(JComponent holder) {
+        // 처음에는 숨겨 두어야, 처음부터 넘치는 내용에서도 "보이게 됨" 알림이 온다
+        scroll.getVerticalScrollBar().setVisible(false);
+        scroll.getVerticalScrollBar().addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                holder.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, Ui.px(SCROLL_GAP)));
+            }
+
+            @Override
+            public void componentHidden(ComponentEvent e) {
+                holder.setBorder(null);
+            }
+        });
+    }
+
+    /** 부모를 모를 때: 지금 활성 창, 없으면 보이는 첫 창 */
+    private static Component fallbackWindow() {
+        Window active = KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
+        if (active instanceof RootPaneContainer) {
+            return active;
+        }
+        for (Frame f : Frame.getFrames()) {
+            if (f.isShowing() && f instanceof RootPaneContainer) {
+                return f;
+            }
+        }
+        return null;
     }
 }

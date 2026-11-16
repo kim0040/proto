@@ -1,8 +1,7 @@
 package proto.ui.dialog;
 
-import proto.ui.component.ColorLabels;
-
 import proto.entity.CategoryPalette;
+import proto.ui.component.ColorLabels;
 import proto.ui.theme.CategoryColors;
 import proto.ui.theme.Ui;
 
@@ -51,10 +50,10 @@ public final class ColorMenu {
     }
 
     private static JCheckBoxMenuItem item(String text, Supplier<Color> color, boolean checked, Runnable action) {
-        JCheckBoxMenuItem i = new JCheckBoxMenuItem(text, new DotIcon(color), checked);
-        i.setIconTextGap(Ui.px(10));
-        i.addActionListener(e -> action.run());
-        return i;
+        JCheckBoxMenuItem menuItem = new JCheckBoxMenuItem(text, new DotIcon(color), checked);
+        menuItem.setIconTextGap(Ui.px(10));
+        menuItem.addActionListener(e -> action.run());
+        return menuItem;
     }
 
     /** 메뉴 항목 앞의 색 점 */

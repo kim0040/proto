@@ -3,9 +3,9 @@ package proto.ui;
 import proto.control.ScheduleDraft;
 import proto.entity.Category;
 import proto.entity.Occurrence;
-import proto.ui.component.OccurrenceHolder;
 import proto.ui.AppState.Mode;
 import proto.ui.command.CommandHost;
+import proto.ui.component.OccurrenceHolder;
 import proto.ui.theme.ThemeManager;
 import proto.ui.theme.ThemeManager.Choice;
 

@@ -37,6 +37,7 @@ import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Point;
 import java.awt.event.ComponentAdapter;
@@ -48,11 +49,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * [경계 boundary] 이번 주 보기 (F2): 월~일 7칸의 시간표. 요일 머리글 아래의 하루 종일 줄(AllDayRow)과 시각 눈금 위에 일정을 시작~끝 길이로 놓고, 끌어서 옮기거나 크기를 바꾸고, 빈 곳을 끌어 새 일정을 만든다.
- * MainFrame이 만들고, refresh 때 ScheduleController#getOccurrences로 월~일 7일치를 읽어 TimelineGrid(본문)와 TimelineHeader(요일 줄)에 채운다.
+ * [경계 boundary] 이번 주 보기 (F2): 월~일 7칸의 시간표. 일정을 시작~끝 길이로 놓고, 끌어서 옮기거나 크기를 바꾸고, 빈 곳을 끌어 새 일정을 만든다.
+ * MainFrame이 만들고, refresh 때 ScheduleController#getOccurrences로 7일치를 읽어 TimelineGrid(본문), TimelineHeader(요일 줄), AllDayRow(하루 종일 줄)에 채운다.
  * 옮기기는 ScheduleMover, 새 일정은 UiActions#openNew로 요청한다. 하루 칸이 너무 좁아지면(약 110px 미만) 날짜별로 묶은 세로 목록(아젠다)으로 바꿔 WeekChip을 보여 준다.
  * 처음 보일 때와 주가 바뀔 때는 기본 활동 시작 시각(UiSettings#freeFrom) 30분 전이 맨 위에 오게 스크롤한다 (그 주 가장 이른 일정이 더 이르면 그 일정부터).
- * 하루 종일 줄은 시간표 스크롤 영역 높이의 40%(적어도 한 줄)까지만 차지하고, 더 길면 그 안에서 따로 스크롤된다(AllDayPane). 시간 본문이 늘 보이게 하려는 것이다.
+ * 하루 종일 줄은 시간표 스크롤 영역 높이의 40%까지만 차지하고, 더 길면 그 안에서 따로 스크롤된다(AllDayPane). 시간 본문이 늘 보이게 하려는 것이다.
  */
 public class WeekView implements ContentView {
 
@@ -107,6 +108,76 @@ public class WeekView implements ContentView {
         listenArrival();
     }
 
+    @Override
+    public void applySize(SizeClass sc) {
+        size = sc;
+        applyPadding();
+        chooseMode();
+    }
+
+    @Override
+    public JComponent component() {
+        return root;
+    }
+
+    /** 이번 주가 아니면 "11월 둘째 주"처럼 쓴다. 한 주가 두 달에 걸칠 수 있어서 그 주의 목요일이 속한 달과 주차로 정한다. */
+    @Override
+    public String title() {
+        LocalDate start = ctx.state().weekStart();
+        if (start.equals(thisWeekStart())) {
+            return "이번 주";
+        }
+        LocalDate thursday = start.plusDays(3);
+        return thursday.getMonthValue() + "월 " + ORDINALS[(thursday.getDayOfMonth() - 1) / 7] + " 주";
+    }
+
+    @Override
+    public String subtitle() {
+        LocalDate start = ctx.state().weekStart();
+        return Fmt.dateRange(start, start.plusDays(6));
+    }
+
+    @Override
+    public boolean hasNavigator() {
+        return true;
+    }
+
+    @Override
+    public boolean usesFilters() {
+        return true;
+    }
+
+    @Override
+    public void refresh(boolean animate) {
+        AppState s = ctx.state();
+        LocalDate start = s.weekStart();
+        if (grid.isDragging(start) || allDay.isDragging(start)) {
+            // 같은 주를 그대로 보는 중에 일정을 끌고 있으면 새로 그리지 않는다 (1분 상태 새로 고침이 끌기를 끊지 않게).
+            // 놓으면 controller가 바뀐 일정을 알려 와 그때 다시 그린다
+            return;
+        }
+        data = ctx.schedules().getOccurrences(start, start.plusDays(6), s.categoryId(), s.keyword());
+        chooseMode();
+        render();
+    }
+
+    /** 이 보기가 화면에 다시 나타났을 때(사용자가 이동해 왔을 때만) 처음 위치로 부드럽게 스크롤한다. 주를 넘길 때는 보던 위치를 그대로 둔다 */
+    @Override
+    public void shown() {
+        if (!arrived) {
+            return;
+        }
+        arrived = false;
+        pendingScroll = true;
+        glideNext = true;
+        SwingUtilities.invokeLater(this::scrollToWork);
+    }
+
+    /** 스크린샷·점검용: 지금 아젠다 모양인지 */
+    public boolean isAgenda() {
+        return agendaMode;
+    }
+
     /** 스크롤해도 남는 위쪽 줄: 요일 머리글 아래에 하루 종일 줄을 붙인다 */
     private JPanel topBar() {
         JPanel top = new JPanel(new BorderLayout());
@@ -156,6 +227,149 @@ public class WeekView implements ContentView {
                 SwingUtilities.invokeLater(WeekView.this::scrollToWork);
             }
         });
+    }
+
+    private static JScrollPane scroll(JComponent view) {
+        JScrollPane pane = new JScrollPane(view);
+        pane.setOpaque(false);
+        pane.getViewport().setOpaque(false);
+        return pane;
+    }
+
+    private void applyPadding() {
+        int side = Ui.px(size.gutter() - 8);
+        int bottom = Ui.px(24 - size.verticalTrim());
+        columnsScroll.setBorder(BorderFactory.createEmptyBorder(Ui.px(4), side, bottom, side));
+        agendaScroll.setBorder(BorderFactory.createEmptyBorder(Ui.px(4), side, bottom, side));
+    }
+
+    /**
+     * 칸 너비로 칸 보기/아젠다를 고른다. 바뀌었으면 true. 왜 두 개의 기준(110/122)인가: 한 기준으로만 바꾸면 창 너비가 경계 근처에서 조금씩 변할 때마다 보기가 칸↔아젠다로 깜박인다.
+     * 아젠다에서 칸으로 돌아갈 때는 좀 더 넓어야 돌아가게 해서 이를 막는다.
+     */
+    private boolean chooseMode() {
+        int viewport = root.getWidth() - Ui.px(size.gutter() - 8) * 2 - Ui.px(12);
+        if (root.getWidth() <= 0) {
+            return false;
+        }
+        int colWidth = UIScale.unscale((viewport - TimelineGrid.gutterWidth()) / 7);
+        boolean next = agendaMode ? colWidth < BACK_TO_COLUMNS : colWidth < MIN_COLUMN;
+        boolean changed = next != agendaMode;
+        agendaMode = next;
+        return changed;
+    }
+
+    private LocalDate thisWeekStart() {
+        LocalDate today = ctx.schedules().today();
+        return today.minusDays(today.getDayOfWeek().getValue() - 1L);
+    }
+
+    /**
+     * 기본 활동 시작 시각 30분 전이 맨 위에 오게 스크롤한다. 그 주에 더 이른 일정이 있으면 그 일정(15분 전)부터 보인다.
+     * 아직 화면 크기가 정해지지 않았으면 pendingScroll을 남겨 두었다가 크기가 정해진 뒤 한 번 한다.
+     */
+    private void scrollToWork() {
+        JViewport vp = columnsScroll.getViewport();
+        if (!pendingScroll || agendaMode || vp.getHeight() <= 0) {
+            return;
+        }
+        int minute = Math.max(0, TimeSnap.minuteOf(UiSettings.freeFrom()) - 30);
+        for (Occurrence o : data) {
+            if (!o.allDay()) {
+                minute = Math.min(minute, Math.max(0, TimeSnap.minuteOf(o.startTime()) - 15));
+            }
+        }
+        int maxY = Math.max(0, grid.getPreferredSize().height - vp.getHeight());
+        int y = Math.min(maxY, grid.yOfMinute(minute) - Ui.px(8));
+        pendingScroll = false;
+        if (glideNext) {
+            glideNext = false;
+            glide.to(y, 260);
+        } else {
+            vp.setViewPosition(new Point(0, y));
+        }
+    }
+
+    /** 지금 고른 모양(칸/아젠다)으로 데이터를 다시 그린다 */
+    private void render() {
+        LocalDate start = ctx.state().weekStart();
+        if (agendaMode) {
+            renderAgenda(start);
+        } else {
+            renderColumns(start);
+        }
+        ((CardLayout) root.getLayout()).show(root, agendaMode ? AGENDA : COLUMNS);
+        applyChipWidth();
+        SwingUtilities.invokeLater(this::scrollToWork);
+    }
+
+    private void renderColumns(LocalDate start) {
+        grid.setWeek(start, data);
+        allDay.setWeek(start, ctx.schedules().today(), data);
+        header.setWeek(start, ctx.schedules().today(), ctx.state().selectedDay());
+    }
+
+    private List<Occurrence> itemsOf(LocalDate day) {
+        return data.stream().filter(o -> o.date().equals(day)).toList();
+    }
+
+    private void applyChipWidth() {
+        int wrapWidth = Math.max(Ui.px(120), root.getWidth() - Ui.px(size.gutter() - 8) * 2 - Ui.px(16));
+        agendaChips.forEach(c -> c.setWrapWidth(wrapWidth));
+    }
+
+    // ---- 아젠다 (칸이 좁을 때) ----
+
+    private void renderAgenda(LocalDate start) {
+        agenda.removeAll();
+        agendaChips.clear();
+        for (int i = 0; i < 7; i++) {
+            LocalDate day = start.plusDays(i);
+            agenda.add(agendaDay(day, itemsOf(day)));
+        }
+        agenda.revalidate();
+        agenda.repaint();
+    }
+
+    private JPanel agendaDay(LocalDate day, List<Occurrence> items) {
+        JPanel section = new JPanel();
+        section.setOpaque(false);
+        section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
+        section.setAlignmentX(0f);
+        section.add(agendaHeader(day, items.size()));
+        if (items.isEmpty()) {
+            TokenLabel none = new TokenLabel("일정 없음", Fonts.regular(Fonts.SMALL), Tokens.FAINT);
+            none.setBorder(BorderFactory.createEmptyBorder(Ui.px(2), Ui.px(8), Ui.px(8), 0));
+            none.setAlignmentX(0f);
+            section.add(none);
+        }
+        for (Occurrence o : items) {
+            WeekChip chip = new WeekChip(ctx.actions(), o);
+            chip.setAlignmentX(0f);
+            agendaChips.add(chip);
+            section.add(chip);
+            section.add(Box.createVerticalStrut(Ui.px(6)));
+        }
+        section.add(Box.createVerticalStrut(Ui.px(8)));
+        return section;
+    }
+
+    /** 날짜 머리글: 요일·날짜와 일정 개수, 아래에 가는 선. 칩 목록과 구분되도록 굵게 보인다 */
+    private JPanel agendaHeader(LocalDate day, int count) {
+        JPanel head = new JPanel(new BorderLayout());
+        head.setOpaque(false);
+        head.setAlignmentX(0f);
+        head.setBorder(BorderFactory.createCompoundBorder(new Hairline(),
+                BorderFactory.createEmptyBorder(Ui.px(4), 0, Ui.px(4), 0)));
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        left.setOpaque(false);
+        left.add(new DayHeader(day, day.equals(ctx.schedules().today())));
+        head.add(left, BorderLayout.WEST);
+        if (count > 0) {
+            head.add(new TokenLabel(count + "개", Fonts.medium(Fonts.SMALL), Tokens.MUTED), BorderLayout.EAST);
+        }
+        head.setMaximumSize(new Dimension(Integer.MAX_VALUE, head.getPreferredSize().height));
+        return head;
     }
 
     /** 시간표가 화면 요청(옮기기·새 일정·날짜 고르기)을 UiActions·ScheduleMover로 이어 주는 연결 */
@@ -210,218 +424,5 @@ public class WeekView implements ContentView {
             ctx.state().setSelectedDay(day);
             header.setSelected(day);
         }
-    }
-
-    private static JScrollPane scroll(JComponent view) {
-        JScrollPane s = new JScrollPane(view);
-        s.setOpaque(false);
-        s.getViewport().setOpaque(false);
-        return s;
-    }
-
-    private void applyPadding() {
-        int g = Ui.px(size.gutter() - 8);
-        int bottom = Ui.px(24 - size.verticalTrim());
-        columnsScroll.setBorder(BorderFactory.createEmptyBorder(Ui.px(4), g, bottom, g));
-        agendaScroll.setBorder(BorderFactory.createEmptyBorder(Ui.px(4), g, bottom, g));
-    }
-
-    @Override
-    public void applySize(SizeClass sc) {
-        size = sc;
-        applyPadding();
-        chooseMode();
-    }
-
-    /**
-     * 칸 너비로 칸 보기/아젠다를 고른다. 바뀌었으면 true. 왜 두 개의 기준(110/122)인가: 한 기준으로만 바꾸면 창 너비가 경계 근처에서 조금씩 변할 때마다 보기가 칸↔아젠다로 깜박인다.
-     * 아젠다에서 칸으로 돌아갈 때는 좀 더 넓어야 돌아가게 해서 이를 막는다.
-     */
-    private boolean chooseMode() {
-        int viewport = root.getWidth() - Ui.px(size.gutter() - 8) * 2 - Ui.px(12);
-        if (root.getWidth() <= 0) {
-            return false;
-        }
-        int colWidth = UIScale.unscale((viewport - TimelineGrid.gutterWidth()) / 7);
-        boolean next = agendaMode ? colWidth < BACK_TO_COLUMNS : colWidth < MIN_COLUMN;
-        boolean changed = next != agendaMode;
-        agendaMode = next;
-        return changed;
-    }
-
-    @Override
-    public JComponent component() {
-        return root;
-    }
-
-    /** 이번 주가 아니면 "11월 둘째 주"처럼 쓴다. 한 주가 두 달에 걸칠 수 있어서 그 주의 목요일이 속한 달과 주차로 정한다. */
-    @Override
-    public String title() {
-        LocalDate start = ctx.state().weekStart();
-        if (start.equals(thisWeekStart())) {
-            return "이번 주";
-        }
-        LocalDate thursday = start.plusDays(3);
-        return thursday.getMonthValue() + "월 " + ORDINALS[(thursday.getDayOfMonth() - 1) / 7] + " 주";
-    }
-
-    private LocalDate thisWeekStart() {
-        LocalDate t = ctx.schedules().today();
-        return t.minusDays(t.getDayOfWeek().getValue() - 1L);
-    }
-
-    @Override
-    public String subtitle() {
-        LocalDate start = ctx.state().weekStart();
-        return Fmt.dateRange(start, start.plusDays(6));
-    }
-
-    @Override
-    public boolean hasNavigator() {
-        return true;
-    }
-
-    @Override
-    public boolean usesFilters() {
-        return true;
-    }
-
-    @Override
-    public void refresh(boolean animate) {
-        AppState s = ctx.state();
-        LocalDate start = s.weekStart();
-        if (grid.isDragging(start) || allDay.isDragging(start)) {
-            // 같은 주를 그대로 보는 중에 일정을 끌고 있으면 새로 그리지 않는다 (1분 상태 새로 고침이 끌기를 끊지 않게).
-            // 놓으면 controller가 바뀐 일정을 알려 와 그때 다시 그린다
-            return;
-        }
-        data = ctx.schedules().getOccurrences(start, start.plusDays(6), s.categoryId(), s.keyword());
-        chooseMode();
-        render();
-    }
-
-    /** 이 보기가 화면에 다시 나타났을 때(사용자가 이동해 왔을 때만) 처음 위치로 부드럽게 스크롤한다. 주를 넘길 때는 보던 위치를 그대로 둔다 */
-    @Override
-    public void shown() {
-        if (!arrived) {
-            return;
-        }
-        arrived = false;
-        pendingScroll = true;
-        glideNext = true;
-        SwingUtilities.invokeLater(this::scrollToWork);
-    }
-
-    /**
-     * 기본 활동 시작 시각 30분 전이 맨 위에 오게 스크롤한다. 그 주에 더 이른 일정이 있으면 그 일정(15분 전)부터 보인다.
-     * 아직 화면 크기가 정해지지 않았으면 pendingScroll을 남겨 두었다가 크기가 정해진 뒤 한 번 한다.
-     */
-    private void scrollToWork() {
-        JViewport vp = columnsScroll.getViewport();
-        if (!pendingScroll || agendaMode || vp.getHeight() <= 0) {
-            return;
-        }
-        int minute = Math.max(0, TimeSnap.minuteOf(UiSettings.freeFrom()) - 30);
-        for (Occurrence o : data) {
-            if (!o.allDay()) {
-                minute = Math.min(minute, Math.max(0, TimeSnap.minuteOf(o.startTime()) - 15));
-            }
-        }
-        int maxY = Math.max(0, grid.getPreferredSize().height - vp.getHeight());
-        int y = Math.min(maxY, grid.yOfMinute(minute) - Ui.px(8));
-        pendingScroll = false;
-        if (glideNext) {
-            glideNext = false;
-            glide.to(y, 260);
-        } else {
-            vp.setViewPosition(new Point(0, y));
-        }
-    }
-
-    /** 지금 고른 모양(칸/아젠다)으로 데이터를 다시 그린다 */
-    private void render() {
-        LocalDate start = ctx.state().weekStart();
-        if (agendaMode) {
-            renderAgenda(start);
-        } else {
-            renderColumns(start);
-        }
-        ((CardLayout) root.getLayout()).show(root, agendaMode ? AGENDA : COLUMNS);
-        applyChipWidth();
-        SwingUtilities.invokeLater(this::scrollToWork);
-    }
-
-    private void renderColumns(LocalDate start) {
-        grid.setWeek(start, data);
-        allDay.setWeek(start, ctx.schedules().today(), data);
-        header.setWeek(start, ctx.schedules().today(), ctx.state().selectedDay());
-    }
-
-    private List<Occurrence> itemsOf(LocalDate day) {
-        return data.stream().filter(o -> o.date().equals(day)).toList();
-    }
-
-    private void applyChipWidth() {
-        int aw = Math.max(Ui.px(120), root.getWidth() - Ui.px(size.gutter() - 8) * 2 - Ui.px(16));
-        agendaChips.forEach(c -> c.setWrapWidth(aw));
-    }
-
-    // ---- 아젠다 (칸이 좁을 때) ----
-
-    private void renderAgenda(LocalDate start) {
-        agenda.removeAll();
-        agendaChips.clear();
-        for (int i = 0; i < 7; i++) {
-            LocalDate day = start.plusDays(i);
-            agenda.add(agendaDay(day, itemsOf(day)));
-        }
-        agenda.revalidate();
-        agenda.repaint();
-    }
-
-    private JPanel agendaDay(LocalDate day, List<Occurrence> items) {
-        JPanel section = new JPanel();
-        section.setOpaque(false);
-        section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
-        section.setAlignmentX(0f);
-        section.add(agendaHeader(day, items.size()));
-        if (items.isEmpty()) {
-            TokenLabel none = new TokenLabel("일정 없음", Fonts.regular(Fonts.SMALL), Tokens.FAINT);
-            none.setBorder(BorderFactory.createEmptyBorder(Ui.px(2), Ui.px(8), Ui.px(8), 0));
-            none.setAlignmentX(0f);
-            section.add(none);
-        }
-        for (Occurrence o : items) {
-            WeekChip chip = new WeekChip(ctx.actions(), o);
-            chip.setAlignmentX(0f);
-            agendaChips.add(chip);
-            section.add(chip);
-            section.add(Box.createVerticalStrut(Ui.px(6)));
-        }
-        section.add(Box.createVerticalStrut(Ui.px(8)));
-        return section;
-    }
-
-    /** 날짜 머리글: 요일·날짜와 일정 개수, 아래에 가는 선. 칩 목록과 구분되도록 굵게 보인다 */
-    private JPanel agendaHeader(LocalDate day, int count) {
-        JPanel head = new JPanel(new BorderLayout());
-        head.setOpaque(false);
-        head.setAlignmentX(0f);
-        head.setBorder(BorderFactory.createCompoundBorder(new Hairline(),
-                BorderFactory.createEmptyBorder(Ui.px(4), 0, Ui.px(4), 0)));
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        left.setOpaque(false);
-        left.add(new DayHeader(day, day.equals(ctx.schedules().today())));
-        head.add(left, BorderLayout.WEST);
-        if (count > 0) {
-            head.add(new TokenLabel(count + "개", Fonts.medium(Fonts.SMALL), Tokens.MUTED), BorderLayout.EAST);
-        }
-        head.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, head.getPreferredSize().height));
-        return head;
-    }
-
-    /** 스크린샷·점검용: 지금 아젠다 모양인지 */
-    public boolean isAgenda() {
-        return agendaMode;
     }
 }
