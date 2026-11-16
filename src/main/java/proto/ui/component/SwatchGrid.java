@@ -59,16 +59,14 @@ public class SwatchGrid extends JComponent {
     }
 
     private void installInput() {
-        addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                int i = indexAt(e.getX(), e.getY());
-                if (i >= 0) {
-                    focused = i;
-                    choose(i);
-                }
+        Listeners.onClick(this, e -> {
+            int i = indexAt(e.getX(), e.getY());
+            if (i >= 0) {
+                focused = i;
+                choose(i);
             }
-
+        });
+        addMouseListener(new MouseAdapter() {
             @Override
             public void mouseExited(MouseEvent e) {
                 setHovered(-1);

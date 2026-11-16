@@ -37,8 +37,6 @@ import java.awt.GridLayout;
 import java.awt.Cursor;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
@@ -181,12 +179,9 @@ public class ScheduleDialog extends BaseDialog {
     private JPanel allDayRow() {
         TokenLabel label = new TokenLabel("하루 종일", Fonts.medium(Fonts.BODY), Tokens.TEXT);
         label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        label.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                allDay.setOn(!allDay.isOn());
-                applyAllDay(true);
-            }
+        proto.ui.component.Listeners.onClick(label, e -> {
+            allDay.setOn(!allDay.isOn());
+            applyAllDay(true);
         });
         allDay.addChangeListener(on -> applyAllDay(true));
         allDay.addKeyListener(new KeyAdapter() {

@@ -175,18 +175,16 @@ public class MiniCalendar extends JPanel {
 
         /** 누르면 그 날짜를 고르고, 마우스가 올라간 칸은 강조한다 (메서드 30줄 규칙 때문에 생성자에서 나눔) */
         private void bindMouse() {
-            addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    int i = indexAt(e.getX(), e.getY());
-                    if (i >= 0) {
-                        LocalDate d = dateAt(i);
-                        MiniCalendar.this.selected = d;
-                        cursor = d;
-                        onPick.accept(d);
-                    }
+            Listeners.onClick(this, e -> {
+                int i = indexAt(e.getX(), e.getY());
+                if (i >= 0) {
+                    LocalDate d = dateAt(i);
+                    MiniCalendar.this.selected = d;
+                    cursor = d;
+                    onPick.accept(d);
                 }
-
+            });
+            addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseExited(MouseEvent e) {
                     hoverIndex = -1;

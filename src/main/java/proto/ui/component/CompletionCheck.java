@@ -45,6 +45,7 @@ public class CompletionCheck extends JComponent {
         setFocusable(true);
         setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         addMouseListener(new CheckMouse());
+        Listeners.onClick(this, e -> fire());
         Listeners.onKey(this, code -> {
             if (code == KeyEvent.VK_SPACE || code == KeyEvent.VK_ENTER) {
                 fire();
@@ -65,13 +66,6 @@ public class CompletionCheck extends JComponent {
         public void mouseExited(MouseEvent e) {
             hover = false;
             repaint();
-        }
-
-        @Override
-        public void mouseClicked(MouseEvent e) {
-            if (e.getButton() == MouseEvent.BUTTON1) {
-                fire();
-            }
         }
     }
 

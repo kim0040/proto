@@ -46,12 +46,8 @@ public class ColorChip extends JComponent {
             public void mouseExited(MouseEvent e) {
                 setHover(false);
             }
-
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                onClick.accept(ColorChip.this);
-            }
         });
+        Listeners.onClick(this, e -> onClick.accept(this));
         Listeners.onKey(this, code -> {
             if (code == KeyEvent.VK_SPACE || code == KeyEvent.VK_ENTER) {
                 onClick.accept(ColorChip.this);

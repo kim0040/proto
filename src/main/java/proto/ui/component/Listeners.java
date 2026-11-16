@@ -8,6 +8,9 @@ import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 /**
@@ -50,6 +53,31 @@ public final class Listeners {
             @Override
             public void changedUpdate(DocumentEvent e) {
                 action.run();
+            }
+        });
+    }
+
+    /**
+     * 왼쪽 버튼으로 이 컴포넌트를 눌렀다가 그 안에서 떼면 action을 부른다.
+     * 왜 mouseClicked를 쓰지 않는가: 자바의 mouseClicked는 누르고 떼는 사이에 포인터가 1px만 움직여도 오지 않아서,
+     * 트랙패드나 빠른 클릭에서 "한 번 더 눌러야 반응하는" 것처럼 느껴진다. 일반 버튼처럼 "안에서 뗐는가"로만 판단한다.
+     */
+    public static void onClick(JComponent c, Consumer<MouseEvent> action) {
+        c.addMouseListener(new MouseAdapter() {
+            private boolean pressed;
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+                pressed = e.getButton() == MouseEvent.BUTTON1 && !e.isPopupTrigger();
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                boolean inside = c.contains(e.getPoint());
+                if (pressed && inside && e.getButton() == MouseEvent.BUTTON1 && !e.isPopupTrigger()) {
+                    action.accept(e);
+                }
+                pressed = false;
             }
         });
     }

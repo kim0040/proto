@@ -15,8 +15,6 @@ import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -42,14 +40,7 @@ public class ToggleSwitch extends JComponent {
         setFocusable(true);
         setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         getAccessibleContext().setAccessibleName(accessibleName);
-        addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getButton() == MouseEvent.BUTTON1) {
-                    toggle();
-                }
-            }
-        });
+        Listeners.onClick(this, e -> toggle());
         Listeners.onKey(this, code -> {
             if (code == KeyEvent.VK_SPACE || code == KeyEvent.VK_ENTER) {
                 toggle();

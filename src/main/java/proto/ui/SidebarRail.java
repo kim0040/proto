@@ -5,13 +5,13 @@ import proto.ui.AppState.Mode;
 import proto.ui.component.Buttons;
 import proto.ui.component.PillList;
 import proto.ui.component.TokenPanel;
+import proto.ui.layout.ColumnLayout;
 import proto.ui.theme.Icons;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
-import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 import java.awt.BorderLayout;
@@ -19,9 +19,9 @@ import java.awt.Dimension;
 import java.util.function.Consumer;
 
 /**
- * [경계 boundary] 좁은 화면의 사이드바: 아이콘만 있는 얇은 띠. 맨 위 메뉴 버튼이 전체 사이드바를 서랍으로 펼치고,
- * 둥근 + 버튼이 새 일정을 연다. 모든 버튼은 툴팁과 접근성 이름을 가진다.
- * MainFrame이 만들어 SidebarHost 안에 둔다. 좁은 화면에서 Sidebar 대신 보이는 아이콘 띠이다. 글자가 없어서 모든 항목에 툴팁과 접근성 이름을 붙인다.
+ * [경계 boundary] 좁은 화면에서 Sidebar 대신 보이는 아이콘 띠 (MainFrame이 만들어 SidebarHost 안에 둔다).
+ * 맨 위 메뉴 버튼은 전체 사이드바를 서랍으로 펼치고, 둥근 + 버튼은 새 일정을 연다.
+ * 글자가 없으므로 모든 항목에 툴팁과 접근성 이름을 붙인다. 모든 버튼은 띠의 가운데 한 줄에 맞춰 선다.
  */
 public final class SidebarRail extends TokenPanel {
 
@@ -35,9 +35,9 @@ public final class SidebarRail extends TokenPanel {
         super(new BorderLayout(), Tokens.SIDEBAR);
         this.ctx = ctx;
         setBorder(BorderFactory.createEmptyBorder(Ui.px(Ui.isMac() ? 44 : 16), Ui.px(10), Ui.px(14), Ui.px(10)));
-        nav.setIconOnly(true);
-        tools.setIconOnly(true);
-        settings.setIconOnly(true);
+        for (PillList list : new PillList[] {nav, tools, settings}) {
+            list.setIconOnly(true);
+        }
         nav.addItem(Mode.TODAY.name(), "calendar-check", null, "오늘", () -> onNav.accept(Mode.TODAY));
         nav.addItem(Mode.WEEK.name(), "calendar-range", null, "이번 주", () -> onNav.accept(Mode.WEEK));
         nav.addItem(Mode.MONTH.name(), "calendar-days", null, "달력", () -> onNav.accept(Mode.MONTH));
@@ -57,10 +57,8 @@ public final class SidebarRail extends TokenPanel {
     private JPanel top() {
         JPanel p = new JPanel();
         p.setOpaque(false);
-        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        menu.setAlignmentX(CENTER_ALIGNMENT);
+        p.setLayout(ColumnLayout.centered());
         JButton add = roundPlus();
-        add.setAlignmentX(CENTER_ALIGNMENT);
         p.add(menu);
         p.add(Box.createVerticalStrut(Ui.px(14)));
         p.add(add);

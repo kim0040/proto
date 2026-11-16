@@ -7,7 +7,6 @@ import proto.ui.theme.Icons;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
-import javax.swing.BoxLayout;
 import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
@@ -44,7 +43,7 @@ public class PillList extends JPanel {
     private boolean iconOnly;
 
     public PillList() {
-        setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+        setLayout(proto.ui.layout.ColumnLayout.fill());
         setOpaque(false);
     }
 
@@ -176,9 +175,12 @@ public class PillList extends JPanel {
                     hover.to(0f, 160);
                 }
 
+                /** 사이드바 항목은 macOS 사이드바처럼 누르는 순간 고른다 (떼기를 기다리지 않아 반응이 바로 보인다) */
                 @Override
-                public void mouseClicked(MouseEvent e) {
-                    onClick.run();
+                public void mousePressed(MouseEvent e) {
+                    if (e.getButton() == MouseEvent.BUTTON1 && !e.isPopupTrigger()) {
+                        onClick.run();
+                    }
                 }
             });
             Listeners.onKey(this, code -> {

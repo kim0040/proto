@@ -12,8 +12,6 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -41,12 +39,7 @@ public class Segmented<T> extends JComponent {
         setFont(Fonts.medium(Fonts.SMALL));
         setFocusable(true);
         setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                select(indexAt(e.getX()), true);
-            }
-        });
+        Listeners.onClick(this, e -> select(indexAt(e.getX()), true));
         Listeners.onKey(this, code -> {
             if (code == KeyEvent.VK_LEFT) {
                 select(Math.max(0, selected - 1), true);
