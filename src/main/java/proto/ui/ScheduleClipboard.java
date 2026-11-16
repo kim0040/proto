@@ -27,7 +27,7 @@ public final class ScheduleClipboard {
 
     /**
      * 붙여 넣을 날짜: 오늘 보기는 오늘, 주 보기는 고른 날(그 주 안에 있을 때만, 아니면 그 주 월요일), 달력 보기는 고른 날.
-     * 통계·설정 보기는 붙여 넣지 않으므로 빈 값이다.
+     * 통계 보기는 붙여 넣지 않으므로 빈 값이다.
      */
     public static Optional<LocalDate> pasteTarget(Mode mode, LocalDate today, LocalDate selectedDay,
                                                   LocalDate weekStart) {

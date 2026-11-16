@@ -50,29 +50,6 @@ public class TodayView implements ContentView {
         root.add(empty, EMPTY);
     }
 
-    private JPanel buildList() {
-        JPanel p = new JPanel(new BorderLayout());
-        p.setOpaque(false);
-        applyPadding(ctx.size());
-        scroll.setOpaque(false);
-        scroll.getViewport().setOpaque(false);
-        JPanel top = new JPanel(new BorderLayout());
-        top.setOpaque(false);
-        top.add(summary, BorderLayout.NORTH);
-        top.add(strip, BorderLayout.CENTER);
-        p.add(top, BorderLayout.NORTH);
-        p.add(scroll, BorderLayout.CENTER);
-        return p;
-    }
-
-    private void applyPadding(SizeClass sc) {
-        int g = sc.gutter();
-        int trim = sc.verticalTrim();
-        summary.setBorder(BorderFactory.createEmptyBorder(Ui.px(4 - trim / 2), Ui.px(g), Ui.px(12 - trim), Ui.px(g)));
-        strip.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(g), Ui.px(10), Ui.px(g)));
-        scroll.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(g - 4), Ui.px(24 - trim), Ui.px(g - 4)));
-    }
-
     /** 좁은 화면에서는 카테고리 이름을 감추고 점만 남긴다 (상태 알약은 항상 보인다) */
     @Override
     public void applySize(SizeClass sc) {
@@ -124,6 +101,30 @@ public class TodayView implements ContentView {
         strip.setItems(items.stream().filter(Occurrence::allDay).toList());
         list.setItems(items.stream().filter(o -> !o.allDay()).toList(), animate);
         cards.show(root, LIST);
+    }
+
+    private JPanel buildList() {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setOpaque(false);
+        applyPadding(ctx.size());
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
+        top.add(summary, BorderLayout.NORTH);
+        top.add(strip, BorderLayout.CENTER);
+        p.add(top, BorderLayout.NORTH);
+        p.add(scroll, BorderLayout.CENTER);
+        return p;
+    }
+
+    private void applyPadding(SizeClass sc) {
+        int gutter = sc.gutter();
+        int trim = sc.verticalTrim();
+        summary.setBorder(BorderFactory.createEmptyBorder(Ui.px(4 - trim / 2), Ui.px(gutter), Ui.px(12 - trim),
+                Ui.px(gutter)));
+        strip.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(gutter), Ui.px(10), Ui.px(gutter)));
+        scroll.setBorder(BorderFactory.createEmptyBorder(0, Ui.px(gutter - 4), Ui.px(24 - trim), Ui.px(gutter - 4)));
     }
 
     /** "일정 N개 · 완료 N · 지연 N" 한 줄을 만든다. 지연은 저장된 값이 아니라 controller가 지금 시각으로 계산한 상태(StateCalculator, F6)를 센다. */

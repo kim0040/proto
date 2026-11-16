@@ -6,8 +6,10 @@ import proto.ui.component.TokenLabel;
 import proto.ui.component.WidthPanel;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
+import proto.ui.theme.Ui;
 import proto.ui.view.SettingsView;
 
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JPanel;
@@ -45,7 +47,7 @@ public class SettingsSheet extends BaseDialog {
         title.setAlignmentX(LEFT_ALIGNMENT);
         subtitle.setAlignmentX(LEFT_ALIGNMENT);
         p.add(title);
-        p.add(javax.swing.Box.createVerticalStrut(proto.ui.theme.Ui.px(4)));
+        p.add(Box.createVerticalStrut(Ui.px(4)));
         p.add(subtitle);
         return p;
     }

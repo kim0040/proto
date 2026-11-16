@@ -29,9 +29,8 @@ import java.util.Optional;
 
 /**
  * [경계 boundary] 화면에서 일어나는 동작 모음: 새 일정, 수정, 삭제, 완료, 복제·복사·붙여넣기, 미루기, 되돌리기, 메뉴, 카테고리·빈 시간·설정 시트 열기.
- * 화면의 어느 곳(일정 줄, 알림 카드, 사이드바)에서 일정에 대한 동작을 시작하든 여기를 거친다. ScheduleController에 요청하고
- * 결과를 토스트나 대화상자로 보여 준다. 동작 직전에 항상 findOccurrence로 최신 값을 다시 확인해서(fresh), 이미 지워진 일정을 다루지 않게 한다 (F3, F4, F5, F10, F15).
- * 모든 요청은 controller를 거치고, 결과는 토스트나 대화상자로 알린다.
+ * 일정 줄, 알림 카드, 사이드바 어디서 동작을 시작하든 여기를 거친다. 모든 요청은 ScheduleController를 거치고, 결과는 토스트나 대화상자로 알린다.
+ * 동작 직전에 항상 findOccurrence로 최신 값을 다시 확인해서(fresh), 이미 지워진 일정을 다루지 않게 한다 (F3, F4, F5, F10, F15).
  */
 public final class UiActions implements RowHandler {
 
@@ -183,29 +182,6 @@ public final class UiActions implements RowHandler {
         }
     }
 
-    private boolean deleteFresh(Occurrence o) {
-        Optional<Occurrence> latest = fresh(o);
-        if (latest.isEmpty()) {
-            return true;
-        }
-        Occurrence target = latest.get();
-        EditScope scope = EditScope.THIS_AND_FOLLOWING;
-        if (target.isRepeating()) {
-            Optional<EditScope> chosen = Dialogs.chooseScope(ctx.window(), "반복 일정 삭제", "삭제", true);
-            if (chosen.isEmpty()) {
-                return false;
-            }
-            scope = chosen.get();
-        }
-        OperationResult r = ctx.schedules().delete(target, scope);
-        if (r.success()) {
-            toastUndoable("일정을 삭제했어요");
-        } else {
-            error(r.message());
-        }
-        return r.success();
-    }
-
     @Override
     public void toggleDone(Occurrence o) {
         Optional<Occurrence> latest = fresh(o);
@@ -274,15 +250,6 @@ public final class UiActions implements RowHandler {
                 + Fmt.monthDay(target.get()) + "에 붙여 넣었어요");
     }
 
-    private void createCopy(Occurrence source, LocalDate date, String done) {
-        OperationResult r = ctx.schedules().create(ctx.schedules().copyDraft(source, date));
-        if (r.success()) {
-            toastUndoable(done);
-        } else {
-            error(r.errors().isEmpty() ? r.message() : r.errors().get(0));
-        }
-    }
-
     @Override
     public void showMenu(Component source, Point p, Occurrence o) {
         JPopupMenu menu = new JPopupMenu();
@@ -298,14 +265,6 @@ public final class UiActions implements RowHandler {
         menu.addSeparator();
         menu.add(item("삭제", "trash", KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0), () -> delete(o)));
         menu.show(source, p.x, p.y);
-    }
-
-    private static JMenuItem item(String text, String icon, KeyStroke accelerator, Runnable action) {
-        JMenuItem i = new JMenuItem(text, Icons.of(icon, 16, Tokens.MUTED));
-        i.setIconTextGap(10);
-        i.setAccelerator(accelerator);
-        i.addActionListener(e -> action.run());
-        return i;
     }
 
     /** 단축키 안내 시트 (? 키, 명령 메뉴의 "단축키 보기") */
@@ -340,5 +299,45 @@ public final class UiActions implements RowHandler {
     @Override
     public String categoryName(String categoryId) {
         return ctx.categories().nameOf(categoryId);
+    }
+
+    private static JMenuItem item(String text, String icon, KeyStroke accelerator, Runnable action) {
+        JMenuItem menuItem = new JMenuItem(text, Icons.of(icon, 16, Tokens.MUTED));
+        menuItem.setIconTextGap(10);
+        menuItem.setAccelerator(accelerator);
+        menuItem.addActionListener(e -> action.run());
+        return menuItem;
+    }
+
+    private boolean deleteFresh(Occurrence o) {
+        Optional<Occurrence> latest = fresh(o);
+        if (latest.isEmpty()) {
+            return true;
+        }
+        Occurrence target = latest.get();
+        EditScope scope = EditScope.THIS_AND_FOLLOWING;
+        if (target.isRepeating()) {
+            Optional<EditScope> chosen = Dialogs.chooseScope(ctx.window(), "반복 일정 삭제", "삭제", true);
+            if (chosen.isEmpty()) {
+                return false;
+            }
+            scope = chosen.get();
+        }
+        OperationResult r = ctx.schedules().delete(target, scope);
+        if (r.success()) {
+            toastUndoable("일정을 삭제했어요");
+        } else {
+            error(r.message());
+        }
+        return r.success();
+    }
+
+    private void createCopy(Occurrence source, LocalDate date, String done) {
+        OperationResult r = ctx.schedules().create(ctx.schedules().copyDraft(source, date));
+        if (r.success()) {
+            toastUndoable(done);
+        } else {
+            error(r.errors().isEmpty() ? r.message() : r.errors().get(0));
+        }
     }
 }

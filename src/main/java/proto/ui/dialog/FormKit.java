@@ -23,6 +23,7 @@ import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -64,7 +65,7 @@ final class FormKit {
     }
 
     /** 카테고리를 색 칩 + 이름으로 보여 주는 콤보 */
-    static JComboBox<Category> categoryCombo(java.util.List<Category> categories) {
+    static JComboBox<Category> categoryCombo(List<Category> categories) {
         JComboBox<Category> combo = new JComboBox<>(categories.toArray(new Category[0]));
         combo.setFont(Fonts.regular(Fonts.BODY));
         combo.setRenderer(new DefaultListCellRenderer() {

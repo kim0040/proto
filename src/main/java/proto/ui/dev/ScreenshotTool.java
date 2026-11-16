@@ -27,6 +27,8 @@ import proto.ui.theme.ThemeManager;
 import javax.imageio.ImageIO;
 import javax.swing.AbstractButton;
 import javax.swing.JComponent;
+import javax.swing.JScrollBar;
+import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import java.awt.Component;
 import java.awt.Container;
@@ -42,15 +44,15 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * [경계 boundary] 개발용 화면 캡처 도구. 화면을 2배 크기 PNG로 그려 저장한다 (OS 화면 캡처 권한 필요 없음).
- * 개발할 때만 proto.app.dev.ScreenshotMain이 부른다 (앱 실행에는 쓰이지 않는다). 가짜 데이터가 든 controller로 진짜 MainFrame을 띄우고 화면을 PNG로 그려
- * 저장한다.
- * Motion을 임시로 꺼서 캡처 중에 애니메이션이 섞이지 않게 하고, 설정 파일에는 저장하지 않는다.
+ * [경계 boundary] 개발용 화면 캡처 도구: 가짜 데이터가 든 controller로 진짜 MainFrame을 띄우고, 화면을 2배 크기 PNG로 그려 저장한다 (OS 화면 캡처 권한 필요 없음).
+ * 개발할 때만 proto.app.dev.ScreenshotMain이 부른다 (앱 실행에는 쓰이지 않는다).
  * 여러 창 크기(1440×900, 1100×720, 900×640, 760×540, 세로 800×1000)로 메인 보기 4개를 밝은/어두운 테마로 찍고,
  * 서랍·주간 아젠다·긴 글/이모지·시간 입력 오류·알림 더미 같은 경계 장면과, 메인 창 위에 뜬 시트(일정·빈 시간·카테고리·확인·설정)도 찍는다.
+ * Motion을 임시로 꺼서 캡처 중에 애니메이션이 섞이지 않게 하고, 설정 파일에는 저장하지 않는다.
  */
 public final class ScreenshotTool {
 
@@ -155,7 +157,7 @@ public final class ScreenshotTool {
     private static BaseDialog scrolledToBottom(BaseDialog d) {
         d.open();
         d.getParent().validate();
-        javax.swing.JScrollBar bar = d.scrollPane().getVerticalScrollBar();
+        JScrollBar bar = d.scrollPane().getVerticalScrollBar();
         bar.setValue(bar.getMaximum());
         return d;
     }
@@ -186,11 +188,11 @@ public final class ScreenshotTool {
     /** 제목을 써서 "바꾼 것이 있는" 새 일정 시트 */
     private static ScheduleDialog dirtyNew(UiContext ctx, LocalDate today) {
         ScheduleDialog d = new ScheduleDialog(ctx, null, ctx.schedules().newDraft(today));
-        find(d, javax.swing.JTextField.class).setText("팀 회의 준비");
+        find(d, JTextField.class).setText("팀 회의 준비");
         return d;
     }
 
-    private static ConfirmDialog scopeDialog(java.awt.Component owner) {
+    private static ConfirmDialog scopeDialog(Component owner) {
         return new ConfirmDialog(owner, "반복 일정 삭제", "반복 일정을 삭제할까요?",
                 "‘이 일정만’은 이 날짜 하나만, ‘앞으로 전부’는 이 날짜부터 뒤의 모든 반복에 적용돼요.", null,
                 List.of(new ConfirmDialog.Choice("취소", ConfirmDialog.Kind.GHOST),
@@ -391,7 +393,7 @@ public final class ScreenshotTool {
 
     /** 아래 시트 위에 확인 시트를 하나 더 쌓아 찍는다 (시트에서 연 확인 창의 모습) */
     private static void shootStacked(MainFrame frame, Supplier<BaseDialog> below,
-                                     java.util.function.Function<java.awt.Component, BaseDialog> above, Path out,
+                                     Function<Component, BaseDialog> above, Path out,
                                      String name) throws InterruptedException, InvocationTargetException, IOException {
         BaseDialog[] d = new BaseDialog[2];
         run(() -> {

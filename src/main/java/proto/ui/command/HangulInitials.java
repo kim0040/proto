@@ -13,6 +13,9 @@ public final class HangulInitials {
     private static final int FIRST = 0xAC00;
     private static final int LAST = 0xD7A3;
     private static final int PER_INITIAL = 588;
+    /** 호환 자모 영역의 첫 자음 ㄱ과 마지막 ㅎ */
+    private static final int JAMO_FIRST = 0x3131;
+    private static final int JAMO_LAST = 0x314E;
 
     private HangulInitials() {
     }
@@ -39,7 +42,7 @@ public final class HangulInitials {
         }
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-            if (c < 0x3131 || c > 0x314E) {
+            if (c < JAMO_FIRST || c > JAMO_LAST) {
                 return false;
             }
         }

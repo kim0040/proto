@@ -4,40 +4,43 @@ import com.formdev.flatlaf.FlatClientProperties;
 import proto.ui.component.Buttons;
 import proto.ui.component.Ime;
 import proto.ui.component.Listeners;
+import proto.ui.component.TokenLabel;
 import proto.ui.layout.SizeClass;
 import proto.ui.motion.Motion;
-import proto.ui.component.TokenLabel;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.Icons;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
 import javax.swing.Timer;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.event.ActionEvent;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
 import java.util.function.Consumer;
 
-import javax.swing.AbstractAction;
-import javax.swing.JComponent;
-import javax.swing.KeyStroke;
-
 /**
- * [경계 boundary] 본문 위쪽 줄: 보기 제목과 날짜, 이전/오늘/다음 버튼, 검색창(입력 후 150ms 뒤 적용).
- * MainFrame이 만들어 본문 위쪽에 붙인다. 이전/오늘/다음 버튼은 MainFrame의 shift·goToday로, 검색어는 MainFrame#search로 전달된다 (F2 조회 이동, F8 검색).
- * 좁은 화면(SizeClass.compact)에서는 검색창을 아이콘 하나로 접었다가 눌렀을 때 펼쳐서 자리를 아낀다.
- * 검색창 오른쪽의 "⌘K" 작은 버튼은 명령 메뉴를 연다 (넓은 화면에서만 보인다. 좁은 화면에서도 ⌘K 키는 그대로 된다).
+ * [경계 boundary] 본문 위쪽 줄: 보기 제목과 날짜, 이전/오늘/다음 버튼, 검색창(입력 후 150ms 뒤 적용), 명령 메뉴를 여는 "⌘K" 버튼.
+ * MainFrame이 만들어 본문 위쪽에 붙이고, 버튼과 검색어는 MainFrame이 넘겨 준 동작(shift·goToday·search)으로 전달된다 (F2 조회 이동, F8 검색).
+ * 좁은 화면(SizeClass.compact)에서는 자리를 아끼려고 검색창을 아이콘 하나로 접었다가 눌렀을 때 펼치고, "⌘K" 버튼은 숨긴다 (⌘K 키는 그대로 동작한다).
  */
 public final class HeaderBar extends JPanel {
 
     private static final int DEBOUNCE_MS = 150;
+    private static final int EXPAND_MS = 160;
+    private static final int SEARCH_WIDTH = 260;
+    private static final int SEARCH_WIDTH_COMPACT = 200;
+    private static final int SEARCH_HEIGHT = 36;
 
     private final TokenLabel title = new TokenLabel("", Fonts.semibold(Fonts.DISPLAY), Tokens.TEXT);
     private final TokenLabel subtitle = new TokenLabel("", Fonts.regular(Fonts.SMALL), Tokens.MUTED);
@@ -68,88 +71,6 @@ public final class HeaderBar extends JPanel {
         add(right(onPrev, onToday, onNext), BorderLayout.EAST);
     }
 
-    private JPanel titles() {
-        JPanel p = new JPanel(new BorderLayout(0, Ui.px(2)));
-        p.setOpaque(false);
-        p.add(title, BorderLayout.NORTH);
-        p.add(subtitle, BorderLayout.CENTER);
-        return p;
-    }
-
-    private JPanel right(Runnable onPrev, Runnable onToday, Runnable onNext) {
-        buildNavigator(onPrev, onToday, onNext);
-        configureSearch();
-        JPanel p = new JPanel(new FlowLayout(FlowLayout.RIGHT, Ui.px(12), 0));
-        p.setOpaque(false);
-        p.add(navigator);
-        p.add(searchIcon);
-        p.add(search);
-        p.add(commandButton);
-        searchIcon.setVisible(false);
-        searchIcon.addActionListener(e -> expandSearch());
-        return p;
-    }
-
-    private void buildNavigator(Runnable onPrev, Runnable onToday, Runnable onNext) {
-        navigator.setOpaque(false);
-        JButton prev = Buttons.icon("chevron-left", "이전", Tokens.TEXT);
-        JButton today = Buttons.compact(Buttons.secondary("오늘"));
-        JButton next = Buttons.icon("chevron-right", "다음", Tokens.TEXT);
-        prev.addActionListener(e -> onPrev.run());
-        today.addActionListener(e -> onToday.run());
-        next.addActionListener(e -> onNext.run());
-        navigator.add(prev);
-        navigator.add(today);
-        navigator.add(next);
-    }
-
-    private void configureSearch() {
-        search.setFont(Fonts.regular(Fonts.BODY));
-        search.setPreferredSize(new Dimension(Ui.px(260), Ui.px(36)));
-        search.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, "제목이나 메모 검색");
-        search.putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true);
-        search.putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON, Icons.of("search", 16, Tokens.MUTED));
-        search.putClientProperty(FlatClientProperties.STYLE, "arc:10; margin:4,8,4,8; background:$proto.surface;"
-                + " borderColor:$proto.borderStrong");
-        search.getAccessibleContext().setAccessibleName("일정 검색");
-        Ime.track(search);
-        Listeners.onTextChange(search, debounce::restart);
-        // Enter를 누르면 기다리지 않고 바로 검색한다. 그 전에 한글 조합 중인 마지막 글자를 확정해야 검색어에서 빠지지 않는다.
-        search.addActionListener(e -> {
-            Ime.commit(search);
-            debounce.stop();
-            onSearch.accept(search.getText());
-        });
-        bindSearchEscape();
-        search.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                if (compact && search.getText().isEmpty() && !e.isTemporary()) {
-                    collapseSearch(false);
-                }
-            }
-        });
-    }
-
-    private void bindSearchEscape() {
-        search.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "proto-esc");
-        search.getActionMap().put("proto-esc", new AbstractAction() {
-            @Override
-            public void actionPerformed(java.awt.event.ActionEvent e) {
-                escapeSearch();
-            }
-        });
-    }
-
-    /** Esc: 글이 있으면 먼저 지우고, 비어 있으면 (좁은 화면에서) 검색창을 접는다 */
-    private void escapeSearch() {
-        if (!search.getText().isEmpty()) {
-            search.setText("");
-        } else if (compact) {
-            collapseSearch(true);
-        }
-    }
-
     /** 화면 크기 등급에 맞춰 여백과 검색창 모양(좁으면 아이콘 버튼)을 바꾼다 */
     public void apply(SizeClass sc) {
         compact = sc.compact();
@@ -157,46 +78,11 @@ public final class HeaderBar extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(Ui.px(Ui.isMac() ? 34 : 22) - trim, Ui.px(sc.gutter()),
                 Ui.px(16) - trim, Ui.px(sc.gutter())));
         title.setFont(Fonts.semibold(sc.dense() ? Fonts.TITLE + 2 : Fonts.DISPLAY));
-        search.setPreferredSize(new Dimension(Ui.px(compact ? 200 : 260), Ui.px(36)));
+        search.setPreferredSize(new Dimension(Ui.px(compact ? SEARCH_WIDTH_COMPACT : SEARCH_WIDTH), Ui.px(SEARCH_HEIGHT)));
         expanded = !compact || !search.getText().isEmpty();
         commandButton.setVisible(!compact);
         updateSearchMode();
         revalidate();
-    }
-
-    private void updateSearchMode() {
-        search.setVisible(searchAllowed && (!compact || expanded));
-        searchIcon.setVisible(searchAllowed && compact && !expanded);
-    }
-
-    private void expandSearch() {
-        if (expanded) {
-            return;
-        }
-        expanded = true;
-        updateSearchMode();
-        int full = Ui.px(200);
-        if (expandMotion != null) {
-            expandMotion.cancel();
-        }
-        expandMotion = Motion.run(160, f -> {
-            search.setPreferredSize(new Dimension(Math.max(Ui.px(40), Math.round(full * f)), Ui.px(36)));
-            search.getParent().revalidate();
-        }, () -> search.setPreferredSize(new Dimension(full, Ui.px(36))));
-        search.requestFocusInWindow();
-    }
-
-    private void collapseSearch(boolean restoreFocus) {
-        if (!expanded || !compact) {
-            return;
-        }
-        expanded = false;
-        updateSearchMode();
-        revalidate();
-        repaint();
-        if (restoreFocus && searchIcon.isShowing()) {
-            searchIcon.requestFocusInWindow();
-        }
     }
 
     /** 제목과 작은 글씨를 바꾼다 */
@@ -245,5 +131,122 @@ public final class HeaderBar extends JPanel {
     /** 검색어를 지운다 */
     public void clearSearch() {
         search.setText("");
+    }
+
+    private JPanel titles() {
+        JPanel p = new JPanel(new BorderLayout(0, Ui.px(2)));
+        p.setOpaque(false);
+        p.add(title, BorderLayout.NORTH);
+        p.add(subtitle, BorderLayout.CENTER);
+        return p;
+    }
+
+    private JPanel right(Runnable onPrev, Runnable onToday, Runnable onNext) {
+        buildNavigator(onPrev, onToday, onNext);
+        configureSearch();
+        JPanel p = new JPanel(new FlowLayout(FlowLayout.RIGHT, Ui.px(12), 0));
+        p.setOpaque(false);
+        p.add(navigator);
+        p.add(searchIcon);
+        p.add(search);
+        p.add(commandButton);
+        searchIcon.setVisible(false);
+        searchIcon.addActionListener(e -> expandSearch());
+        return p;
+    }
+
+    private void buildNavigator(Runnable onPrev, Runnable onToday, Runnable onNext) {
+        navigator.setOpaque(false);
+        JButton prev = Buttons.icon("chevron-left", "이전", Tokens.TEXT);
+        JButton today = Buttons.compact(Buttons.secondary("오늘"));
+        JButton next = Buttons.icon("chevron-right", "다음", Tokens.TEXT);
+        prev.addActionListener(e -> onPrev.run());
+        today.addActionListener(e -> onToday.run());
+        next.addActionListener(e -> onNext.run());
+        navigator.add(prev);
+        navigator.add(today);
+        navigator.add(next);
+    }
+
+    private void configureSearch() {
+        search.setFont(Fonts.regular(Fonts.BODY));
+        search.setPreferredSize(new Dimension(Ui.px(SEARCH_WIDTH), Ui.px(SEARCH_HEIGHT)));
+        search.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, "제목이나 메모 검색");
+        search.putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true);
+        search.putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_ICON, Icons.of("search", 16, Tokens.MUTED));
+        search.putClientProperty(FlatClientProperties.STYLE, "arc:10; margin:4,8,4,8; background:$proto.surface;"
+                + " borderColor:$proto.borderStrong");
+        search.getAccessibleContext().setAccessibleName("일정 검색");
+        Ime.track(search);
+        Listeners.onTextChange(search, debounce::restart);
+        // Enter를 누르면 기다리지 않고 바로 검색한다. 그 전에 한글 조합 중인 마지막 글자를 확정해야 검색어에서 빠지지 않는다.
+        search.addActionListener(e -> {
+            Ime.commit(search);
+            debounce.stop();
+            onSearch.accept(search.getText());
+        });
+        bindSearchEscape();
+        search.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (compact && search.getText().isEmpty() && !e.isTemporary()) {
+                    collapseSearch(false);
+                }
+            }
+        });
+    }
+
+    private void bindSearchEscape() {
+        search.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "proto-esc");
+        search.getActionMap().put("proto-esc", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                escapeSearch();
+            }
+        });
+    }
+
+    /** Esc: 글이 있으면 먼저 지우고, 비어 있으면 (좁은 화면에서) 검색창을 접는다 */
+    private void escapeSearch() {
+        if (!search.getText().isEmpty()) {
+            search.setText("");
+        } else if (compact) {
+            collapseSearch(true);
+        }
+    }
+
+    private void updateSearchMode() {
+        search.setVisible(searchAllowed && (!compact || expanded));
+        searchIcon.setVisible(searchAllowed && compact && !expanded);
+    }
+
+    private void expandSearch() {
+        if (expanded) {
+            return;
+        }
+        expanded = true;
+        updateSearchMode();
+        int full = Ui.px(SEARCH_WIDTH_COMPACT);
+        if (expandMotion != null) {
+            expandMotion.cancel();
+        }
+        expandMotion = Motion.run(EXPAND_MS, f -> {
+            search.setPreferredSize(new Dimension(Math.max(Ui.px(40), Math.round(full * f)), Ui.px(SEARCH_HEIGHT)));
+            search.getParent().revalidate();
+        }, () -> search.setPreferredSize(new Dimension(full, Ui.px(SEARCH_HEIGHT))));
+        search.requestFocusInWindow();
+    }
+
+    private void collapseSearch(boolean restoreFocus) {
+        if (!expanded || !compact) {
+            return;
+        }
+        expanded = false;
+        updateSearchMode();
+        revalidate();
+        repaint();
+        if (restoreFocus && searchIcon.isShowing()) {
+            searchIcon.requestFocusInWindow();
+        }
     }
 }

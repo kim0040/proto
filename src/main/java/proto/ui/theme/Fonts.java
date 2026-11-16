@@ -9,6 +9,9 @@ import java.awt.FontFormatException;
 import java.awt.GraphicsEnvironment;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * [경계 boundary] 번들된 Pretendard 글꼴을 등록하고 글자 크기 단계(타입 스케일)를 제공한다.
@@ -63,44 +66,6 @@ public final class Fonts {
         installed = true;
     }
 
-    /** 번들 글꼴을 읽어 등록한다. 어떤 이유로든 실패하면 조용히 null (플랫폼 글꼴로 대신한다) */
-    private static Font load(Weight w) {
-        String path = "/fonts/Pretendard-" + w.file + ".ttf";
-        try (InputStream in = Fonts.class.getResourceAsStream(path)) {
-            if (in == null) {
-                return null;
-            }
-            Font font = Font.createFont(Font.TRUETYPE_FONT, in);
-            GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(font);
-            return font;
-        } catch (IOException | FontFormatException | RuntimeException e) {
-            return null;
-        }
-    }
-
-    /** 번들 글꼴을 못 쓸 때의 대체 글꼴: 굵기는 보통/굵게 두 단계로 단순화한다 */
-    private static Font platform(Weight w) {
-        boolean bold = w == Weight.SEMIBOLD || w == Weight.BOLD;
-        return new Font(platformFamily(), bold ? Font.BOLD : Font.PLAIN, 14);
-    }
-
-    /** 운영체제 기본 한글 UI 글꼴 (Windows: 맑은 고딕, macOS: Apple SD Gothic Neo). 없으면 논리 글꼴 */
-    static String platformFamily() {
-        try {
-            java.util.Set<String> names = new java.util.HashSet<>(java.util.Arrays.asList(
-                    GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()));
-            for (String candidate : new String[] {"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans CJK KR",
-                    "NanumGothic"}) {
-                if (names.contains(candidate)) {
-                    return candidate;
-                }
-            }
-        } catch (RuntimeException e) {
-            // 글꼴 목록을 못 읽으면 논리 글꼴을 쓴다
-        }
-        return Font.SANS_SERIF;
-    }
-
     /** 굵기와 크기(논리 px)로 글꼴을 만든다. 화면 배율을 반영한다 */
     public static Font of(float size, Weight weight) {
         Font base = installed ? BASE[weight.ordinal()] : UIManager.getFont("defaultFont");
@@ -133,5 +98,43 @@ public final class Fonts {
             sb.append(f == null ? "null" : f.getFamily() + " / " + f.getFontName()).append('\n');
         }
         return sb.toString();
+    }
+
+    /** 운영체제 기본 한글 UI 글꼴 (Windows: 맑은 고딕, macOS: Apple SD Gothic Neo). 없으면 논리 글꼴 */
+    static String platformFamily() {
+        try {
+            Set<String> names = new HashSet<>(Arrays.asList(
+                    GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()));
+            for (String candidate : new String[] {"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans CJK KR",
+                    "NanumGothic"}) {
+                if (names.contains(candidate)) {
+                    return candidate;
+                }
+            }
+        } catch (RuntimeException e) {
+            // 글꼴 목록을 못 읽으면 논리 글꼴을 쓴다
+        }
+        return Font.SANS_SERIF;
+    }
+
+    /** 번들 글꼴을 읽어 등록한다. 어떤 이유로든 실패하면 조용히 null (플랫폼 글꼴로 대신한다) */
+    private static Font load(Weight w) {
+        String path = "/fonts/Pretendard-" + w.file + ".ttf";
+        try (InputStream in = Fonts.class.getResourceAsStream(path)) {
+            if (in == null) {
+                return null;
+            }
+            Font font = Font.createFont(Font.TRUETYPE_FONT, in);
+            GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(font);
+            return font;
+        } catch (IOException | FontFormatException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** 번들 글꼴을 못 쓸 때의 대체 글꼴: 굵기는 보통/굵게 두 단계로 단순화한다 */
+    private static Font platform(Weight w) {
+        boolean bold = w == Weight.SEMIBOLD || w == Weight.BOLD;
+        return new Font(platformFamily(), bold ? Font.BOLD : Font.PLAIN, 14);
     }
 }

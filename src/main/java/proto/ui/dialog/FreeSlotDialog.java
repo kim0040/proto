@@ -4,12 +4,14 @@ import proto.control.ScheduleDraft;
 import proto.entity.TimeSlot;
 import proto.ui.Fmt;
 import proto.ui.UiContext;
+import proto.ui.UiSettings;
 import proto.ui.component.Buttons;
 import proto.ui.component.DatePickerField;
 import proto.ui.component.ScrollPanel;
 import proto.ui.component.Segmented;
 import proto.ui.component.TimeCombo;
 import proto.ui.component.TokenLabel;
+import proto.ui.component.WidthPanel;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
@@ -26,7 +28,6 @@ import javax.swing.SpinnerNumberModel;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -37,6 +38,11 @@ import java.util.List;
  * 날짜·길이·시간대를 바꿀 때마다 바로 다시 찾는다.
  */
 public class FreeSlotDialog extends BaseDialog {
+
+    private static final int BODY_WIDTH = 520;
+    private static final int TIME_FIELD_WIDTH = 110;
+    private static final int RESULT_WIDTH = 464;
+    private static final int RESULT_HEIGHT = 210;
 
     /** 길이 선택지 */
     private enum Length {
@@ -56,8 +62,8 @@ public class FreeSlotDialog extends BaseDialog {
     private final Segmented<Length> length = new Segmented<>(List.of(Length.values()), l -> l.label);
     private final JSpinner custom = new JSpinner(new SpinnerNumberModel(45, 15, 480, 15));
     private final JPanel customRow = new JPanel(new FlowLayout(FlowLayout.LEFT, Ui.px(8), 0));
-    private final TimeCombo from = new TimeCombo(proto.ui.UiSettings.freeFrom()).named("찾을 시간대 시작");
-    private final TimeCombo to = new TimeCombo(proto.ui.UiSettings.freeTo()).named("찾을 시간대 끝");
+    private final TimeCombo from = new TimeCombo(UiSettings.freeFrom()).named("찾을 시간대 시작");
+    private final TimeCombo to = new TimeCombo(UiSettings.freeTo()).named("찾을 시간대 끝");
     private final ScrollPanel results = new ScrollPanel(null);
     private TimeSlot chosen;
 
@@ -81,8 +87,13 @@ public class FreeSlotDialog extends BaseDialog {
         return chosen;
     }
 
+    /** 고른 구간으로 채운 새 일정 입력값 (고르지 않았으면 null) */
+    public ScheduleDraft draft() {
+        return chosen == null ? null : ctx.schedules().draftForSlot(chosen);
+    }
+
     private JPanel buildBody() {
-        JPanel root = new proto.ui.component.WidthPanel(new BorderLayout(0, Ui.px(16)), 520);
+        JPanel root = new WidthPanel(new BorderLayout(0, Ui.px(16)), BODY_WIDTH);
         root.add(new TokenLabel("빈 시간 찾기", Fonts.semibold(Fonts.TITLE), Tokens.TEXT), BorderLayout.NORTH);
         root.add(content(), BorderLayout.CENTER);
         return root;
@@ -128,25 +139,25 @@ public class FreeSlotDialog extends BaseDialog {
     private JPanel window() {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         p.setOpaque(false);
-        from.setPreferredSize(new Dimension(Ui.px(110), from.getPreferredSize().height));
-        to.setPreferredSize(new Dimension(Ui.px(110), to.getPreferredSize().height));
+        from.setPreferredSize(new Dimension(Ui.px(TIME_FIELD_WIDTH), from.getPreferredSize().height));
+        to.setPreferredSize(new Dimension(Ui.px(TIME_FIELD_WIDTH), to.getPreferredSize().height));
         p.add(from);
-        p.add(javax.swing.Box.createHorizontalStrut(Ui.px(12)));
+        p.add(Box.createHorizontalStrut(Ui.px(12)));
         p.add(new TokenLabel("–", Fonts.regular(Fonts.BODY), Tokens.MUTED));
-        p.add(javax.swing.Box.createHorizontalStrut(Ui.px(12)));
+        p.add(Box.createHorizontalStrut(Ui.px(12)));
         p.add(to);
         return p;
     }
 
     private JScrollPane resultScroll() {
-        JScrollPane s = new JScrollPane(results);
-        s.setBorder(BorderFactory.createEmptyBorder());
-        s.setOpaque(false);
-        s.getViewport().setOpaque(false);
-        s.setPreferredSize(new Dimension(Ui.px(464), Ui.px(210)));
-        s.setAlignmentX(LEFT_ALIGNMENT);
-        s.setMaximumSize(new Dimension(Integer.MAX_VALUE, Ui.px(210)));
-        return s;
+        JScrollPane scroll = new JScrollPane(results);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        scroll.setPreferredSize(new Dimension(Ui.px(RESULT_WIDTH), Ui.px(RESULT_HEIGHT)));
+        scroll.setAlignmentX(LEFT_ALIGNMENT);
+        scroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, Ui.px(RESULT_HEIGHT)));
+        return scroll;
     }
 
     private int minutes() {
@@ -156,17 +167,17 @@ public class FreeSlotDialog extends BaseDialog {
 
     /** 조건이 올바르지 않으면(시작이 끝보다 늦거나 읽을 수 없는 시간) 결과 대신 안내 문장을 보여 준다. */
     private void search() {
-        LocalTime f = from.time();
-        LocalTime t = to.time();
+        LocalTime windowStart = from.time();
+        LocalTime windowEnd = to.time();
         results.removeAll();
-        if (f == null || t == null || !f.isBefore(t)) {
+        if (windowStart == null || windowEnd == null || !windowStart.isBefore(windowEnd)) {
             results.add(message("시간대를 14:00처럼 시작이 끝보다 빠르게 입력해 주세요"));
         } else {
-            List<TimeSlot> slots = ctx.schedules().findFreeSlots(date.getDate(), minutes(), f, t);
+            List<TimeSlot> slots = ctx.schedules().findFreeSlots(date.getDate(), minutes(), windowStart, windowEnd);
             if (slots.isEmpty()) {
                 results.add(message("이 날은 빈 시간이 없어요"));
             }
-            slots.forEach(s -> results.add(slotRow(s)));
+            slots.forEach(slot -> results.add(slotRow(slot)));
         }
         results.revalidate();
         results.repaint();
@@ -181,7 +192,7 @@ public class FreeSlotDialog extends BaseDialog {
         return p;
     }
 
-    private JPanel slotRow(TimeSlot s) {
+    private JPanel slotRow(TimeSlot slot) {
         JPanel p = new JPanel(new BorderLayout(Ui.px(12), 0));
         p.setOpaque(false);
         p.setBorder(BorderFactory.createEmptyBorder(Ui.px(8), Ui.px(4), Ui.px(8), Ui.px(4)));
@@ -189,21 +200,16 @@ public class FreeSlotDialog extends BaseDialog {
         p.setAlignmentX(0f);
         JPanel text = new JPanel(new FlowLayout(FlowLayout.LEFT, Ui.px(8), 0));
         text.setOpaque(false);
-        text.add(new TokenLabel(Fmt.range(s.start(), s.end()), Fonts.semibold(Fonts.BODY), Tokens.TEXT));
-        text.add(new TokenLabel("· " + Fmt.duration(s.minutes()) + " 비어 있어요", Fonts.regular(Fonts.SMALL),
+        text.add(new TokenLabel(Fmt.range(slot.start(), slot.end()), Fonts.semibold(Fonts.BODY), Tokens.TEXT));
+        text.add(new TokenLabel("· " + Fmt.duration(slot.minutes()) + " 비어 있어요", Fonts.regular(Fonts.SMALL),
                 Tokens.MUTED));
         JButton add = Buttons.compact(Buttons.secondary("이 시간에 추가"));
         add.addActionListener(e -> {
-            chosen = s;
+            chosen = slot;
             close(false);
         });
         p.add(text, BorderLayout.CENTER);
         p.add(add, BorderLayout.EAST);
         return p;
-    }
-
-    /** 고른 구간으로 채운 새 일정 입력값 (고르지 않았으면 null) */
-    public ScheduleDraft draft() {
-        return chosen == null ? null : ctx.schedules().draftForSlot(chosen);
     }
 }

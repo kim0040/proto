@@ -12,10 +12,9 @@ import java.util.prefs.Preferences;
 
 /**
  * [경계 boundary] 애니메이션 공통 진입점. 켜고 끄는 설정(저장됨)과 짧은 ease-out 모션 실행을 맡는다.
- * 모든 애니메이션(Tween, ColorTween, TransitionHost, FadePanel)이 이 클래스를 거쳐 실행된다. 설정 화면의 "애니메이션" 스위치(SettingsView)가
+ * 모든 애니메이션(Tween, ColorTween, TransitionHost, FadePanel)이 이 클래스를 거쳐 실행된다. 설정 시트의 "애니메이션" 스위치(SettingsView)가
  * setEnabled를 부른다.
- * Motion이 꺼져 있으면 시간을 기다리지 않고 끝 상태로 바로 넘어가므로, 화면 코드는 켜짐/꺼짐을 따로 나누지 않아도 된다 (Motion gating).
- * 꺼져 있으면 모든 모션이 즉시 끝 상태로 건너뛴다.
+ * 꺼져 있으면 시간을 기다리지 않고 모든 모션이 끝 상태로 바로 넘어가므로, 화면 코드는 켜짐/꺼짐을 따로 나누지 않아도 된다 (Motion gating).
  */
 public final class Motion {
 

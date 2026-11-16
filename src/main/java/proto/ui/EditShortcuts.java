@@ -19,11 +19,10 @@ import java.util.function.BooleanSupplier;
 
 /**
  * [경계 boundary] 메인 창의 편집 단축키: 되돌리기(Ctrl/⌘+Z), 다시 실행(Ctrl/⌘+Shift+Z, Windows는 Ctrl+Y), 복사(Ctrl/⌘+C), 붙여넣기(Ctrl/⌘+V).
- * MainFrame이 창 뿌리(rootPane)에 한 번 달아 준다. 실제 동작은 UiActions가 한다 (F1, F3).
- * 글자 입력칸(검색창 등 JTextComponent)에 포커스가 있으면 그 칸이 키를 쓰도록 아무것도 하지 않는다.
- * 시트(대화상자·설정)나 명령 메뉴(⌘K)가 열려 있는 동안에는 꺼진다: 둘 다 같은 창 안에 뜨므로, 막지 않으면 뒤 화면의 일정을 되돌리거나 붙여 넣게 된다.
- * 꺼질지는 MainFrame의 keysFree와 같은 판단(free)을 받아 쓴다. 창 단축키·한 글자 단축키와 한 곳의 규칙을 함께 쓰려는 것이다.
- * 복사는 포커스가 일정 조각(OccurrenceHolder) 위에 있을 때만 일정을 복사한다.
+ * MainFrame이 창 뿌리(rootPane)에 한 번 달고, 실제 동작은 UiActions가 한다 (F1, F3). 복사는 포커스가 일정 조각(OccurrenceHolder) 위에 있을 때만 일정을 복사한다.
+ * 글자 입력칸(JTextComponent)에 포커스가 있으면 그 칸이 키를 쓰도록 아무것도 하지 않는다.
+ * 시트나 명령 메뉴(⌘K)가 열려 있는 동안에는 꺼진다: 같은 창 안에 뜨므로, 막지 않으면 뒤 화면의 일정을 되돌리거나 붙여 넣게 된다.
+ * 꺼질지는 MainFrame의 keysFree와 같은 판단(free)을 받아, 창 단축키·한 글자 단축키와 한 곳의 규칙을 함께 쓴다.
  */
 final class EditShortcuts {
 
@@ -56,6 +55,19 @@ final class EditShortcuts {
         bind("paste", KeyStroke.getKeyStroke(KeyEvent.VK_V, mask), () -> ctx.actions().paste());
     }
 
+    /** 지금 키 입력을 받는 컴포넌트가 글자 입력칸인지 */
+    static boolean typingInTextField() {
+        Component owner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+        return owner instanceof JTextComponent;
+    }
+
+    private void copyFocused() {
+        Occurrence o = OccurrenceHolder.find(KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner());
+        if (o != null) {
+            ctx.actions().copy(o);
+        }
+    }
+
     private void bind(String name, KeyStroke key, Runnable action) {
         String id = "proto-edit-" + name;
         root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(key, id);
@@ -72,18 +84,5 @@ final class EditShortcuts {
                 }
             }
         });
-    }
-
-    /** 지금 키 입력을 받는 컴포넌트가 글자 입력칸인지 */
-    static boolean typingInTextField() {
-        Component owner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
-        return owner instanceof JTextComponent;
-    }
-
-    private void copyFocused() {
-        Occurrence o = OccurrenceHolder.find(KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner());
-        if (o != null) {
-            ctx.actions().copy(o);
-        }
     }
 }

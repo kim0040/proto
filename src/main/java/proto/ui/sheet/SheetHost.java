@@ -68,19 +68,6 @@ public final class SheetHost extends JComponent {
         return host != null && host.isOpen();
     }
 
-    private static SheetHost find(Component c) {
-        Component p = c instanceof RootPaneContainer r ? r.getLayeredPane() : c;
-        for (; p != null; p = p.getParent()) {
-            if (p instanceof JComponent jc && jc.getClientProperty(KEY) instanceof SheetHost h) {
-                return h;
-            }
-            if (p instanceof JRootPane root && root.getLayeredPane().getClientProperty(KEY) instanceof SheetHost h) {
-                return h;
-            }
-        }
-        return null;
-    }
-
     /** 닫히는 중이 아닌 시트가 하나라도 있는지 */
     public boolean isOpen() {
         return topLayer() != null;
@@ -135,20 +122,6 @@ public final class SheetHost extends JComponent {
         restoreFocus(layer);
     }
 
-    /**
-     * 닫힌 뒤 돌려줄 포커스 자리. 지금 포커스가 사라지는 중인 시트 안에 있으면(빈 시간을 고르자마자 새 일정 시트가 열릴 때)
-     * 그 시트가 돌려주려던 자리를 대신 쓴다.
-     */
-    private Component focusBehind(Component owner) {
-        for (int i = stack.size() - 1; i >= 0; i--) {
-            SheetLayer l = stack.get(i);
-            if (l.closing() && owner != null && SwingUtilities.isDescendingFrom(owner, l)) {
-                owner = l.previousFocus();
-            }
-        }
-        return owner;
-    }
-
     /** 시트 내용이 바뀌어 크기를 다시 맞춘다 (검증 오류가 나타나는 등) */
     public void relayout(Sheet sheet) {
         SheetLayer layer = layerOf(sheet);
@@ -166,34 +139,9 @@ public final class SheetHost extends JComponent {
         }
     }
 
-    private SheetLayer layerOf(Sheet sheet) {
-        return stack.stream().filter(l -> l.sheet() == sheet).findFirst().orElse(null);
-    }
-
-    private void applyDefaultButton() {
-        JRootPane root = SwingUtilities.getRootPane(this);
-        if (root != null) {
-            SheetLayer top = topLayer();
-            root.setDefaultButton(top != null ? top.sheet().defaultButton() : baseDefault);
-        }
-    }
-
     /** 시트가 기본 버튼을 바꿨을 때 다시 적용한다 */
     public void defaultButtonChanged() {
         applyDefaultButton();
-    }
-
-    /** 열기 전에 포커스가 있던 곳으로 돌려준다. 그곳이 사라졌으면 아래 시트 안으로 */
-    private void restoreFocus(SheetLayer closed) {
-        Component back = closed.previousFocus();
-        SheetLayer top = topLayer();
-        boolean usable = back != null && back.isShowing() && back.isFocusable()
-                && (top == null || SwingUtilities.isDescendingFrom(back, top));
-        if (usable) {
-            back.requestFocusInWindow();
-        } else if (top != null) {
-            top.focusInside();
-        }
     }
 
     /** 시트가 있을 때만 마우스를 받는다. 비어 있으면 투명한 층이라 클릭이 아래로 지나간다 */
@@ -206,6 +154,58 @@ public final class SheetHost extends JComponent {
     public void doLayout() {
         for (SheetLayer layer : stack) {
             layer.setBounds(0, 0, getWidth(), getHeight());
+        }
+    }
+
+    private static SheetHost find(Component c) {
+        Component p = c instanceof RootPaneContainer r ? r.getLayeredPane() : c;
+        for (; p != null; p = p.getParent()) {
+            if (p instanceof JComponent jc && jc.getClientProperty(KEY) instanceof SheetHost h) {
+                return h;
+            }
+            if (p instanceof JRootPane root && root.getLayeredPane().getClientProperty(KEY) instanceof SheetHost h) {
+                return h;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 닫힌 뒤 돌려줄 포커스 자리. 지금 포커스가 사라지는 중인 시트 안에 있으면(빈 시간을 고르자마자 새 일정 시트가 열릴 때)
+     * 그 시트가 돌려주려던 자리를 대신 쓴다.
+     */
+    private Component focusBehind(Component owner) {
+        for (int i = stack.size() - 1; i >= 0; i--) {
+            SheetLayer l = stack.get(i);
+            if (l.closing() && owner != null && SwingUtilities.isDescendingFrom(owner, l)) {
+                owner = l.previousFocus();
+            }
+        }
+        return owner;
+    }
+
+    private SheetLayer layerOf(Sheet sheet) {
+        return stack.stream().filter(l -> l.sheet() == sheet).findFirst().orElse(null);
+    }
+
+    private void applyDefaultButton() {
+        JRootPane root = SwingUtilities.getRootPane(this);
+        if (root != null) {
+            SheetLayer top = topLayer();
+            root.setDefaultButton(top != null ? top.sheet().defaultButton() : baseDefault);
+        }
+    }
+
+    /** 열기 전에 포커스가 있던 곳으로 돌려준다. 그곳이 사라졌으면 아래 시트 안으로 */
+    private void restoreFocus(SheetLayer closed) {
+        Component back = closed.previousFocus();
+        SheetLayer top = topLayer();
+        boolean usable = back != null && back.isShowing() && back.isFocusable()
+                && (top == null || SwingUtilities.isDescendingFrom(back, top));
+        if (usable) {
+            back.requestFocusInWindow();
+        } else if (top != null) {
+            top.focusInside();
         }
     }
 }

@@ -8,9 +8,9 @@ import proto.ui.component.ScrollPanel;
 import proto.ui.component.TextUtil;
 import proto.ui.component.TokenLabel;
 import proto.ui.component.TokenPanel;
+import proto.ui.theme.AppIcon;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.Icons;
-import proto.ui.theme.AppIcon;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
@@ -28,15 +28,15 @@ import java.time.LocalDate;
 import java.util.function.Consumer;
 
 /**
- * [경계 boundary] 왼쪽 사이드바: 앱 이름, 새 일정, 보기 이동, 빈 시간 찾기, 카테고리 필터, 설정 열기.
- * MainFrame이 만들고, 넓은 화면에서는 본문 왼쪽에 SidebarHost가 붙여 둔다. 좁은 화면에서는 SidebarDrawer 안에 담겨 펼쳐진다.
- * 버튼들은 직접 일을 하지 않고 생성자로 받은 동작(onNav, onCategory)이나 UiActions에 맡긴다 (F1 새 일정, F7 카테고리 필터·편집, F12 빈 시간 찾기).
- * 선택된 항목은 옆 막대 대신 둥근 알약이 미끄러지며 표시한다.
- * 보기 이동 아래에 작은 월 달력(SidebarMonth)이 있다: 날짜를 누르면 onDate로 그 날짜로 이동한다. 세로 공간이 모자라면(카테고리 목록이 눌리면) 달력을 숨긴다.
+ * [경계 boundary] 왼쪽 사이드바: 앱 이름, 새 일정, 보기 이동, 빈 시간 찾기, 작은 월 달력(SidebarMonth), 카테고리 필터, 설정 열기.
+ * MainFrame이 만들고, 넓은 화면에서는 SidebarHost가 본문 왼쪽에 붙이며 좁은 화면에서는 SidebarDrawer 안에 담겨 펼쳐진다.
+ * 버튼은 직접 일하지 않고 생성자로 받은 동작(onNav, onCategory, onDate)이나 UiActions에 맡긴다 (F1 새 일정, F7 카테고리 필터·편집, F12 빈 시간 찾기).
+ * 선택된 항목은 옆 막대 대신 둥근 알약이 미끄러지며 표시한다. 세로 공간이 모자라 카테고리 목록이 눌리면 달력을 숨긴다.
  */
 public final class Sidebar extends TokenPanel {
 
     private static final String ALL = "all";
+    private static final String NONE = "";
     /** 달력을 보여 주는 사이드바 최소 높이 (논리 px). 이보다 낮으면 카테고리 목록이 눌린다 */
     private static final int MONTH_MIN_HEIGHT = 760;
 
@@ -49,7 +49,6 @@ public final class Sidebar extends TokenPanel {
     private final PillList nav = new PillList();
     private final PillList categories = new PillList();
     private final PillList settings = new PillList();
-    private static final String NONE = "";
 
     /** beforeAction은 새 일정·빈 시간·카테고리 편집 같은 동작 직전에 불린다 (서랍으로 열려 있으면 닫으려고) */
     public Sidebar(UiContext ctx, Consumer<Mode> onNav, Consumer<String> onCategory, Consumer<LocalDate> onDate,
@@ -80,15 +79,6 @@ public final class Sidebar extends TokenPanel {
         });
     }
 
-    /** 달력이 자리를 잡아도 카테고리 목록이 눌리지 않을 만큼 세로로 클 때만 보인다 */
-    private void updateMonthVisibility() {
-        boolean fits = getHeight() >= Ui.px(MONTH_MIN_HEIGHT);
-        if (fits != month.isVisible()) {
-            month.setVisible(fits);
-            revalidate();
-        }
-    }
-
     /** 일정이 바뀌었을 때: 달력의 점을 다시 읽는다 */
     public void refreshMonth() {
         month.refreshMarks();
@@ -102,6 +92,39 @@ public final class Sidebar extends TokenPanel {
     /** 사이드바 너비를 논리 px로 정한다 */
     public void setLogicalWidth(int logicalPx) {
         setPreferredSize(new Dimension(Ui.px(logicalPx), 10));
+    }
+
+    /** 카테고리 목록을 controller에서 다시 읽어 만든다 */
+    public void refreshCategories() {
+        String selected = ctx.state().categoryId();
+        categories.clear();
+        categories.addItem(ALL, "tag", null, "전체", () -> onCategory.accept(null));
+        for (Category c : ctx.categories().getCategories()) {
+            String id = c.getId();
+            categories.addItem(id, null, id, TextUtil.clean(c.getName()), () -> onCategory.accept(id));
+        }
+        categories.setSelected(selected == null ? ALL : selected, false);
+        categories.revalidate();
+        categories.repaint();
+    }
+
+    /** 보기 선택 표시를 맞춘다 */
+    public void setMode(Mode mode, boolean animate) {
+        nav.setSelected(mode.name(), animate);
+    }
+
+    /** 카테고리 선택 표시를 맞춘다 */
+    public void setCategory(String id, boolean animate) {
+        categories.setSelected(id == null ? ALL : id, animate);
+    }
+
+    /** 달력이 자리를 잡아도 카테고리 목록이 눌리지 않을 만큼 세로로 클 때만 보인다 */
+    private void updateMonthVisibility() {
+        boolean fits = getHeight() >= Ui.px(MONTH_MIN_HEIGHT);
+        if (fits != month.isVisible()) {
+            month.setVisible(fits);
+            revalidate();
+        }
     }
 
     /** "새 일정" 버튼. 달력 보기에서는 고른 날짜로, 다른 보기에서는 오늘 날짜로 새 일정 창을 연다. */
@@ -191,20 +214,6 @@ public final class Sidebar extends TokenPanel {
         return p;
     }
 
-    /** 카테고리 목록을 controller에서 다시 읽어 만든다 */
-    public void refreshCategories() {
-        String selected = ctx.state().categoryId();
-        categories.clear();
-        categories.addItem(ALL, "tag", null, "전체", () -> onCategory.accept(null));
-        for (Category c : ctx.categories().getCategories()) {
-            String id = c.getId();
-            categories.addItem(id, null, id, TextUtil.clean(c.getName()), () -> onCategory.accept(id));
-        }
-        categories.setSelected(selected == null ? ALL : selected, false);
-        categories.revalidate();
-        categories.repaint();
-    }
-
     /** "설정"은 보기 이동이 아니라 지금 화면 위에 설정 시트를 연다 (그래서 선택 표시가 남지 않는다) */
     private void buildSettings() {
         settings.addItem("settings", "settings", null, "설정", () -> {
@@ -212,15 +221,5 @@ public final class Sidebar extends TokenPanel {
             ctx.actions().openSettings();
         });
         settings.setSelected(NONE, false);
-    }
-
-    /** 보기 선택 표시를 맞춘다 */
-    public void setMode(Mode mode, boolean animate) {
-        nav.setSelected(mode.name(), animate);
-    }
-
-    /** 카테고리 선택 표시를 맞춘다 */
-    public void setCategory(String id, boolean animate) {
-        categories.setSelected(id == null ? ALL : id, animate);
     }
 }

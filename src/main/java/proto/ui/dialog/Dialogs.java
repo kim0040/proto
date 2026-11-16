@@ -14,8 +14,8 @@ import proto.ui.theme.Ui;
 
 import javax.swing.BoxLayout;
 import javax.swing.JPanel;
-import java.awt.FlowLayout;
 import java.awt.Component;
+import java.awt.FlowLayout;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -26,6 +26,8 @@ import java.util.function.Function;
  * 반환 모양은 "참/거짓"이나 Optional로 단순하게 두어서 호출한 쪽이 화면 구조를 몰라도 된다.
  */
 public final class Dialogs {
+
+    private static final int SHORT_NAME_MAX = 24;
 
     private Dialogs() {
     }
@@ -103,9 +105,9 @@ public final class Dialogs {
     /** 긴 이름을 24글자까지만 보여 주고 나머지는 "…"로 줄인다. 이모지를 한 글자로 세려고 코드 포인트로 센다. */
     public static String shorten(String raw) {
         String s = TextUtil.clean(raw);
-        if (s.codePointCount(0, s.length()) <= 24) {
+        if (s.codePointCount(0, s.length()) <= SHORT_NAME_MAX) {
             return s;
         }
-        return s.substring(0, s.offsetByCodePoints(0, 23)) + "…";
+        return s.substring(0, s.offsetByCodePoints(0, SHORT_NAME_MAX - 1)) + "…";
     }
 }

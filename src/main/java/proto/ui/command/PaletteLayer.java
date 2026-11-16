@@ -1,5 +1,6 @@
 package proto.ui.command;
 
+import com.formdev.flatlaf.util.Animator;
 import proto.ui.motion.Motion;
 import proto.ui.theme.ThemeManager;
 import proto.ui.theme.Tokens;
@@ -24,6 +25,7 @@ import java.awt.event.ComponentEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.RoundRectangle2D;
 
 /**
  * [경계 boundary] 창 위쪽 가운데에 뜨는 명령 메뉴 층: 옅은 스크림 + 카드(폭 560px) + 열고 닫는 움직임 + 바깥을 누르면 닫기.
@@ -39,6 +41,7 @@ public final class PaletteLayer extends JComponent {
     private static final int CLOSE_MS = 90;
     private static final int WIDTH = 560;
     private static final int RISE = 8;
+    private static final int CARD_ARC = 14;
     private static final float SCRIM_LIGHT = 0.14f;
     private static final float SCRIM_DARK = 0.34f;
 
@@ -141,36 +144,9 @@ public final class PaletteLayer extends JComponent {
         }
     }
 
-    /** 명령을 고르면: 먼저 닫아서 포커스를 돌려준 다음 실행한다 */
-    private void run(Command command) {
-        close();
-        SwingUtilities.invokeLater(command.action());
-    }
-
-    private void removePalette() {
-        if (palette != null) {
-            remove(palette);
-            palette = null;
-        }
-        closing = false;
-        setVisible(false);
-        repaint();
-    }
-
-    private void animate(int ms, com.formdev.flatlaf.util.Animator.Interpolator easing, float from, float to,
-                         Runnable done) {
-        if (running != null) {
-            running.cancel();
-        }
-        running = Motion.run(ms, easing, f -> {
-            progress = from + (to - from) * f;
-            repaint();
-        }, done);
-    }
-
-    private void relayoutCard() {
-        revalidate();
-        repaint();
+    /** 화면 캡처·테스트가 쓰는 카드 안쪽 */
+    CommandPalette palette() {
+        return palette;
     }
 
     /** 카드를 위쪽 가운데에 둔다: 폭 560(창이 좁으면 좌우 16px 여백), 높이는 내용만큼 */
@@ -224,17 +200,49 @@ public final class PaletteLayer extends JComponent {
             g2.setComposite(AlphaComposite.SrcOver.derive(Math.min(1f, progress)));
         }
         paintCard(g2, r);
-        int arc = Ui.px(14);
-        g2.clip(new java.awt.geom.RoundRectangle2D.Float(r.x, r.y, r.width, r.height, arc, arc));
+        int arc = Ui.px(CARD_ARC);
+        g2.clip(new RoundRectangle2D.Float(r.x, r.y, r.width, r.height, arc, arc));
         super.paintChildren(g2);
         g2.dispose();
+    }
+
+    /** 명령을 고르면: 먼저 닫아서 포커스를 돌려준 다음 실행한다 */
+    private void run(Command command) {
+        close();
+        SwingUtilities.invokeLater(command.action());
+    }
+
+    private void removePalette() {
+        if (palette != null) {
+            remove(palette);
+            palette = null;
+        }
+        closing = false;
+        setVisible(false);
+        repaint();
+    }
+
+    private void animate(int ms, Animator.Interpolator easing, float from, float to,
+                         Runnable done) {
+        if (running != null) {
+            running.cancel();
+        }
+        running = Motion.run(ms, easing, f -> {
+            progress = from + (to - from) * f;
+            repaint();
+        }, done);
+    }
+
+    private void relayoutCard() {
+        revalidate();
+        repaint();
     }
 
     /** 앱의 카드 모양: 옅은 그림자 몇 겹 + 둥근 면 + 얇은 테두리 (시트 카드와 같은 모양) */
     private static void paintCard(Graphics2D g, Rectangle r) {
         Graphics2D g2 = (Graphics2D) g.create();
         Ui.smooth(g2);
-        int arc = Ui.px(14);
+        int arc = Ui.px(CARD_ARC);
         for (int i = 4; i >= 1; i--) {
             int spread = Ui.px(i * 3);
             g2.setColor(Tokens.alpha(Color.BLACK, 0.04f));
@@ -246,10 +254,5 @@ public final class PaletteLayer extends JComponent {
         g2.setColor(Tokens.get(Tokens.BORDER_STRONG));
         g2.drawRoundRect(r.x, r.y, r.width - 1, r.height - 1, arc, arc);
         g2.dispose();
-    }
-
-    /** 화면 캡처·테스트가 쓰는 카드 안쪽 */
-    CommandPalette palette() {
-        return palette;
     }
 }

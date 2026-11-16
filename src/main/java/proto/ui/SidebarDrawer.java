@@ -9,6 +9,7 @@ import javax.swing.AbstractAction;
 import javax.swing.JComponent;
 import javax.swing.KeyStroke;
 import java.awt.AlphaComposite;
+import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.event.ActionEvent;
@@ -93,21 +94,6 @@ public final class SidebarDrawer extends JComponent {
         finishClose();
     }
 
-    private void finishClose() {
-        if (opened || sidebar == null) {
-            return;
-        }
-        remove(sidebar);
-        sidebar = null;
-        setVisible(false);
-        onClosed.run();
-    }
-
-    private void layoutAndRepaint() {
-        doLayout();
-        repaint();
-    }
-
     /** 닫힌 동안 false를 돌려주어 마우스 클릭이 이 투명한 층을 통과해 아래 본문에 닿게 한다. */
     @Override
     public boolean contains(int x, int y) {
@@ -126,7 +112,7 @@ public final class SidebarDrawer extends JComponent {
     @Override
     protected void paintComponent(Graphics g) {
         Graphics2D g2 = (Graphics2D) g.create();
-        g2.setColor(Tokens.alpha(java.awt.Color.BLACK, 0.28f * open.value()));
+        g2.setColor(Tokens.alpha(Color.BLACK, 0.28f * open.value()));
         g2.fillRect(0, 0, getWidth(), getHeight());
         g2.dispose();
     }
@@ -137,5 +123,20 @@ public final class SidebarDrawer extends JComponent {
         g2.setComposite(AlphaComposite.SrcOver.derive(Math.max(0.02f, Math.min(1f, open.value() * 1.4f))));
         super.paintChildren(g2);
         g2.dispose();
+    }
+
+    private void finishClose() {
+        if (opened || sidebar == null) {
+            return;
+        }
+        remove(sidebar);
+        sidebar = null;
+        setVisible(false);
+        onClosed.run();
+    }
+
+    private void layoutAndRepaint() {
+        doLayout();
+        repaint();
     }
 }

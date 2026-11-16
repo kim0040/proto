@@ -3,9 +3,9 @@ package proto.ui.command;
 import proto.entity.Category;
 import proto.entity.CategoryPalette;
 import proto.entity.Occurrence;
-import proto.ui.dialog.ColorMenu;
 import proto.ui.AppState.Mode;
 import proto.ui.Fmt;
+import proto.ui.dialog.ColorMenu;
 import proto.ui.theme.ThemeManager.Choice;
 import proto.ui.theme.Ui;
 
@@ -29,6 +29,8 @@ public final class CommandCatalog {
     static final String G_CATEGORY = "카테고리";
     static final String G_COLOR = "선택한 일정";
     static final String G_APP = "표시와 설정";
+    /** "이 제목으로 새 일정" 항목에 보여 줄 제목의 최대 글자 수 */
+    private static final int NEW_TITLE_MAX = 30;
 
     private final CommandHost host;
 
@@ -105,8 +107,8 @@ public final class CommandCatalog {
     private Command colorCommand(Occurrence o, String key, String dot) {
         String title = "선택한 일정 색 바꾸기: " + ColorMenu.nameOf(key);
         String now = Objects.equals(o.colorKey(), key) ? "지금" : "";
-        return new Command(G_COLOR, title, dot == null ? "palette" : null, null, dot, now, "", "color 색 바꾸기 색상 " + ColorMenu.nameOf(key),
-                () -> host.changeColor(o, key));
+        return new Command(G_COLOR, title, dot == null ? "palette" : null, null, dot, now, "",
+                "color 색 바꾸기 색상 " + ColorMenu.nameOf(key), () -> host.changeColor(o, key));
     }
 
     private static String shiftShortcut(String key) {
@@ -157,7 +159,7 @@ public final class CommandCatalog {
     }
 
     private Command createWithTitle(String title) {
-        String shown = title.length() > 30 ? title.substring(0, 30) + "…" : title;
+        String shown = title.length() > NEW_TITLE_MAX ? title.substring(0, NEW_TITLE_MAX) + "…" : title;
         return new Command(G_SCHEDULE, "‘" + shown + "’ 일정 만들기", "plus", null, "", "", "", () -> host.newSchedule(title));
     }
 }

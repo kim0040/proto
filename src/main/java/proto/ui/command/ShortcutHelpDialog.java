@@ -9,17 +9,19 @@ import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
+import javax.accessibility.AccessibleContext;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import java.awt.BorderLayout;
+import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.Dimension;
-import java.awt.FontMetrics;
 
 /**
  * [경계 boundary] 단축키 안내 시트: 묶음별로 "하는 일 ····· 키" 목록을 보여 준다 (? 키, 명령 메뉴의 "단축키 보기").
@@ -33,7 +35,7 @@ public final class ShortcutHelpDialog extends BaseDialog {
     }
 
     /** 시트를 띄울 창(또는 그 안의 컴포넌트)을 직접 정한다 (테스트) */
-    ShortcutHelpDialog(java.awt.Component owner) {
+    ShortcutHelpDialog(Component owner) {
         super(owner, "단축키");
         JButton close = Buttons.primary("닫기");
         close.addActionListener(e -> onCancel());
@@ -79,7 +81,7 @@ public final class ShortcutHelpDialog extends BaseDialog {
         }
 
         @Override
-        public javax.accessibility.AccessibleContext getAccessibleContext() {
+        public AccessibleContext getAccessibleContext() {
             if (accessibleContext == null) {
                 accessibleContext = new AccessibleJComponent() { };
                 accessibleContext.setAccessibleName(entry.what() + ": " + String.join(" ", entry.keys()));

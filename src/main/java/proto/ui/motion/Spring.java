@@ -39,12 +39,6 @@ public final class Spring implements Animator.Interpolator {
         return overshoot;
     }
 
-    /** 감쇠 진동 그대로의 값 (t=1에서 1이 아니다) */
-    private double raw(double t) {
-        double decay = Math.exp(-sigma * t);
-        return 1 - decay * (Math.cos(omegaD * t) + sigma / omegaD * Math.sin(omegaD * t));
-    }
-
     @Override
     public float interpolate(float t) {
         if (t <= 0f) {
@@ -54,5 +48,11 @@ public final class Spring implements Animator.Interpolator {
             return 1f;
         }
         return (float) (raw(t) / norm);
+    }
+
+    /** 감쇠 진동 그대로의 값 (t=1에서 1이 아니다) */
+    private double raw(double t) {
+        double decay = Math.exp(-sigma * t);
+        return 1 - decay * (Math.cos(omegaD * t) + sigma / omegaD * Math.sin(omegaD * t));
     }
 }

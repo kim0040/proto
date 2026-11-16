@@ -11,43 +11,47 @@ import proto.ui.UiContext;
 import proto.ui.component.Buttons;
 import proto.ui.component.DatePickerField;
 import proto.ui.component.Ime;
+import proto.ui.component.Listeners;
 import proto.ui.component.Segmented;
 import proto.ui.component.TimeCombo;
 import proto.ui.component.ToggleSwitch;
 import proto.ui.component.TokenLabel;
+import proto.ui.component.WidthPanel;
 import proto.ui.dialog.FieldErrors.Field;
+import proto.ui.theme.CategoryColors;
 import proto.ui.theme.Fonts;
 import proto.ui.theme.Tokens;
 import proto.ui.theme.Ui;
 
 import javax.swing.BorderFactory;
-import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
-import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
-import java.awt.Cursor;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
 /**
  * [경계 boundary] 일정 등록·수정 창 (F1, F3, F13). 저장하면 (반복이면) 범위 선택 → 검증 → 겹침 확인 → 저장 순으로 진행한다.
- * UiActions#newSchedule, #editSchedule이 연다. 이 창은 입력값을 ScheduleDraft로 모아 ScheduleController에 넘기기만 하고, 검증 규칙(F1)과 겹침
- * 판단(F13)은 모두 controller가 한다.
+ * UiActions가 새 일정(newSchedule, openNew)과 수정(open)에서 연다. 이 창은 입력값을 ScheduleDraft로 모아 ScheduleController에 넘기기만 하고,
+ * 검증 규칙(F1)과 겹침 판단(F13)은 모두 controller가 한다.
  * 아무것도 바꾸지 않았으면 바깥 클릭·Esc로 바로 닫히고, 바꾼 것이 있으면 바깥 클릭은 흔들림으로 막고 Esc는 버릴지 묻는다.
  * "하루 종일" 스위치를 켜면 시작·끝 시간과 알림 줄이 접히고(160ms) 저장할 때 하루 종일 일정이 된다(시간은 00:00~23:59, 알림 없음으로 controller가 맞춘다).
  * 끄면 접기 전의 시간(수정 중이던 하루 종일 일정은 09:00~10:00)이 그대로 돌아온다.
@@ -55,8 +59,12 @@ import java.util.Optional;
 public class ScheduleDialog extends BaseDialog {
 
     private static final int MEMO_MAX = 200;
+    private static final int BODY_WIDTH = 520;
+    /** 입력칸 줄 사이의 세로 간격 (논리 px) */
+    private static final int ROW_GAP = 14;
     private static final LocalTime DEFAULT_START = LocalTime.of(9, 0);
     private static final LocalTime DEFAULT_END = LocalTime.of(10, 0);
+    private static final LocalTime ALL_DAY_END = LocalTime.of(23, 59);
 
     private final UiContext ctx;
     private final Occurrence editing;
@@ -74,13 +82,14 @@ public class ScheduleDialog extends BaseDialog {
     private final JComboBox<ReminderOption> reminder = FormKit.labelCombo(ReminderOption.values(), ReminderOption::label);
     private final ToggleSwitch allDay;
     private final ColorSwatchRow colors;
-    private CollapseRow timeRow;
-    private CollapseRow reminderRow;
     private final JTextArea memo = new JTextArea(3, 20);
     private final TokenLabel counter = new TokenLabel("0/" + MEMO_MAX, Fonts.regular(Fonts.CAPTION), Tokens.MUTED);
+    private CollapseRow timeRow;
+    private CollapseRow reminderRow;
+    private JButton saveButton;
+    private JButton deleteButton;
     private boolean saved;
     private boolean busy;
-    private JButton deleteButton;
     /** 열 때의 입력값. 지금 값과 다르면 "바꾼 것이 있다"(dirty) */
     private List<Object> initial;
 
@@ -112,10 +121,38 @@ public class ScheduleDialog extends BaseDialog {
         initial = snapshot();
     }
 
-    private JButton saveButton;
-
     public boolean wasSaved() {
         return saved;
+    }
+
+    /** 열고 나서 무엇이든 바꿨는지 */
+    boolean isDirty() {
+        return initial != null && !initial.equals(snapshot());
+    }
+
+    /** 바깥 클릭: 바꾼 게 없으면 닫고, 있으면 닫지 않고 흔들어 알린다 (입력한 내용을 실수로 잃지 않게) */
+    @Override
+    protected void onScrimClick() {
+        if (busy) {
+            return;
+        }
+        Ime.commitFocused();
+        if (isDirty()) {
+            shake();
+        } else {
+            onCancel();
+        }
+    }
+
+    /** Esc: 바꾼 게 없으면 닫고, 있으면 버릴지 묻는다 ("계속 편집"이 기본) */
+    @Override
+    protected void onEscape() {
+        if (busy) {
+            return;
+        }
+        if (!isDirty() || Dialogs.confirmDiscard(this)) {
+            onCancel();
+        }
     }
 
     private static String repeatLabel(RepeatRule r) {
@@ -163,7 +200,7 @@ public class ScheduleDialog extends BaseDialog {
         applyAllDay(false);
         form.add(row(memoBlock()));
         form.add(errors.label(Field.GENERAL));
-        JPanel root = new proto.ui.component.WidthPanel(new BorderLayout(), 520);
+        JPanel root = new WidthPanel(new BorderLayout(), BODY_WIDTH);
         TokenLabel heading = new TokenLabel(getTitle(), Fonts.semibold(Fonts.TITLE), Tokens.TEXT);
         heading.setBorder(BorderFactory.createEmptyBorder(0, 0, Ui.px(18), 0));
         root.add(heading, BorderLayout.NORTH);
@@ -172,9 +209,9 @@ public class ScheduleDialog extends BaseDialog {
     }
 
     private CollapseRow collapsible(JPanel content) {
-        CollapseRow c = new CollapseRow(content, this::relayout);
-        c.setAlignmentX(LEFT_ALIGNMENT);
-        return c;
+        CollapseRow row = new CollapseRow(content, this::relayout);
+        row.setAlignmentX(LEFT_ALIGNMENT);
+        return row;
     }
 
     /** "하루 종일" 한 줄: 글자(누르면 스위치도 바뀐다)와 오른쪽 스위치. Enter는 저장이 아니라 스위치를 바꾸는 데만 쓴다 */
@@ -199,7 +236,7 @@ public class ScheduleDialog extends BaseDialog {
         });
         JPanel p = new JPanel(new BorderLayout());
         p.setOpaque(false);
-        p.setBorder(BorderFactory.createEmptyBorder(0, 0, Ui.px(14), 0));
+        p.setBorder(BorderFactory.createEmptyBorder(0, 0, Ui.px(ROW_GAP), 0));
         p.add(label, BorderLayout.WEST);
         p.add(allDay, BorderLayout.EAST);
         p.setAlignmentX(LEFT_ALIGNMENT);
@@ -221,7 +258,7 @@ public class ScheduleDialog extends BaseDialog {
     private static JPanel row(JPanel block) {
         JPanel p = new JPanel(new BorderLayout());
         p.setOpaque(false);
-        p.setBorder(BorderFactory.createEmptyBorder(0, 0, Ui.px(14), 0));
+        p.setBorder(BorderFactory.createEmptyBorder(0, 0, Ui.px(ROW_GAP), 0));
         p.add(block, BorderLayout.CENTER);
         p.setAlignmentX(LEFT_ALIGNMENT);
         return p;
@@ -275,7 +312,7 @@ public class ScheduleDialog extends BaseDialog {
         memo.setLineWrap(true);
         memo.setWrapStyleWord(true);
         memo.setFont(Fonts.regular(Fonts.BODY));
-        proto.ui.component.Listeners.onTextChange(memo, this::updateCounter);
+        Listeners.onTextChange(memo, this::updateCounter);
         JScrollPane scroll = new JScrollPane(memo);
         scroll.setPreferredSize(new Dimension(Ui.px(100), Ui.px(84)));
         scroll.putClientProperty("JComponent.roundRect", true);
@@ -326,39 +363,9 @@ public class ScheduleDialog extends BaseDialog {
 
     /** 지금 입력값을 비교할 수 있게 모은다. 시간은 읽을 수 없는 글자여도 입력한 글자 그대로 비교한다 */
     private List<Object> snapshot() {
-        return java.util.Arrays.asList(title.getText(), date.getDate(), start.getEditor().getItem(),
+        return Arrays.asList(title.getText(), date.getDate(), start.getEditor().getItem(),
                 end.getEditor().getItem(), category.getSelectedIndex(), repeat.value(), hasRepeatEnd.isSelected(),
                 repeatEnd.getDate(), reminder.getSelectedItem(), memo.getText(), allDay.isOn(), colors.value());
-    }
-
-    /** 열고 나서 무엇이든 바꿨는지 */
-    boolean isDirty() {
-        return initial != null && !initial.equals(snapshot());
-    }
-
-    /** 바깥 클릭: 바꾼 게 없으면 닫고, 있으면 닫지 않고 흔들어 알린다 (입력한 내용을 실수로 잃지 않게) */
-    @Override
-    protected void onScrimClick() {
-        if (busy) {
-            return;
-        }
-        Ime.commitFocused();
-        if (isDirty()) {
-            shake();
-        } else {
-            onCancel();
-        }
-    }
-
-    /** Esc: 바꾼 게 없으면 닫고, 있으면 버릴지 묻는다 ("계속 편집"이 기본) */
-    @Override
-    protected void onEscape() {
-        if (busy) {
-            return;
-        }
-        if (!isDirty() || Dialogs.confirmDiscard(this)) {
-            onCancel();
-        }
     }
 
     /** 저장·삭제가 진행되는 동안 버튼을 잠근다 (Enter를 연타해도 두 번 저장되지 않게) */
@@ -386,13 +393,14 @@ public class ScheduleDialog extends BaseDialog {
     }
 
     /** 시간 입력칸 둘을 검사해 읽을 수 없는 칸을 표시하고 안내 문장을 돌려준다 (문제 없으면 null) */
-    private String timeProblem(LocalTime s, LocalTime e) {
-        start.markInvalid(s == null);
-        end.markInvalid(e == null);
-        if (s != null && e != null) {
+    private String timeProblem(LocalTime startTime, LocalTime endTime) {
+        start.markInvalid(startTime == null);
+        end.markInvalid(endTime == null);
+        if (startTime != null && endTime != null) {
             return null;
         }
-        String which = s == null && e == null ? "시작과 끝 시간을" : s == null ? "시작 시간을" : "끝 시간을";
+        String which = startTime == null && endTime == null ? "시작과 끝 시간을"
+                : startTime == null ? "시작 시간을" : "끝 시간을";
         return which + " 14:00처럼 입력해 주세요";
     }
 
@@ -404,35 +412,38 @@ public class ScheduleDialog extends BaseDialog {
     /** 입력값을 읽는다. 시간을 읽을 수 없으면 오류를 보여 주고 null */
     private ScheduleDraft readDraft() {
         if (allDay.isOn()) {
-            return draftOf(LocalTime.MIDNIGHT, LocalTime.of(23, 59), ReminderOption.NONE);
+            return draftOf(LocalTime.MIDNIGHT, ALL_DAY_END, ReminderOption.NONE);
         }
-        LocalTime s = start.time();
-        LocalTime e = end.time();
-        String problem = timeProblem(s, e);
+        LocalTime startTime = start.time();
+        LocalTime endTime = end.time();
+        String problem = timeProblem(startTime, endTime);
         if (problem != null) {
             errors.show(Field.TIME, problem);
             return null;
         }
-        return draftOf(s, e, (ReminderOption) reminder.getSelectedItem());
+        return draftOf(startTime, endTime, (ReminderOption) reminder.getSelectedItem());
     }
 
-    /** 칸에 적힌 값으로 입력값을 만든다. 일정만의 색(없으면 카테고리 색)도 담는다. 하루 종일이면 시간은 00:00~23:59, 알림은 없음으로 보내고(어차피 controller가 그렇게 맞춘다) allDay를 켠다 */
-    private ScheduleDraft draftOf(LocalTime s, LocalTime e, ReminderOption reminderOption) {
+    /**
+     * 칸에 적힌 값으로 입력값을 만든다. 일정만의 색(없으면 카테고리 색)도 담는다.
+     * 하루 종일이면 시간은 00:00~23:59, 알림은 없음으로 보내고(어차피 controller가 그렇게 맞춘다) allDay를 켠다.
+     */
+    private ScheduleDraft draftOf(LocalTime startTime, LocalTime endTime, ReminderOption reminderOption) {
         Category c = (Category) category.getSelectedItem();
         LocalDate until = repeat.value() != RepeatRule.NONE && hasRepeatEnd.isSelected() ? repeatEnd.getDate() : null;
-        return new ScheduleDraft(title.getText(), date.getDate(), s, e, c == null ? null : c.getId(), memo.getText(),
+        return new ScheduleDraft(title.getText(), date.getDate(), startTime, endTime, c == null ? null : c.getId(), memo.getText(),
                 repeat.value(), until, reminderOption, allDay.isOn(), colors.value());
     }
 
     /** 지금 고른 카테고리의 색 ("색" 줄의 첫 점이 이 색으로 그려진다) */
-    private java.awt.Color categoryColor() {
+    private Color categoryColor() {
         Category c = (Category) category.getSelectedItem();
-        return proto.ui.theme.CategoryColors.of(c == null ? null : c.getId());
+        return CategoryColors.of(c == null ? null : c.getId());
     }
 
     /**
-     * 저장. 이미 진행 중이면 무시한다. 왜 Ime.swallowIfComposing인가: 한글을 입력하는 중에 누른 Enter는 마지막 글자를 확정하는 용도이므로 저장으로 이어지면 안 된다. 마우스
-     * 클릭은 그대로 저장한다.
+     * 저장. 이미 진행 중이면 무시한다.
+     * 한글을 입력하는 중에 누른 Enter는 마지막 글자를 확정하는 용도이므로(Ime.swallowIfComposing) 저장으로 이어지면 안 된다. 마우스 클릭은 그대로 저장한다.
      */
     private void onSave(boolean fromKeyboard) {
         if (busy || (fromKeyboard && Ime.swallowIfComposing())) {
@@ -447,7 +458,7 @@ public class ScheduleDialog extends BaseDialog {
         }
     }
 
-    /** 순서가 이렇다: 범위를 검증보다 먼저 묻는 이유는 "이 일정만"으로 바꾸면 반복이 사라지므로, 검증을 그 범위에 맞는 규칙(반복 없음)으로 해야 하기 때문이다. */
+    /** 범위를 검증보다 먼저 묻는 이유: "이 일정만"으로 바꾸면 반복이 사라지므로, 검증을 그 범위에 맞는 규칙(반복 없음)으로 해야 하기 때문이다. */
     private void save() {
         errors.clear();
         ScheduleDraft draft = readDraft();
@@ -463,7 +474,6 @@ public class ScheduleDialog extends BaseDialog {
             }
             target = latest.get();
         }
-        // 반복 일정이면 범위를 먼저 고른다. "이 일정만"은 반복이 떨어져 나가므로 그 규칙으로 검사해야 한다
         Optional<EditScope> scope = chooseScope(target);
         if (scope.isEmpty()) {
             return;
