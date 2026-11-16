@@ -14,7 +14,9 @@ import proto.ui.component.Overlay;
 import proto.ui.layout.SizeClass;
 import proto.ui.layout.SizeClass.Width;
 import proto.ui.motion.Motion;
+import proto.ui.theme.Ui;
 
+import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import java.nio.file.Path;
 
@@ -22,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 사이드바 숨기기: 숨기면 너비가 0이 되어 전체 사이드바도 아이콘 띠도 보이지 않고, 다시 보이면 원래 너비로 돌아온다 */
+/** 사이드바 숨기기: 숨기면 너비가 0이 되어 전체 사이드바도 아이콘 띠도 보이지 않고, 다시 보이면 원래 너비로 돌아온다. 서랍이 가져간 사이드바는 건드리지 않는다 */
 class SidebarHideTest {
 
     private static final SizeClass WIDE = new SizeClass(Width.WIDE, false, false);
@@ -91,8 +93,26 @@ class SidebarHideTest {
             assertEquals(0, host.getPreferredSize().width);
             host.setHidden(false, false);
             layout(host);
-            assertTrue(host.getPreferredSize().width > 0);
+            assertEquals(Ui.px(COMPACT.sidebarWidth()), host.getPreferredSize().width, "띠 너비로 정확히 돌아온다");
             assertTrue(find(host, SidebarRail.class).isVisible(), "좁은 화면에서 다시 보이면 아이콘 띠가 보인다");
+        });
+    }
+
+    @Test
+    void 서랍이_가져간_전체_사이드바는_틀이_다시_배치해도_건드리지_않는다() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            Sidebar full = new Sidebar(ctx, m -> { }, c -> { }, d -> { }, () -> { }, () -> { });
+            SidebarHost host = new SidebarHost(full, new SidebarRail(ctx, m -> { }, () -> { }, () -> { }), COMPACT);
+            host.apply(COMPACT, false);
+            JPanel drawer = new JPanel(null);
+            drawer.add(host.releaseFull());
+            full.setBounds(5, 0, 300, 700);
+            full.setVisible(true);
+            host.apply(new SizeClass(Width.COMPACT, true, false), false);
+            layout(host);
+            assertEquals(drawer, full.getParent());
+            assertTrue(full.isVisible(), "서랍 안의 사이드바가 숨겨졌다");
+            assertEquals(300, full.getWidth(), "서랍 안의 사이드바 크기가 바뀌었다");
         });
     }
 
